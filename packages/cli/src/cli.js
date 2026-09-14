@@ -88,7 +88,10 @@ function ccusageCliPath() {
 
 async function ccusageJson(config, { full = false } = {}) {
   const args = [ccusageCliPath(), "daily", "--json", "--offline", "--by-agent", "--order", "asc"];
-  if (!full && config?.lastSyncAt) args.push("--last", "14");
+  // Normal syncs only need today plus the previous local day for timezone and
+  // midnight-boundary safety. Historical reconciliation remains explicit via
+  // `sync --full`, keeping scheduled runs short and dormant between invocations.
+  if (!full && config?.lastSyncAt) args.push("--last", "2");
   const { stdout } = await executeFile(process.execPath, args, {
     encoding: "utf8",
     maxBuffer: MAX_REPORT_BYTES,

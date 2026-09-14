@@ -35,6 +35,7 @@ UsageMax uses [ccusage](https://github.com/ccusage/ccusage) for local source det
 - The sync payload contains aggregate token counts, model/provider names, costs, source names, and dates.
 - It does not upload prompts, completions, source code, file contents, project paths, or provider credentials.
 - Sync is one-shot. There is no resident scanner or high-frequency polling loop.
+- After the first import, normal syncs inspect only the current and previous local day; use `sync --full` to reconcile older history.
 - The collector key is written with user-only permissions where the operating system supports them.
 
 Use `USAGEMAX_CONFIG_DIR` to select another config directory. Development/self-hosted installations may set `USAGEMAX_LINK_ENDPOINT` before linking.
