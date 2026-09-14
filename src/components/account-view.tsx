@@ -8,6 +8,7 @@ import { AuthLoading, Authenticated, Unauthenticated, useAction, useMutation, us
 
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { AuthNavigation } from "./auth-navigation";
 import { ArrowUpRight } from "./icons";
 
 function friendlyError(error: unknown) {
@@ -176,5 +177,5 @@ function AccountPanel() {
 }
 
 export function AccountView() {
-  return <section className="account-page shell"><AuthLoading><div className="account-loading">Loading your secure workspace…</div></AuthLoading><Authenticated><AccountPanel /></Authenticated><Unauthenticated><div className="account-signin"><span className="section-index">UsageMax account</span><h1>Your usage belongs to you.</h1><p>Continue with GitHub or Google to create a private workspace, link computers, and choose what appears publicly.</p><Link className="button button-dark" href="/sign-in">Continue to secure sign in <ArrowUpRight size={15} /></Link></div></Unauthenticated></section>;
+  return <section className="account-page shell"><AuthLoading><div className="account-loading">Loading your secure workspace…</div></AuthLoading><Authenticated><AccountPanel /></Authenticated><Unauthenticated><div className="account-signin"><span className="section-index">UsageMax account</span><h1>Your usage belongs to you.</h1><p>Continue with GitHub or Google to create a private workspace, link computers, and choose what appears publicly.</p><AuthNavigation className="button button-dark" href="/sign-in">Continue to secure sign in <ArrowUpRight size={15} /></AuthNavigation></div></Unauthenticated></section>;
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useAuth } from "@workos-inc/authkit-nextjs/components";
 
 import { ArrowUpRight } from "./icons";
+import { AuthNavigation } from "./auth-navigation";
 
 function GitHubMark({ size = 15 }: { size?: number }) {
   return (
@@ -24,9 +25,9 @@ export function HeaderAuthControls() {
     );
   }
   return (
-    <Link className="header-login header-github" href="/sign-in">
+    <AuthNavigation className="header-login header-github" href="/sign-in">
       <GitHubMark /> Sign in
-    </Link>
+    </AuthNavigation>
   );
 }
 
@@ -36,7 +37,7 @@ export function MobileAuthLink() {
   return user ? (
     <Link href="/account">Account <ArrowUpRight size={14} /></Link>
   ) : (
-    <Link href="/sign-in">Sign in <GitHubMark size={14} /></Link>
+    <AuthNavigation href="/sign-in">Sign in <GitHubMark size={14} /></AuthNavigation>
   );
 }
 
