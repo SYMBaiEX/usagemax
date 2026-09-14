@@ -50,6 +50,7 @@ type Rollup = {
   cacheReadTokens: number;
   cacheWriteTokens: number;
   reasoningTokens: number;
+  unclassifiedTokens: number;
   totalTokens: number;
   costMicros: number;
   requests: number;
@@ -66,6 +67,7 @@ const emptyRollup = (): Rollup => ({
   cacheReadTokens: 0,
   cacheWriteTokens: 0,
   reasoningTokens: 0,
+  unclassifiedTokens: 0,
   totalTokens: 0,
   costMicros: 0,
   requests: 0,
@@ -80,6 +82,11 @@ function addEvent(target: Rollup, event: Event) {
   target.cacheReadTokens += event.cacheReadTokens;
   target.cacheWriteTokens += event.cacheWriteTokens;
   target.reasoningTokens += event.reasoningTokens;
+  target.unclassifiedTokens += Math.max(0, event.totalTokens
+    - event.inputTokens
+    - event.outputTokens
+    - event.cacheReadTokens
+    - event.cacheWriteTokens);
   target.totalTokens += event.totalTokens;
   target.costMicros += event.costMicros;
   target.requests += event.eventType === "model_request" ? 1 : 0;
@@ -317,7 +324,7 @@ export const commitBatch = internalMutation({
         cacheReadTokens: (prior?.cacheReadTokens ?? 0) + rollup.cacheReadTokens,
         cacheWriteTokens: (prior?.cacheWriteTokens ?? 0) + rollup.cacheWriteTokens,
         reasoningTokens: (prior?.reasoningTokens ?? 0) + rollup.reasoningTokens,
-        unclassifiedTokens: (prior?.unclassifiedTokens ?? 0),
+        unclassifiedTokens: (prior?.unclassifiedTokens ?? 0) + rollup.unclassifiedTokens,
         totalTokens: (prior?.totalTokens ?? 0) + rollup.totalTokens,
         costMicros: (prior?.costMicros ?? 0) + rollup.costMicros,
         costBasis: mergeCostBasis(prior?.costBasis, aggregateCostBasis(rollup.costBasisMask)),
@@ -338,7 +345,7 @@ export const commitBatch = internalMutation({
       const update = {
         totalTokens: (prior?.totalTokens ?? 0) + rollup.totalTokens,
         outputTokens: (prior?.outputTokens ?? 0) + rollup.outputTokens,
-        unclassifiedTokens: (prior?.unclassifiedTokens ?? 0),
+        unclassifiedTokens: (prior?.unclassifiedTokens ?? 0) + rollup.unclassifiedTokens,
         costMicros: (prior?.costMicros ?? 0) + rollup.costMicros,
         costBasis: mergeCostBasis(prior?.costBasis, aggregateCostBasis(rollup.costBasisMask)),
         sessions: (prior?.sessions ?? 0) + (sessionsByDay.get(day) ?? 0),
@@ -398,7 +405,7 @@ export const commitBatch = internalMutation({
         .unique();
       const update = {
         outputTokens: (prior?.outputTokens ?? 0) + rollup.outputTokens,
-        unclassifiedTokens: prior?.unclassifiedTokens ?? 0,
+        unclassifiedTokens: (prior?.unclassifiedTokens ?? 0) + rollup.unclassifiedTokens,
         totalTokens: (prior?.totalTokens ?? 0) + rollup.totalTokens,
         costMicros: (prior?.costMicros ?? 0) + rollup.costMicros,
         costBasis: mergeCostBasis(prior?.costBasis, aggregateCostBasis(rollup.costBasisMask)) ?? "unknown",
@@ -426,7 +433,7 @@ export const commitBatch = internalMutation({
         .unique();
       const update = {
         outputTokens: (prior?.outputTokens ?? 0) + rollup.outputTokens,
-        unclassifiedTokens: prior?.unclassifiedTokens ?? 0,
+        unclassifiedTokens: (prior?.unclassifiedTokens ?? 0) + rollup.unclassifiedTokens,
         totalTokens: (prior?.totalTokens ?? 0) + rollup.totalTokens,
         costMicros: (prior?.costMicros ?? 0) + rollup.costMicros,
         costBasis: mergeCostBasis(prior?.costBasis, aggregateCostBasis(rollup.costBasisMask)) ?? "unknown",
@@ -459,7 +466,7 @@ export const commitBatch = internalMutation({
         cacheReadTokens: (prior?.cacheReadTokens ?? 0) + rollup.cacheReadTokens,
         cacheWriteTokens: (prior?.cacheWriteTokens ?? 0) + rollup.cacheWriteTokens,
         reasoningTokens: (prior?.reasoningTokens ?? 0) + rollup.reasoningTokens,
-        unclassifiedTokens: (prior?.unclassifiedTokens ?? 0),
+        unclassifiedTokens: (prior?.unclassifiedTokens ?? 0) + rollup.unclassifiedTokens,
         costMicros: (prior?.costMicros ?? 0) + rollup.costMicros,
         costBasis: mergeCostBasis(prior?.costBasis, aggregateCostBasis(rollup.costBasisMask)),
         requests: (prior?.requests ?? 0) + rollup.requests,
@@ -504,7 +511,7 @@ export const commitBatch = internalMutation({
       cacheReadTokens: (stats?.cacheReadTokens ?? 0) + total.cacheReadTokens,
       cacheWriteTokens: (stats?.cacheWriteTokens ?? 0) + total.cacheWriteTokens,
       reasoningTokens: (stats?.reasoningTokens ?? 0) + total.reasoningTokens,
-      unclassifiedTokens: stats?.unclassifiedTokens ?? 0,
+      unclassifiedTokens: (stats?.unclassifiedTokens ?? 0) + total.unclassifiedTokens,
       costBasis: mergeCostBasis(stats?.costBasis, aggregateCostBasis(total.costBasisMask)),
       costSource: total.costBasisMask === 0
         ? stats?.costSource

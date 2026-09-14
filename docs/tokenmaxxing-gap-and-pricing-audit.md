@@ -114,11 +114,12 @@ The UsageMax client is a one-shot command with zero resident idle CPU. Its norma
 path first fingerprints file metadata and exits without parsing or uploading if
 nothing changed. On the audited Mac, that check took about 2.7 seconds and 70 MB
 maximum RSS across roughly 11,000 candidate files before path narrowing. After
-limiting discovery to known session directories, it took 0.21 seconds and 40 MB
-maximum RSS across about 6,000 candidate files. The prior two-day ccusage parse
-took about 16.7 seconds and peaked near 1.1 GB, so it now runs only after a source
-change or the daily reconciliation boundary. Historical parsing is explicit with
-`bunx usagemax sync --full`.
+limiting discovery to the exact roots of all 16 pinned ccusage adapters, it took
+0.21 seconds and 40 MB maximum RSS across about 6,000 candidate files. The prior
+two-day ccusage parse took about 16.7 seconds and peaked near 1.1 GB, so it now
+runs only after a source change or the daily reconciliation boundary. A full
+retained-history reconciliation runs on first link, after a coverage revision or
+new source, on explicit `bunx usagemax sync --full`, and at most weekly.
 
 ## Pricing policy
 
@@ -140,8 +141,11 @@ The durable policy is:
 
 ## Remaining parity and enterprise roadmap
 
-Priority 0 is accounting integrity; the implemented changes cover that path.
-The following enterprise capabilities remain first-party UsageMax product work:
+Priority 0 is accounting integrity. Idempotent additive ingestion, complete
+source discovery, unclassified-token preservation, and partial-batch retry safety
+are implemented. Authoritative source/day snapshot replacement remains required
+to apply future downward parser corrections without a rebuild. The following
+enterprise capabilities remain first-party UsageMax product work:
 
 1. Add explicit source-failure and dry-run reports to the shipped one-shot CLI,
    plus optional low-frequency OS scheduling. Do not ship a high-frequency daemon.
@@ -149,8 +153,9 @@ The following enterprise capabilities remain first-party UsageMax product work:
    with short retention and explicit opt-in; never retain prompts or code.
    The current product deliberately stores aggregates instead of pretending
    that application-level encryption without a key-management design is safe.
-3. Add a user-visible reconciliation report and parser cursors beyond the current
-   day-level metadata fingerprint. Freshness, rotation, and revocation are implemented.
+3. Add server-owned authoritative source/day snapshots, a user-visible
+   reconciliation report, and parser cursors beyond the current metadata
+   fingerprint. Freshness, rotation, and revocation are implemented.
 4. Add encrypted contract-rate and invoice-adjustment records plus provider
    billing reconciliation. Pricing version, service tier, region, currency,
    project, and cost-center event dimensions are implemented.

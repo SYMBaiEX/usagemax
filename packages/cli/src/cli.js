@@ -1,25 +1,25 @@
 #!/usr/bin/env node
 
 import { execFile, spawn } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
-import { chmod, mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { chmod, mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { homedir, platform } from "node:os";
-import { delimiter, dirname, extname, join } from "node:path";
+import { dirname, join } from "node:path";
 import process from "node:process";
 import { promisify } from "node:util";
 
 import { batchId, buildDeltaPlan, normalizeLinkCode, sourceSummary, validHttpsUrl } from "./core.js";
 import { stableInstallationId } from "./installation.js";
+import { CCUSAGE_VERSION, ccusageEnvironment, SOURCE_INVENTORY_VERSION, sourceInventory, SUPPORTED_SOURCES } from "./sources.js";
 
 const require = createRequire(import.meta.url);
 const executeFile = promisify(execFile);
-const VERSION = "0.1.1";
+const VERSION = "0.2.0";
 const DEFAULT_LINK_ENDPOINT = "https://terrific-bobcat-522.convex.site/v1/devices/link";
 const CONFIG_FILE = "config.json";
 const MAX_REPORT_BYTES = 100 * 1024 * 1024;
-const MAX_FINGERPRINT_FILES = 50_000;
-const USAGE_EXTENSIONS = new Set([".db", ".json", ".jsonl", ".sqlite", ".sqlite3"]);
+const FULL_RECONCILE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 
 function configDirectory() {
   if (process.env.USAGEMAX_CONFIG_DIR) return process.env.USAGEMAX_CONFIG_DIR;
@@ -67,6 +67,7 @@ function option(args, name) {
 function deviceLabel() {
   if (platform() === "darwin") return "Mac";
   if (platform() === "win32") return "Windows PC";
+  if (platform() === "linux" && process.env.WSL_DISTRO_NAME) return `WSL · ${process.env.WSL_DISTRO_NAME}`;
   if (platform() === "linux") return "Linux computer";
   return "Computer";
 }
@@ -80,7 +81,7 @@ function help() {
   process.stdout.write("           [--no-sync] [--name <name>]\n");
   process.stdout.write("  usagemax sync [--full] [--json] Sync usage once, then exit\n");
   process.stdout.write("  usagemax status                  Show local link status\n");
-  process.stdout.write("  usagemax doctor [--deep]         Check sources without parsing logs\n");
+  process.stdout.write("  usagemax doctor [--deep]         Check source coverage; --deep parses full history\n");
   process.stdout.write("  usagemax report [...args]        Run a local ccusage report\n");
   process.stdout.write("  usagemax unlink                  Remove the local collector key\n");
 }
@@ -89,91 +90,21 @@ function ccusageCliPath() {
   return join(dirname(require.resolve("ccusage/package.json")), "src", "cli.js");
 }
 
-function configuredPaths(variable, fallbacks) {
-  const configured = process.env[variable];
-  return configured
-    ? configured.split(",").flatMap((group) => group.split(delimiter)).map((value) => value.trim()).filter(Boolean)
-    : fallbacks;
-}
-
-function usageRoots() {
-  const home = homedir();
-  return [
-    ["claude", configuredPaths("CLAUDE_CONFIG_DIR", [join(home, ".config", "claude", "projects"), join(home, ".claude", "projects")])],
-    ["codex", configuredPaths("CODEX_HOME", [join(home, ".codex", "sessions"), join(home, ".codex", "archived_sessions")])],
-    ["opencode", configuredPaths("OPENCODE_DATA_DIR", [join(home, ".local", "share", "opencode")])],
-    ["hermes", configuredPaths("HERMES_HOME", [join(home, ".hermes", "sessions")])],
-    ["pi", configuredPaths("PI_AGENT_DIR", [join(home, ".pi", "agent", "sessions")])],
-    ["copilot", configuredPaths("COPILOT_HOME", [join(home, ".copilot")])],
-    ["gemini", configuredPaths("GEMINI_DATA_DIR", [join(home, ".gemini", "tmp")])],
-  ].flatMap(([source, paths]) => paths.map((path) => ({ source, path })));
-}
-
-async function sourceInventory() {
-  const hash = createHash("sha256");
-  const sources = new Set();
-  const roots = usageRoots();
-  let files = 0;
-  let truncated = false;
-  for (const root of roots) {
-    try {
-      const rootStat = await stat(root.path);
-      if (!rootStat.isDirectory() && !rootStat.isFile()) continue;
-      sources.add(root.source);
-    } catch {
-      continue;
-    }
-    const stack = [root.path];
-    while (stack.length && files < MAX_FINGERPRINT_FILES) {
-      const current = stack.pop();
-      let entries;
-      try {
-        entries = await readdir(current, { withFileTypes: true });
-      } catch {
-        try {
-          const metadata = await stat(current);
-          if (metadata.isFile() && USAGE_EXTENSIONS.has(extname(current).toLowerCase())) {
-            hash.update(`${root.source}\u0000${current}\u0000${metadata.size}\u0000${metadata.mtimeMs}\n`);
-            files += 1;
-          }
-        } catch {}
-        continue;
-      }
-      for (const entry of entries) {
-        const path = join(current, entry.name);
-        if (entry.isDirectory()) {
-          if (!["node_modules", ".git", "cache", "tmp"].includes(entry.name)) stack.push(path);
-          continue;
-        }
-        if (!entry.isFile() || !USAGE_EXTENSIONS.has(extname(entry.name).toLowerCase())) continue;
-        try {
-          const metadata = await stat(path);
-          hash.update(`${root.source}\u0000${path}\u0000${metadata.size}\u0000${metadata.mtimeMs}\n`);
-          files += 1;
-        } catch {}
-        if (files >= MAX_FINGERPRINT_FILES) {
-          truncated = true;
-          break;
-        }
-      }
-    }
-  }
-  return { fingerprint: hash.digest("hex"), sources: [...sources].sort(), files, truncated };
-}
-
 async function ccusageJson(config, { full = false } = {}) {
-  const args = [ccusageCliPath(), "daily", "--json", "--offline", "--by-agent", "--order", "asc"];
+  const args = [ccusageCliPath(), "daily", "--json", "--offline", "--mode", "calculate", "--timezone", "UTC", "--by-agent", "--order", "asc"];
   // Reconcile yesterday once after the UTC date changes. All other incremental
   // scans parse only today; a metadata fingerprint avoids invoking ccusage when
   // no supported local source changed at all.
-  if (!full && config?.lastSyncAt) {
+  if (full) {
+    args.push("--since", "2024-01-01", "--until", new Date().toISOString().slice(0, 10));
+  } else if (config?.lastSyncAt) {
     const today = new Date().toISOString().slice(0, 10);
     args.push("--last", config.lastReconciledDay === today ? "1" : "2");
   }
   const { stdout } = await executeFile(process.execPath, args, {
     encoding: "utf8",
     maxBuffer: MAX_REPORT_BYTES,
-    env: { ...process.env, NO_COLOR: "1" },
+    env: { ...await ccusageEnvironment(), NO_COLOR: "1" },
   });
   return JSON.parse(stdout);
 }
@@ -226,17 +157,27 @@ async function sync(args, suppliedConfig) {
   const config = suppliedConfig || await readConfig();
   if (!config) throw new Error("This computer is not linked. Open https://usagemax.com/account and create a link code.");
   config.deviceId = await stableInstallationId(configDirectory(), config.deviceId);
-  const full = args.includes("--full");
+  const requestedFull = args.includes("--full");
   const inventory = await sourceInventory();
   const today = new Date().toISOString().slice(0, 10);
-  if (!full && config.lastReconciledDay === today && config.sourceFingerprint === inventory.fingerprint) {
-    const result = { accepted: 0, changedRows: 0, sources: inventory.sources, regressions: 0, scanned: false };
+  const knownSources = Array.isArray(config.knownSources) ? config.knownSources : [];
+  const foundNewSource = inventory.sources.some((source) => !knownSources.includes(source));
+  const lastFullSync = Date.parse(config.lastFullSyncAt || "");
+  const fullDue = config.sourceInventoryVersion !== SOURCE_INVENTORY_VERSION
+    || !Number.isFinite(lastFullSync)
+    || Date.now() - lastFullSync >= FULL_RECONCILE_INTERVAL_MS
+    || foundNewSource;
+  const full = requestedFull || fullDue;
+  if (!full && inventory.complete && config.lastSyncComplete && config.lastReconciledDay === today && config.sourceFingerprint === inventory.fingerprint) {
+    const result = { accepted: 0, changedRows: 0, sources: inventory.sources, regressions: 0, scanned: false, full: false };
     if (args.includes("--json")) process.stdout.write(`${JSON.stringify(result)}\n`);
     else process.stdout.write("Already up to date. Local usage files have not changed; no logs were parsed or uploaded.\n");
     return;
   }
   const report = await ccusageJson(config, { full });
-  const { plan, regressions } = buildDeltaPlan(report, config.snapshots, config.deviceId, "ccusage@20.0.20");
+  const { plan, regressions } = buildDeltaPlan(report, config.snapshots, config.deviceId, `ccusage@${CCUSAGE_VERSION}`);
+  config.lastSyncComplete = false;
+  await writeConfig(config);
   let accepted = 0;
   for (let offset = 0; offset < plan.length; offset += 100) {
     const batch = plan.slice(offset, offset + 100);
@@ -257,20 +198,21 @@ async function sync(args, suppliedConfig) {
     accepted += Number(body.accepted || 0);
     for (const item of batch) config.snapshots[item.snapshotKey] = item.snapshot;
     config.lastSyncAt = new Date().toISOString();
-    config.lastReconciledDay = today;
-    config.sourceFingerprint = inventory.fingerprint;
     await writeConfig(config);
   }
-  if (!plan.length) {
-    config.lastSyncAt = new Date().toISOString();
-    config.lastReconciledDay = today;
-    config.sourceFingerprint = inventory.fingerprint;
-    await writeConfig(config);
-  }
-  const result = { accepted, changedRows: plan.length, sources: sourceSummary(report), regressions: regressions.length, scanned: true };
+  config.lastSyncAt = new Date().toISOString();
+  config.lastReconciledDay = today;
+  config.lastSyncComplete = true;
+  config.sourceInventoryVersion = SOURCE_INVENTORY_VERSION;
+  config.knownSources = [...new Set([...knownSources, ...inventory.sources, ...sourceSummary(report)])].sort();
+  if (inventory.complete) config.sourceFingerprint = inventory.fingerprint;
+  else delete config.sourceFingerprint;
+  if (full) config.lastFullSyncAt = config.lastSyncAt;
+  await writeConfig(config);
+  const result = { accepted, changedRows: plan.length, sources: sourceSummary(report), regressions: regressions.length, scanned: true, full };
   if (args.includes("--json")) process.stdout.write(`${JSON.stringify(result)}\n`);
   else {
-    process.stdout.write(plan.length ? `Synced ${accepted} changed usage rows from ${result.sources.join(", ") || "local agents"}.\n` : "Already up to date. No usage rows were uploaded.\n");
+    process.stdout.write(plan.length ? `Synced ${accepted} changed usage rows from ${result.sources.join(", ") || "local agents"}${full ? " (full history)" : ""}.\n` : `Already up to date. No usage rows were uploaded${full ? " after a full-history reconciliation" : ""}.\n`);
     if (regressions.length) process.stdout.write(`${regressions.length} local row(s) moved backward; UsageMax kept the prior high-water mark to prevent double counting.\n`);
   }
 }
@@ -288,6 +230,7 @@ async function status() {
   }
   process.stdout.write(`Linked: ${config.deviceName || deviceLabel()}${config.profileHandle ? ` → @${config.profileHandle}` : ""}\n`);
   process.stdout.write(`Last sync: ${config.lastSyncAt || "never"}\n`);
+  process.stdout.write(`Last full reconciliation: ${config.lastFullSyncAt || "never"}\n`);
   process.stdout.write(`Profile: ${config.profileUrl || "https://usagemax.com/account"}\n`);
 }
 
@@ -296,8 +239,13 @@ async function doctor(args = []) {
   const inventory = await sourceInventory();
   process.stdout.write(`Collector: ${config ? "linked" : "not linked"}\n`);
   process.stdout.write(`Detected sources: ${inventory.sources.join(", ") || "none"} (${inventory.files}${inventory.truncated ? "+" : ""} data files)\n`);
+  process.stdout.write(`Supported sources: ${SUPPORTED_SOURCES.join(", ")} (+ named pi-format stores)\n`);
+  if (platform() === "linux" && process.env.WSL_DISTRO_NAME) {
+    process.stdout.write(`Environment: WSL ${process.env.WSL_DISTRO_NAME}; its Linux home is collected separately from Windows\n`);
+  }
+  if (!inventory.complete) process.stdout.write(`Inventory: incomplete (${inventory.errors} read error(s)${inventory.truncated ? ", file limit reached" : ""}); no-change shortcut disabled\n`);
   if (args.includes("--deep")) {
-    const report = await ccusageJson(config, { full: false });
+    const report = await ccusageJson(config, { full: true });
     process.stdout.write(`Parsed sources: ${sourceSummary(report).join(", ") || "none"}\n`);
   }
   process.stdout.write(`Mode: one-shot, metadata no-op check, ${args.includes("--deep") ? "deep local parse" : "no log parsing"}\n`);
@@ -305,7 +253,10 @@ async function doctor(args = []) {
 
 async function report(args) {
   const forwarded = args.length ? args : ["daily"];
-  const child = spawn(process.execPath, [ccusageCliPath(), ...forwarded], { stdio: "inherit", env: process.env });
+  const child = spawn(process.execPath, [ccusageCliPath(), ...forwarded], {
+    stdio: "inherit",
+    env: await ccusageEnvironment(),
+  });
   const code = await new Promise((resolve, reject) => {
     child.once("error", reject);
     child.once("exit", (status) => resolve(status ?? 1));

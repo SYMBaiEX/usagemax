@@ -22,12 +22,24 @@ function text(value, fallback, maximum = 120) {
 }
 
 function providerFor(model, source) {
-  const name = model.toLowerCase();
+  const displayName = model.toLowerCase().replace(/^\[[^\]]+\]\s*/, "");
+  const name = displayName.replace(/^api[-_:]/, "");
+  if (name.startsWith("openrouter/")) return "openrouter";
+  if (name.startsWith("azure/") || name.startsWith("azure-openai/")) return "azure-openai";
+  if (name.startsWith("bedrock/") || name.startsWith("aws/")) return "aws-bedrock";
+  if (name.startsWith("vertex/") || name.startsWith("vertex_ai/") || name.startsWith("google/")) return "google";
   if (name.includes("claude")) return "anthropic";
   if (/^(?:gpt|o[1345]|codex)/.test(name) || name.includes("openai")) return "openai";
   if (name.includes("gemini")) return "google";
   if (name.includes("grok")) return "xai";
   if (name.includes("deepseek")) return "deepseek";
+  if (name.includes("kimi") || name.includes("moonshot")) return "moonshot";
+  if (name.includes("qwen")) return "alibaba";
+  if (name.includes("glm") || name.includes("zai") || name.includes("z.ai")) return "zai";
+  if (name.includes("mistral") || name.includes("codestral")) return "mistral";
+  if (name.includes("llama") || name.includes("meta/")) return "meta";
+  if (name.includes("minimax")) return "minimax";
+  if (name.includes("command-r") || name.includes("cohere")) return "cohere";
   return source;
 }
 
@@ -74,6 +86,8 @@ function currentRows(report) {
             cacheReadTokens: rawAgent.cacheReadTokens,
             cost: rawAgent.totalCost,
           }];
+      let allocatedTokens = 0;
+      let allocatedCostMicros = 0;
       for (const rawBreakdown of breakdowns) {
         if (!rawBreakdown || typeof rawBreakdown !== "object") continue;
         const model = text(rawBreakdown.modelName, "unknown", 120);
@@ -82,6 +96,10 @@ function currentRows(report) {
         const cacheWriteTokens = number(rawBreakdown.cacheCreationTokens);
         const cacheReadTokens = number(rawBreakdown.cacheReadTokens);
         const costMicros = moneyMicros(rawBreakdown.cost);
+        const classifiedTokens = inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens;
+        const totalTokens = Math.max(classifiedTokens, number(rawBreakdown.totalTokens));
+        allocatedTokens += totalTokens;
+        allocatedCostMicros += costMicros;
         rows.push({
           key: `${source}\u001f${period}\u001f${model}`,
           source,
@@ -92,8 +110,26 @@ function currentRows(report) {
             outputTokens,
             cacheReadTokens,
             cacheWriteTokens,
-            totalTokens: inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens,
+            totalTokens,
             costMicros,
+          },
+        });
+      }
+      const residualTokens = Math.max(0, number(rawAgent.totalTokens) - allocatedTokens);
+      const residualCostMicros = Math.max(0, moneyMicros(rawAgent.totalCost) - allocatedCostMicros);
+      if (residualTokens > 0 || residualCostMicros > 0) {
+        rows.push({
+          key: `${source}\u001f${period}\u001funattributed`,
+          source,
+          period,
+          model: "unattributed",
+          current: {
+            inputTokens: 0,
+            outputTokens: 0,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+            totalTokens: residualTokens,
+            costMicros: residualCostMicros,
           },
         });
       }

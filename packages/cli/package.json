@@ -1,6 +1,6 @@
 {
   "name": "usagemax",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Link local coding-agent usage to your UsageMax profile",
   "license": "MIT",
   "author": "UsageMax",
@@ -21,6 +21,7 @@
     "src/cli.js",
     "src/core.js",
     "src/installation.js",
+    "src/sources.js",
     "README.md",
     "LICENSE"
   ],

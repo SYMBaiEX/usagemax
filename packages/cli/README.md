@@ -1,43 +1,88 @@
 # UsageMax CLI
 
-Connect aggregate coding-agent usage from your computer to a private UsageMax workspace.
+Connect aggregate coding-agent usage from every computer to one private UsageMax workspace.
 
 ## Quick start
 
 1. Sign in at [usagemax.com/account](https://usagemax.com/account).
 2. Choose **Link a computer** and copy the one-time command.
-3. Run it locally:
+3. Run it in each operating-system environment that contains usage history:
 
 ```bash
-bunx usagemax link UMX-XXXX-XXXX-XXXX-XXXX
+bunx usagemax@latest link UMX-XXXX-XXXX-XXXX-XXXX
 ```
 
-The link code expires after ten minutes and can be used once. The CLI stores the resulting collector key in a user-only config file, then runs a one-shot sync.
+The link code expires after ten minutes and can be used once. Create a new code
+for each Mac, Windows PC, Linux computer, and WSL distribution. All linked
+collectors roll up into the same profile. Windows and WSL have separate home
+directories, so run UsageMax once in Windows and once inside WSL when both have
+agent history.
+
+The CLI stores the resulting collector key in a user-only config file, then runs
+a one-shot full-history sync. Running it again, changing the display name, or
+relinking an installation does not create a second device: the private random
+installation identity remains stable.
 
 ## Commands
 
 ```bash
-bunx usagemax              # sync changed usage
-bunx usagemax sync         # same as above
-bunx usagemax sync --full  # inspect all available local history
-bunx usagemax link UMX-… --no-sync # link without uploading yet
-bunx usagemax status       # show link and last-sync state
-bunx usagemax doctor       # metadata-only source check; does not parse logs
-bunx usagemax doctor --deep # opt into a full local parser check
-bunx usagemax report       # open ccusage's local daily report
+bunx usagemax                       # sync changed usage
+bunx usagemax sync                  # same as above
+bunx usagemax sync --full           # reconcile all retained local history
+bunx usagemax link UMX-… --no-sync  # link without uploading yet
+bunx usagemax status                # show link and last-sync state
+bunx usagemax doctor                # metadata-only source check
+bunx usagemax doctor --deep         # parse and verify all retained history
+bunx usagemax report                # open ccusage's local daily report
 bunx usagemax report session --breakdown
-bunx usagemax unlink       # remove the local collector key
+bunx usagemax unlink                # remove the local collector key
 ```
 
-UsageMax uses [ccusage](https://github.com/ccusage/ccusage) for local source detection, responsive reports, cached pricing, model breakdowns, date handling, and support for popular coding-agent CLIs. `report` passes its remaining arguments to ccusage.
+UsageMax pins [ccusage v20.0.20](https://github.com/ccusage/ccusage/releases/tag/v20.0.20)
+and supports all 16 adapters shipped in that release: Amp, Claude Code, Codebuff,
+Codex, GitHub Copilot CLI, Factory Droid, Gemini CLI, Goose, Grok Build, Hermes,
+Kilo Code, Kimi CLI, OpenClaw, OpenCode, Pi, and Qwen Code. Named Pi-format
+stores configured through ccusage are also discovered.
 
-## Privacy and load
+The source inventory follows ccusage's environment overrides, including
+`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `OPENCODE_DATA_DIR`, `AMP_DATA_DIR`,
+`DROID_SESSIONS_DIR`, `CODEBUFF_DATA_DIR`, `HERMES_HOME`, `PI_AGENT_DIR`,
+`GOOSE_PATH_ROOT`, `OPENCLAW_DIR`, `KILO_DATA_DIR`, `KIMI_DATA_DIR`,
+`QWEN_DATA_DIR`, `COPILOT_OTEL_FILE_EXPORTER_PATH`, `GEMINI_DATA_DIR`, and
+`GROK_HOME`. It also follows XDG Claude configuration and Windows Goose storage.
 
-- The sync payload contains aggregate token counts, model/provider names, costs, source names, and dates.
-- It does not upload prompts, completions, source code, file contents, project paths, or provider credentials.
+Local files are only one coverage layer. Cursor, Windsurf, Aider, Continue,
+Cline, Roo Code, direct provider API traffic, hosted agents, and enterprise
+billing systems do not all expose a stable local token ledger. Capture those
+through UsageMax's native or OTLP endpoint, or through a future provider billing
+connector. UsageMax never invents usage that the source did not retain.
+
+## Privacy, correctness, and load
+
+- The sync payload contains aggregate token counts, model/provider names, costs,
+  source names, and dates.
+- It does not upload prompts, completions, source code, file contents, project
+  paths, or provider credentials.
 - Sync is one-shot. There is no resident scanner or high-frequency polling loop.
-- After the first import, normal syncs inspect only the current and previous local day; use `sync --full` to reconcile older history.
-- The collector key is written with user-only permissions where the operating system supports them.
-- A separate private random installation ID survives collector rotation, relinking, and display-name changes. It is not a hardware fingerprint; the server stores only its SHA-256 hash. Concurrent or repeated syncs remain idempotent.
+- A metadata inventory exits without parsing logs or using the network when
+  nothing changed.
+- Normal changed syncs parse today or today plus yesterday. A bounded weekly
+  full reconciliation catches restored files, parser changes, and older logs.
+- Full history means all retained local history from 2024 onward. Deleted or
+  never-persisted usage requires a provider export; no local tool can reconstruct it.
+- Source totals that cannot be assigned to a model are retained as
+  `unattributed` rather than silently discarded.
+- The collector key is written with user-only permissions where the operating
+  system supports them.
+- A private random installation ID survives collector rotation, relinking, and
+  display-name changes. It is not a hardware fingerprint; the server stores only
+  its SHA-256 hash. Concurrent and repeated syncs are idempotent.
+- Do not point two different installations at the same copied or network-mounted
+  log tree. Cross-installation copied-history deduplication is inherently
+  ambiguous and intentionally not guessed.
 
-Use `USAGEMAX_CONFIG_DIR` to select another config directory. Development/self-hosted installations may set `USAGEMAX_LINK_ENDPOINT` before linking.
+Use `USAGEMAX_CONFIG_DIR` to select another config directory. Development and
+self-hosted installations may set `USAGEMAX_LINK_ENDPOINT` before linking.
+
+See the [collector coverage audit](../../docs/collector-coverage-audit.md) for
+the full support matrix and known boundaries.

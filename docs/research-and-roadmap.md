@@ -22,8 +22,9 @@ component code were reused.
 
 Observed reference capabilities:
 
-- local CLI aggregation through `ccusage` for Claude Code, Codex, OpenCode,
-  Gemini CLI, GitHub Copilot CLI, Hermes, and Pi;
+- local CLI aggregation through `ccusage` for Amp, Claude Code, Codebuff, Codex,
+  GitHub Copilot CLI, Factory Droid, Gemini CLI, Goose, Grok Build, Hermes, Kilo
+  Code, Kimi CLI, OpenClaw, OpenCode, Pi, Qwen Code, and named Pi-format stores;
 - device and source uploads, profiles, daily history, spend/token leaderboards,
   streaks, top model, heatmaps, and five-minute scheduled synchronization;
 - public profile, leaderboard, stats, health, settings, and administration routes.
@@ -86,10 +87,13 @@ SYMBaiEX HUD reads local machine state and never publishes animation frames or
 heartbeats to UsageMax.
 
 The installed UsageMax client is a deliberate one-shot process, not a resident
-daemon. It fingerprints metadata under known agent data directories, exits without
-parsing logs or touching the network when nothing changed, parses only the current
-day during normal sync, and reconciles the prior day once at a UTC boundary. Full
-history remains an explicit `sync --full` operation.
+daemon. It fingerprints metadata under the exact roots of all pinned local
+adapters, exits without parsing logs or touching the network when nothing changed,
+parses only the current day during normal sync, and reconciles the prior day once
+at a UTC boundary. Full retained history is reconciled on first link, on collector
+coverage changes, when a new source appears, on explicit `sync --full`, and at
+most once per week. Each macOS, Windows, Linux, WSL, VM, or server home links as
+its own stable installation and rolls up into the same account.
 
 Convex documents and functions have explicit limits, including document size,
 transaction bytes, scans, and writes; those constraints are treated as design
@@ -135,7 +139,9 @@ Enterprise value comes from measurable waste reduction and governance evidence.
 ### 0–30 days — trustworthy parity
 
 - ship UsageMax.com, public APIs, first-party profiles, and realtime leaderboards;
-- publish the one-shot local collector and setup flow for supported coding agents;
+- publish the one-shot local collector and setup flow for all pinned ccusage
+  adapters, plus an explicit coverage report for apps and direct API traffic that
+  require OTel or provider exports;
 - finish outcome capture and show cost per accepted outcome;
 - finish GitHub/Google login hardening, collector rotation, profile consent, export, deletion;
 - load-test realistic 100, 500, and 1,000 event/second workloads.
@@ -145,7 +151,9 @@ Enterprise value comes from measurable waste reduction and governance evidence.
 - team workspaces, projects, budgets, alerting, tags, and daily/weekly digests;
 - retry-waste, cache-leverage, latency, error, quality, and model-mix views;
 - signed collector releases and verifiable aggregate submissions;
-- CLI installers for Codex, Claude Code, Gemini CLI, OpenCode, Copilot, Hermes, and Pi.
+- authoritative server-owned source/day snapshots for downward corrections;
+- provider and application connectors for Cursor, Cline, Roo Code, Continue,
+  Aider, Windsurf, direct SDK traffic, and billing exports.
 
 ### 90–180 days — enterprise moat
 

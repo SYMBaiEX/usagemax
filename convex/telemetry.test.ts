@@ -156,6 +156,25 @@ describe("telemetry ingestion", () => {
     expect(profile?.stats?.totalTokens).toBe(120);
   });
 
+  test("preserves tokens that a source cannot allocate to standard buckets", async () => {
+    const receivedAt = Date.now();
+    await t.mutation(internal.telemetry.commitBatch, {
+      keyHash,
+      batchId: "batch-unclassified",
+      payloadHash: "payload-unclassified",
+      receivedAt,
+      events: [event({ totalTokens: 150, occurredAt: receivedAt })],
+    });
+    const state = await t.run(async (ctx) => ({
+      stats: await ctx.db.query("profileStats").filter((q) => q.eq(q.field("totalTokens"), 150)).unique(),
+      daily: await ctx.db.query("dailyUsage").filter((q) => q.eq(q.field("model"), "gpt-test")).unique(),
+      model: await ctx.db.query("modelTotals").filter((q) => q.eq(q.field("model"), "gpt-test")).unique(),
+    }));
+    expect(state.stats?.unclassifiedTokens).toBe(30);
+    expect(state.daily?.unclassifiedTokens).toBe(30);
+    expect(state.model?.unclassifiedTokens).toBe(30);
+  });
+
   test("binds a legacy collector to one stable installation without adding a device", async () => {
     const receivedAt = Date.now();
     await t.mutation(internal.telemetry.commitBatch, {

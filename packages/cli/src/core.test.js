@@ -100,3 +100,46 @@ test("splits ccusage unified totals into their real agents", () => {
   assert.deepEqual(result.plan.map((item) => item.event.source).sort(), ["claude", "codex"]);
   assert.equal(result.plan.some((item) => item.event.source === "all"), false);
 });
+
+test("preserves ccusage totals that cannot be assigned to a model bucket", () => {
+  const result = buildDeltaPlan({
+    daily: [{
+      agent: "droid",
+      period: "2026-09-14",
+      totalTokens: 150,
+      totalCost: 0.25,
+      modelBreakdowns: [{
+        modelName: "gpt-5",
+        inputTokens: 60,
+        outputTokens: 20,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 20,
+        cost: 0.2,
+      }],
+    }],
+  }, {}, "device-1");
+  assert.equal(result.plan.length, 2);
+  assert.equal(result.plan.reduce((sum, item) => sum + item.event.totalTokens, 0), 150);
+  assert.equal(result.plan.reduce((sum, item) => sum + item.event.costMicros, 0), 250_000);
+  assert.equal(result.plan.find((item) => item.event.model === "unattributed")?.event.totalTokens, 50);
+});
+
+test("classifies prefixed and bracketed model providers without changing model identity", () => {
+  const fixture = {
+    daily: [{
+      agent: "all",
+      period: "2026-09-14",
+      agents: [
+        { agent: "pi", modelBreakdowns: [{ modelName: "[pi] gpt-5", inputTokens: 1 }] },
+        { agent: "openclaw", modelBreakdowns: [{ modelName: "[openclaw] qwen3-coder", inputTokens: 1 }] },
+        { agent: "opencode", modelBreakdowns: [{ modelName: "openrouter/anthropic/claude-opus-5", inputTokens: 1 }] },
+        { agent: "kimi", modelBreakdowns: [{ modelName: "kimi-k2.5", inputTokens: 1 }] },
+      ],
+    }],
+  };
+  const events = buildDeltaPlan(fixture, {}, "device-1").plan.map((item) => item.event);
+  assert.equal(events.find((event) => event.model === "[pi] gpt-5")?.provider, "openai");
+  assert.equal(events.find((event) => event.model === "[openclaw] qwen3-coder")?.provider, "alibaba");
+  assert.equal(events.find((event) => event.model.startsWith("openrouter/"))?.provider, "openrouter");
+  assert.equal(events.find((event) => event.model === "kimi-k2.5")?.provider, "moonshot");
+});

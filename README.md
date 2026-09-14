@@ -58,7 +58,8 @@ once; Convex stores only their SHA-256 hashes. Keys can be rotated or revoked
 without changing a profile. Public daily data supports `groupBy=model`,
 `groupBy=source`, and privacy-safe `groupBy=device`.
 
-See [the research and roadmap](docs/research-and-roadmap.md) and
+See [the research and roadmap](docs/research-and-roadmap.md),
+[the collector coverage audit](docs/collector-coverage-audit.md), and
 [the telemetry contract](docs/telemetry-contract.md). Pricing provenance and the
 TokenMaxxing parity audit are documented in
 [the pricing and data audit](docs/tokenmaxxing-gap-and-pricing-audit.md).
