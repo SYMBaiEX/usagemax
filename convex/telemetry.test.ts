@@ -156,6 +156,41 @@ describe("telemetry ingestion", () => {
     expect(profile?.stats?.totalTokens).toBe(120);
   });
 
+  test("binds a legacy collector to one stable installation without adding a device", async () => {
+    const receivedAt = Date.now();
+    await t.mutation(internal.telemetry.commitBatch, {
+      keyHash,
+      batchId: "batch-before-identity",
+      payloadHash: "payload-before-identity",
+      receivedAt,
+      events: [event({ eventKey: "event-before-identity", occurredAt: receivedAt })],
+    });
+    await t.mutation(internal.telemetry.commitBatch, {
+      keyHash,
+      batchId: "batch-with-identity",
+      payloadHash: "payload-with-identity",
+      installationIdHash: "stable-installation-hash",
+      receivedAt: receivedAt + 1,
+      events: [event({ eventKey: "event-with-identity", eventHash: "hash-2", occurredAt: receivedAt + 1 })],
+    });
+
+    const state = await t.run(async (ctx) => ({
+      collector: await ctx.db.query("collectors").filter((q) => q.eq(q.field("keyHash"), keyHash)).unique(),
+      devices: await ctx.db.query("profileDevices").collect(),
+    }));
+    expect(state.collector?.installationIdHash).toBe("stable-installation-hash");
+    expect(state.devices).toHaveLength(1);
+    expect(state.devices[0].deviceHash).toBe("stable-installation-hash");
+    await expect(t.mutation(internal.telemetry.commitBatch, {
+      keyHash,
+      batchId: "batch-wrong-identity",
+      payloadHash: "payload-wrong-identity",
+      installationIdHash: "different-installation-hash",
+      receivedAt: receivedAt + 2,
+      events: [event({ eventKey: "event-wrong-identity", eventHash: "hash-3", occurredAt: receivedAt + 2 })],
+    })).rejects.toThrow("DEVICE_ID_MISMATCH");
+  });
+
   test("keeps non-accounting agent events live without changing usage totals", async () => {
     const receivedAt = Date.now();
     await t.mutation(internal.telemetry.commitBatch, {

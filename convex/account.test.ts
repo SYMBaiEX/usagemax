@@ -115,4 +115,36 @@ describe("WorkOS-backed accounts", () => {
       now: Date.now(),
     })).rejects.toThrow("INVALID_LINK_CODE");
   });
+
+  test("relinks one installation by rotating its collector instead of duplicating it", async () => {
+    const session = t.withIdentity({
+      subject: "user_01STABLE_DEVICE",
+      issuer: "https://api.workos.com/",
+      tokenIdentifier: "https://api.workos.com/|user_01STABLE_DEVICE",
+    });
+    await session.mutation(api.account.ensureProfile, { handle: "stable-device" });
+    const installationIdHash = await sha256("machine-local-random-id");
+    const firstLink = await session.action(api.account.createDeviceLink, { name: "Original name" });
+    const first = await t.mutation(internal.account.redeemDeviceLink, {
+      codeHash: await sha256(firstLink.code),
+      keyHash: "first-key-hash",
+      keyPrefix: "umx_first",
+      name: "Original name",
+      installationIdHash,
+      now: Date.now(),
+    });
+    const secondLink = await session.action(api.account.createDeviceLink, { name: "Renamed in UI" });
+    const second = await t.mutation(internal.account.redeemDeviceLink, {
+      codeHash: await sha256(secondLink.code),
+      keyHash: "second-key-hash",
+      keyPrefix: "umx_second",
+      name: "Renamed in UI",
+      installationIdHash,
+      now: Date.now() + 1,
+    });
+    expect(second.collectorId).toBe(first.collectorId);
+    const account = await session.query(api.account.current, {});
+    expect(account?.collectors).toHaveLength(1);
+    expect(account?.collectors[0]).toMatchObject({ name: "Renamed in UI", keyPrefix: "umx_second" });
+  });
 });

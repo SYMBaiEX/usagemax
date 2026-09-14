@@ -197,6 +197,8 @@ export const redeemDeviceLink = internalMutation({
     name: v.string(),
     platform: v.optional(v.string()),
     cliVersion: v.optional(v.string()),
+    installationIdHash: v.optional(v.string()),
+    priorKeyHash: v.optional(v.string()),
     now: v.number(),
   },
   handler: async (ctx, args) => {
@@ -209,20 +211,44 @@ export const redeemDeviceLink = internalMutation({
       .query("collectors")
       .withIndex("by_workspaceId", (q) => q.eq("workspaceId", link.workspaceId))
       .take(20);
-    if (collectors.filter((collector) => !collector.revokedAt).length >= 8) {
+    let existing = args.installationIdHash
+      ? await ctx.db
+          .query("collectors")
+          .withIndex("by_workspaceId_and_installationIdHash", (q) =>
+            q.eq("workspaceId", link.workspaceId).eq("installationIdHash", args.installationIdHash),
+          )
+          .first()
+      : null;
+    if (!existing && args.priorKeyHash) {
+      const prior = await ctx.db.query("collectors").withIndex("by_keyHash", (q) => q.eq("keyHash", args.priorKeyHash!)).unique();
+      if (prior?.workspaceId === link.workspaceId) existing = prior;
+    }
+    if (!existing && collectors.filter((collector) => !collector.revokedAt).length >= 8) {
       throw new ConvexError("COLLECTOR_LIMIT_REACHED");
     }
-    const collectorId = await ctx.db.insert("collectors", {
-      workspaceId: link.workspaceId,
-      profileId: link.profileId,
+    const update = {
       name: cleanText(args.name, link.deviceName, 80),
       keyHash: args.keyHash,
       keyPrefix: args.keyPrefix,
       scopes: ["telemetry:write", "outcomes:write"],
       platform: args.platform ? cleanText(args.platform, "unknown", 24) : undefined,
       cliVersion: args.cliVersion ? cleanText(args.cliVersion, "unknown", 24) : undefined,
-      createdAt: args.now,
-    });
+      installationIdHash: args.installationIdHash,
+      lastSeenAt: undefined,
+      lastSuccessAt: undefined,
+      lastFailureAt: undefined,
+      lastFailureCode: undefined,
+      revokedAt: undefined,
+      rotatedAt: existing ? args.now : undefined,
+    };
+    const collectorId = existing
+      ? (await ctx.db.patch(existing._id, update), existing._id)
+      : await ctx.db.insert("collectors", {
+          workspaceId: link.workspaceId,
+          profileId: link.profileId,
+          createdAt: args.now,
+          ...update,
+        });
     await ctx.db.patch(link._id, { usedAt: args.now, collectorId });
     return { collectorId, handle: profile.handle };
   },

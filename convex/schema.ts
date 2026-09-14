@@ -65,6 +65,7 @@ export default defineSchema({
     name: v.string(),
     keyHash: v.string(),
     keyPrefix: v.string(),
+    installationIdHash: v.optional(v.string()),
     scopes: v.array(v.string()),
     platform: v.optional(v.string()),
     cliVersion: v.optional(v.string()),
@@ -77,7 +78,8 @@ export default defineSchema({
     revokedAt: v.optional(v.number()),
   })
     .index("by_keyHash", ["keyHash"])
-    .index("by_workspaceId", ["workspaceId"]),
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_workspaceId_and_installationIdHash", ["workspaceId", "installationIdHash"]),
 
   deviceLinkCodes: defineTable({
     workspaceId: v.id("workspaces"),

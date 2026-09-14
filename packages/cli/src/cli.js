@@ -10,10 +10,11 @@ import process from "node:process";
 import { promisify } from "node:util";
 
 import { batchId, buildDeltaPlan, normalizeLinkCode, sourceSummary, validHttpsUrl } from "./core.js";
+import { stableInstallationId } from "./installation.js";
 
 const require = createRequire(import.meta.url);
 const executeFile = promisify(execFile);
-const VERSION = "0.1.0";
+const VERSION = "0.1.1";
 const DEFAULT_LINK_ENDPOINT = "https://terrific-bobcat-522.convex.site/v1/devices/link";
 const CONFIG_FILE = "config.json";
 const MAX_REPORT_BYTES = 100 * 1024 * 1024;
@@ -184,26 +185,32 @@ async function link(args) {
   const endpoint = validHttpsUrl(configuredEndpoint, { allowLocalhost: true });
   if (!endpoint) throw new Error("USAGEMAX_LINK_ENDPOINT must use HTTPS, except for localhost development.");
   const name = (option(args, "--name") || deviceLabel()).trim().slice(0, 80);
+  const previous = await readConfig();
+  const deviceId = await stableInstallationId(configDirectory(), previous?.deviceId);
+  const headers = { "content-type": "application/json" };
+  if (previous?.token) headers.authorization = `Bearer ${previous.token}`;
   const response = await fetch(endpoint, {
     method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ code, name, platform: platform(), cliVersion: VERSION }),
+    headers,
+    body: JSON.stringify({ code, name, platform: platform(), cliVersion: VERSION, deviceId }),
     signal: AbortSignal.timeout(15_000),
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body?.error === "invalid_or_expired_link_code" ? "That link code is invalid, expired, or already used." : "UsageMax could not link this computer.");
   const ingestUrl = validHttpsUrl(body.ingestUrl, { allowLocalhost: true });
   if (!/^umx_[a-f0-9]{64}$/.test(body.token || "") || !ingestUrl) throw new Error("UsageMax returned an invalid link response.");
+  const profileHandle = typeof body.profileHandle === "string" ? body.profileHandle : undefined;
+  const sameAccount = Boolean(previous && previous.profileHandle && previous.profileHandle === profileHandle);
   const config = {
     version: 1,
     token: body.token,
     ingestUrl,
     profileUrl: validHttpsUrl(body.profileUrl) || "https://usagemax.com/account",
-    profileHandle: typeof body.profileHandle === "string" ? body.profileHandle : undefined,
-    deviceId: randomUUID(),
+    profileHandle,
+    deviceId,
     deviceName: name,
     linkedAt: new Date().toISOString(),
-    snapshots: {},
+    snapshots: sameAccount ? previous.snapshots : {},
   };
   await writeConfig(config);
   process.stdout.write(`Linked ${name} to ${config.profileHandle ? `@${config.profileHandle}` : "UsageMax"}.\n`);
@@ -218,6 +225,7 @@ async function link(args) {
 async function sync(args, suppliedConfig) {
   const config = suppliedConfig || await readConfig();
   if (!config) throw new Error("This computer is not linked. Open https://usagemax.com/account and create a link code.");
+  config.deviceId = await stableInstallationId(configDirectory(), config.deviceId);
   const full = args.includes("--full");
   const inventory = await sourceInventory();
   const today = new Date().toISOString().slice(0, 10);
@@ -239,6 +247,7 @@ async function sync(args, suppliedConfig) {
         authorization: `Bearer ${config.token}`,
         "content-type": "application/json",
         "idempotency-key": batchId(config.deviceId, events),
+        "x-usagemax-device-id": config.deviceId,
       },
       body: JSON.stringify({ events }),
       signal: AbortSignal.timeout(30_000),
@@ -271,6 +280,11 @@ async function status() {
   if (!config) {
     process.stdout.write("Not linked. Open https://usagemax.com/account to connect this computer.\n");
     return;
+  }
+  const stableId = await stableInstallationId(configDirectory(), config.deviceId);
+  if (config.deviceId !== stableId) {
+    config.deviceId = stableId;
+    await writeConfig(config);
   }
   process.stdout.write(`Linked: ${config.deviceName || deviceLabel()}${config.profileHandle ? ` → @${config.profileHandle}` : ""}\n`);
   process.stdout.write(`Last sync: ${config.lastSyncAt || "never"}\n`);
@@ -307,7 +321,7 @@ async function removeLink() {
     return;
   }
   await unlink(path);
-  process.stdout.write("Removed the local UsageMax collector key. Revoke the collector in your account if this computer is no longer trusted.\n");
+  process.stdout.write("Removed the local UsageMax collector key. This computer's private installation identity was retained so relinking cannot duplicate its usage. Revoke the collector in your account if this computer is no longer trusted.\n");
 }
 
 async function main() {

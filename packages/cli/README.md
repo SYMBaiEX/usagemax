@@ -38,5 +38,6 @@ UsageMax uses [ccusage](https://github.com/ccusage/ccusage) for local source det
 - Sync is one-shot. There is no resident scanner or high-frequency polling loop.
 - After the first import, normal syncs inspect only the current and previous local day; use `sync --full` to reconcile older history.
 - The collector key is written with user-only permissions where the operating system supports them.
+- A separate private random installation ID survives collector rotation, relinking, and display-name changes. It is not a hardware fingerprint; the server stores only its SHA-256 hash. Concurrent or repeated syncs remain idempotent.
 
 Use `USAGEMAX_CONFIG_DIR` to select another config directory. Development/self-hosted installations may set `USAGEMAX_LINK_ENDPOINT` before linking.

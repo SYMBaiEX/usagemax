@@ -124,11 +124,18 @@ export const commitBatch = internalMutation({
     batchId: v.string(),
     payloadHash: v.string(),
     receivedAt: v.number(),
+    installationIdHash: v.optional(v.string()),
     events: v.array(telemetryEventValidator),
   },
   handler: async (ctx, args) => {
     const collector = await ctx.db.query("collectors").withIndex("by_keyHash", (q) => q.eq("keyHash", args.keyHash)).unique();
     if (!collector || collector.revokedAt || !collector.scopes.includes("telemetry:write")) throw new ConvexError("INVALID_COLLECTOR");
+    if (collector.installationIdHash && args.installationIdHash && collector.installationIdHash !== args.installationIdHash) {
+      throw new ConvexError("DEVICE_ID_MISMATCH");
+    }
+    if (!collector.installationIdHash && args.installationIdHash) {
+      await ctx.db.patch(collector._id, { installationIdHash: args.installationIdHash });
+    }
     if (args.events.some((event) => event.eventType === "outcome") && !collector.scopes.includes("outcomes:write")) {
       throw new ConvexError("INVALID_COLLECTOR_SCOPE");
     }
@@ -350,11 +357,21 @@ export const commitBatch = internalMutation({
       }
     }
 
-    const deviceHash = String(collector._id);
-    const existingDevice = await ctx.db
+    const deviceHash = args.installationIdHash ?? collector.installationIdHash ?? String(collector._id);
+    let existingDevice = await ctx.db
       .query("profileDevices")
       .withIndex("by_profileId_and_deviceHash", (q) => q.eq("profileId", collector.profileId).eq("deviceHash", deviceHash))
       .unique();
+    if (!existingDevice && deviceHash !== String(collector._id)) {
+      const legacyDevice = await ctx.db
+        .query("profileDevices")
+        .withIndex("by_profileId_and_deviceHash", (q) => q.eq("profileId", collector.profileId).eq("deviceHash", String(collector._id)))
+        .unique();
+      if (legacyDevice) {
+        await ctx.db.patch(legacyDevice._id, { deviceHash });
+        existingDevice = legacyDevice;
+      }
+    }
     let deviceLabel = existingDevice?.publicLabel;
     if (existingDevice) {
       await ctx.db.patch(existingDevice._id, { lastSeenAt: args.receivedAt });

@@ -25,6 +25,14 @@ function optionalText(value: unknown, max = 160) {
   return typeof value === "string" && value.trim() ? cleanText(value, "", max) : undefined;
 }
 
+function deviceId(value: unknown) {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string" || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value)) {
+    throw new Error("INVALID_DEVICE_ID");
+  }
+  return value.toLowerCase();
+}
+
 function timestamp(value: unknown, now: number) {
   const parsed = typeof value === "number" ? value : typeof value === "string" ? Date.parse(value) : NaN;
   if (!Number.isFinite(parsed) || parsed < MIN_EVENT_TIME || parsed > now + 5 * 60_000) throw new Error("INVALID_TIMESTAMP");
@@ -237,6 +245,13 @@ async function ingest(ctx: Parameters<Parameters<typeof httpAction>[0]>[0], requ
   const authorization = request.headers.get("authorization") ?? "";
   const token = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
   if (token.length < 32) return jsonResponse({ error: "unauthorized" }, 401);
+  let installationIdHash: string | undefined;
+  try {
+    const id = deviceId(request.headers.get("x-usagemax-device-id"));
+    installationIdHash = id ? await sha256(id) : undefined;
+  } catch {
+    return jsonResponse({ error: "invalid_device_id" }, 400);
+  }
   const batchId = cleanText(request.headers.get("idempotency-key"), "", 180);
   if (!batchId) return jsonResponse({ error: "idempotency_key_required" }, 400);
   const declaredLength = Number(request.headers.get("content-length") ?? 0);
@@ -268,6 +283,7 @@ async function ingest(ctx: Parameters<Parameters<typeof httpAction>[0]>[0], requ
       batchId,
       payloadHash: await sha256(rawBody),
       receivedAt: now,
+      installationIdHash,
       events,
     });
     return jsonResponse({ ok: true, ...result }, result.replay ? 200 : 202);
@@ -275,6 +291,7 @@ async function ingest(ctx: Parameters<Parameters<typeof httpAction>[0]>[0], requ
     const message = String(error);
     if (message.includes("INVALID_COLLECTOR_SCOPE")) return jsonResponse({ error: "forbidden" }, 403);
     if (message.includes("INVALID_COLLECTOR")) return jsonResponse({ error: "unauthorized" }, 401);
+    if (message.includes("DEVICE_ID_MISMATCH")) return jsonResponse({ error: "device_identity_mismatch" }, 409);
     if (message.includes("RATE_LIMITED")) return jsonResponse({ error: "rate_limited" }, 429, { "retry-after": "60" });
     if (message.includes("IDEMPOTENCY_CONFLICT")) return jsonResponse({ error: "idempotency_conflict" }, 409);
     return jsonResponse({ error: "ingest_failed" }, 500);
@@ -301,6 +318,9 @@ const linkDevice = httpAction(async (ctx, request) => {
   }
   const token = newCollectorToken();
   try {
+    const id = deviceId(body?.deviceId);
+    const priorAuthorization = request.headers.get("authorization") ?? "";
+    const priorToken = priorAuthorization.startsWith("Bearer ") ? priorAuthorization.slice(7).trim() : "";
     const result = await ctx.runMutation(internal.account.redeemDeviceLink, {
       codeHash: await sha256(code),
       keyHash: await sha256(token),
@@ -308,6 +328,8 @@ const linkDevice = httpAction(async (ctx, request) => {
       name: cleanText(body?.name, "My computer", 80),
       platform: optionalText(body?.platform, 24),
       cliVersion: optionalText(body?.cliVersion, 24),
+      installationIdHash: id ? await sha256(id) : undefined,
+      priorKeyHash: /^umx_[a-f0-9]{64}$/.test(priorToken) ? await sha256(priorToken) : undefined,
       now: Date.now(),
     });
     return jsonResponse({
@@ -321,6 +343,7 @@ const linkDevice = httpAction(async (ctx, request) => {
     const message = String(error);
     if (message.includes("COLLECTOR_LIMIT_REACHED")) return jsonResponse({ error: "collector_limit_reached" }, 409);
     if (message.includes("INVALID_LINK_CODE")) return jsonResponse({ error: "invalid_or_expired_link_code" }, 400);
+    if (message.includes("INVALID_DEVICE_ID")) return jsonResponse({ error: "invalid_device_id" }, 400);
     return jsonResponse({ error: "link_failed" }, 500);
   }
 });
@@ -330,7 +353,7 @@ const cors = httpAction(async () => new Response(null, {
   status: 204,
   headers: {
     "access-control-allow-origin": "*",
-    "access-control-allow-headers": "authorization, content-type, idempotency-key",
+    "access-control-allow-headers": "authorization, content-type, idempotency-key, x-usagemax-device-id",
     "access-control-allow-methods": "POST, OPTIONS",
   },
 }));
