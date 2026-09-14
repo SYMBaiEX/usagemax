@@ -13,11 +13,12 @@ it twice. UsageMax now preserves that provenance as `api-equivalent`, preserves
 provider-returned cost as `reported`, and leaves absent cost `unknown` instead
 of displaying `$0` as if usage were free.
 
-The previous local display relay and TokenMaxxing import both observed the same
-Codex logs. Counting both inflated tokens, sessions, and leaderboards. Relay
-events are now `observability` events: they keep the agent graph and log feed
-live without changing accounting. The TokenMaxxing snapshot is authoritative
-for the imported profile and corrected backfills remove stale imported rows.
+The previous local display relay and a temporary TokenMaxxing import both observed
+the same Codex logs. Counting both would inflate tokens, sessions, and leaderboards.
+The imported profile and rank have been removed, the legacy importer is retired,
+and UsageMax now accepts only first-party linked collectors for profile accounting.
+The SYMBaiEX HUD is a separate local project and sends no display frames or
+heartbeats to UsageMax.
 
 ## Sources of truth
 
@@ -52,31 +53,31 @@ behavioral benchmark. Its values are not treated as provider invoices.
 - The public profile exposes total tokens, API-equivalent spend, sessions,
   active days, streaks, devices, source list, peak day, top model, and rank.
 
-## Live reconciliation snapshot
+## Historical comparison snapshot
 
 At audit time TokenMaxxing reported approximately 96.49B tokens, $69.48K
 API-equivalent spend, 3,740 sessions, 207 active days, a 92-day streak, four
-devices, and Claude/Codex/OpenCode sources. The API moves while local agents are
-working, so deployment verification compares freshly fetched values rather than
-hard-coding this snapshot.
+devices, and Claude/Codex/OpenCode sources. This was used only to compare product
+semantics. It is not seeded into UsageMax, does not determine a UsageMax rank, and
+is not a production data source.
 
 A local `ccusage@20.0.20` Codex calculation for 2026-09-14 confirmed the expected
 shape: total tokens equaled input plus cache-read plus output in ccusage's local
 schema, and reasoning was a subset of output. UsageMax's public OpenTelemetry
 contract follows the OTel convention instead: input already includes cache
-subsets, so total is normally input plus output. Imported aggregate fields that
-the public TokenMaxxing API cannot break down are stored as `unclassifiedTokens`
-rather than mislabeled as ordinary input.
+subsets, so total is normally input plus output. Aggregate fields that a collector
+cannot break down are represented as `unclassifiedTokens` rather than mislabeled
+as ordinary input.
 
 ## Corrections implemented
 
-1. Authoritative imports replace profile, model, and daily aggregate snapshots;
-   disappeared source rows are pruned.
+1. First-party linked collectors own profile, model, daily, source, and privacy-safe
+   device projections. External profile snapshots cannot create rank or usage.
 2. Profile totals, spend, streaks, active days, first/last dates, top model,
-   sessions, devices, and sources use the source profile's authoritative fields.
+   sessions, devices, and sources are derived from UsageMax telemetry.
 3. Seven- and thirty-day windows are inclusive 7/30 calendar-day windows rather
    than accidental 8/31-day windows.
-4. Imported `total - output` is explicitly unclassified; cache and ordinary
+4. Unresolved `total - output` is explicitly unclassified; cache and ordinary
    input are not fabricated from an aggregate API.
 5. Cost provenance is exposed through profile, daily, model, and leaderboard
    APIs and UI labels.
@@ -85,17 +86,18 @@ rather than mislabeled as ordinary input.
    totals twice.
 7. Impossible calendar dates, pre-2024 values, and distant future dates are
    rejected. This avoids malformed historical/global data entering UsageMax.
-8. Realtime display telemetry is isolated from accounting, preventing duplicate
-   Codex log ingestion while retaining immediate agent activity.
+8. The local HUD is fully isolated from UsageMax accounting and networking,
+   preventing duplicate Codex ingestion and rendering-driven cloud traffic.
 9. Source/day and device/day projections now support public grouping. Device
-   hostnames are salted and hashed before persistence, then exposed only as
-   stable aliases.
-10. Imported rank, peak day, average active-day spend, pricing version,
-    freshness, and partial-sync status are first-class profile fields.
+   names and hostnames are never exposed; opaque collector identities become
+   stable public aliases.
+10. Peak day, average active-day spend, pricing version, freshness, and
+    partial-sync status are first-class profile fields. Rank is computed only
+    from UsageMax leaderboard projections.
 11. Collector keys are created once, hashed at rest, and can be rotated or
     revoked from the authenticated account surface.
-12. Large authoritative daily projections are applied and pruned in bounded
-    200-row mutations rather than deleted and rebuilt in one transaction.
+12. Telemetry batches are bounded, idempotent, and projected incrementally rather
+    than rebuilding a profile in one transaction.
 13. Native events preserve pricing source/version, service tier, region,
     currency, project, and cost-center context without deriving them from an
     ambiguous model name.
@@ -103,11 +105,20 @@ rather than mislabeled as ordinary input.
 ## Client resource audit
 
 The desktop display relay previously rescanned active trees, reparsed unchanged
-session tails, copied snapshots, and emitted one OTLP HTTP request per event on
-a 100 ms loop. It now caches by file size/mtime, discovers sessions every 30
-seconds, batches up to 64 OTLP records, deduplicates cloud events locally, and
-copies snapshots only on change or a 15-second heartbeat. On the audited Mac,
-idle relay CPU fell from 35.1% to 0.1–0.2% while live events remained intact.
+session tails, copied snapshots, and emitted cloud requests from a 100 ms loop.
+It is now local-only, caches by file size/mtime, discovers sessions periodically,
+and copies snapshots only on change or a low-frequency heartbeat. On the audited
+Mac, its idle CPU fell from 35.1% to roughly 0.1%.
+
+The UsageMax client is a one-shot command with zero resident idle CPU. Its normal
+path first fingerprints file metadata and exits without parsing or uploading if
+nothing changed. On the audited Mac, that check took about 2.7 seconds and 70 MB
+maximum RSS across roughly 11,000 candidate files before path narrowing. After
+limiting discovery to known session directories, it took 0.21 seconds and 40 MB
+maximum RSS across about 6,000 candidate files. The prior two-day ccusage parse
+took about 16.7 seconds and peaked near 1.1 GB, so it now runs only after a source
+change or the daily reconciliation boundary. Historical parsing is explicit with
+`bunx usagemax sync --full`.
 
 ## Pricing policy
 
@@ -120,7 +131,7 @@ The durable policy is:
 
 - Prefer cost returned by the provider or enterprise billing export:
   `costBasis = reported`.
-- For local developer-log imports, pin and record the calculator and price-data
+- For local developer-log reports, pin and record the calculator and price-data
   version: `costBasis = api-equivalent`.
 - For an SDK's own calculation: `costBasis = estimated` plus a named source.
 - If pricing inputs are incomplete: `costBasis = unknown`; do not infer zero.
@@ -130,19 +141,16 @@ The durable policy is:
 ## Remaining parity and enterprise roadmap
 
 Priority 0 is accounting integrity; the implemented changes cover that path.
-The following TokenMaxxing capabilities still need first-party UsageMax product
-work rather than depending on its public aggregate API:
+The following enterprise capabilities remain first-party UsageMax product work:
 
-1. Ship a native UsageMax one-shot CLI over the supported local agents, pinned
-   to a tested ccusage release, with source failure status, dry-run, change
-   detection, backoff, and OS scheduling. Do not ship a high-frequency daemon.
+1. Add explicit source-failure and dry-run reports to the shipped one-shot CLI,
+   plus optional low-frequency OS scheduling. Do not ship a high-frequency daemon.
 2. Retain encrypted, access-controlled raw usage reports for parser backfills,
    with short retention and explicit opt-in; never retain prompts or code.
    The current product deliberately stores aggregates instead of pretending
    that application-level encryption without a key-management design is safe.
-3. Add scheduled incremental sync, cursors, source-level failure reporting, and
-   a user-visible reconciliation report. Freshness, rotation, and revocation
-   are implemented.
+3. Add a user-visible reconciliation report and parser cursors beyond the current
+   day-level metadata fingerprint. Freshness, rotation, and revocation are implemented.
 4. Add encrypted contract-rate and invoice-adjustment records plus provider
    billing reconciliation. Pricing version, service tier, region, currency,
    project, and cost-center event dimensions are implemented.

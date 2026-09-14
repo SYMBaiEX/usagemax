@@ -44,9 +44,11 @@ function nativeEvent(value: unknown, now: number): Omit<NormalizedEvent, "eventH
   const reasoningTokens = clampNonNegative(event.reasoningTokens, 1_000_000_000_000);
   const reportedTotal = clampNonNegative(event.totalTokens, 1_000_000_000_000);
   const costMicros = clampNonNegative(event.costMicros, 1_000_000_000_000_000);
-  const eventType = ["model_request", "tool_call", "agent_state", "outcome"].includes(String(event.eventType))
+  const displayOnly = event.accountingMode === "observability";
+  const requestedEventType = ["model_request", "tool_call", "agent_state", "outcome"].includes(String(event.eventType))
     ? (event.eventType as NormalizedEvent["eventType"])
     : "model_request";
+  const eventType: NormalizedEvent["eventType"] = displayOnly ? "agent_state" : requestedEventType;
   const status = ["ok", "error", "cancelled"].includes(String(event.status))
     ? (event.status as NormalizedEvent["status"])
     : "ok";
@@ -58,7 +60,6 @@ function nativeEvent(value: unknown, now: number): Omit<NormalizedEvent, "eventH
     : typeof event.costMicros === "number" && Number.isFinite(event.costMicros)
       ? "reported"
       : "unknown";
-  const accountingMode = event.accountingMode === "observability" ? "observability" : "usage";
   return {
     eventKey,
     logicalRequestId: optionalText(event.logicalRequestId),
@@ -71,13 +72,13 @@ function nativeEvent(value: unknown, now: number): Omit<NormalizedEvent, "eventH
     provider: cleanText(event.provider, "unknown", 60),
     requestedModel: optionalText(event.requestedModel, 120),
     model,
-    inputTokens,
-    outputTokens,
-    cacheReadTokens,
-    cacheWriteTokens,
-    reasoningTokens,
-    totalTokens: reportedTotal || inputTokens + outputTokens,
-    costMicros,
+    inputTokens: displayOnly ? 0 : inputTokens,
+    outputTokens: displayOnly ? 0 : outputTokens,
+    cacheReadTokens: displayOnly ? 0 : cacheReadTokens,
+    cacheWriteTokens: displayOnly ? 0 : cacheWriteTokens,
+    reasoningTokens: displayOnly ? 0 : reasoningTokens,
+    totalTokens: displayOnly ? 0 : reportedTotal || inputTokens + outputTokens,
+    costMicros: displayOnly ? 0 : costMicros,
     costBasis,
     pricingSource: optionalText(event.pricingSource, 120),
     pricingVersion: optionalText(event.pricingVersion, 120),
@@ -86,7 +87,6 @@ function nativeEvent(value: unknown, now: number): Omit<NormalizedEvent, "eventH
     currency: optionalText(event.currency, 3)?.toUpperCase(),
     projectId: optionalText(event.projectId, 80),
     costCenter: optionalText(event.costCenter, 80),
-    accountingMode,
     latencyMs: event.latencyMs === undefined ? undefined : clampNonNegative(event.latencyMs, 86_400_000),
     timeToFirstTokenMs: event.timeToFirstTokenMs === undefined ? undefined : clampNonNegative(event.timeToFirstTokenMs, 86_400_000),
     status,
@@ -213,7 +213,6 @@ function otelEvents(body: JsonObject, now: number): Omit<NormalizedEvent, "event
           currency: optionalText(attrs["gen_ai.usage.cost.currency"] ?? attrs["usagemax.currency"], 3)?.toUpperCase(),
           projectId: optionalText(attrs["project.id"] ?? attrs["usagemax.project_id"], 80),
           costCenter: optionalText(attrs["usagemax.cost_center"], 80),
-          accountingMode: "usage",
           latencyMs: Number.isFinite(start) && Number.isFinite(end) ? clampNonNegative(end - start, 86_400_000) : undefined,
           timeToFirstTokenMs: attributeNumber(attrs, "gen_ai.server.time_to_first_token") || undefined,
           status: isError ? "error" : "ok",

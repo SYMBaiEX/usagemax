@@ -33,9 +33,58 @@ function event(overrides: Record<string, unknown> = {}) {
     schemaVersion: 1,
     completeness: "reported" as const,
     costBasis: "reported" as const,
-    accountingMode: "usage" as const,
     ...overrides,
   };
+}
+
+async function seedCollector(t: ReturnType<typeof convexTest>, now: number) {
+  await t.run(async (ctx) => {
+    const workspaceId = await ctx.db.insert("workspaces", {
+      slug: "tester",
+      name: "Tester workspace",
+      plan: "free",
+      isPublic: true,
+      retentionDays: 30,
+      createdAt: now,
+    });
+    const profileId = await ctx.db.insert("profiles", {
+      workspaceId,
+      handle: "tester",
+      displayName: "Tester",
+      bio: "",
+      isPublic: true,
+      isVerified: false,
+      verification: "collector",
+      createdAt: now,
+    });
+    await ctx.db.insert("profileStats", {
+      workspaceId,
+      profileId,
+      totalTokens: 0,
+      totalCostMicros: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      reasoningTokens: 0,
+      sessions: 0,
+      activeDays: 0,
+      currentStreakDays: 0,
+      longestStreakDays: 0,
+      deviceCount: 1,
+      topModel: "unknown",
+      updatedAt: now,
+    });
+    await ctx.db.insert("collectors", {
+      workspaceId,
+      profileId,
+      name: "Test collector",
+      keyHash,
+      keyPrefix: token.slice(0, 10),
+      scopes: ["telemetry:write", "outcomes:write"],
+      createdAt: now,
+    });
+  });
 }
 
 describe("telemetry ingestion", () => {
@@ -43,14 +92,7 @@ describe("telemetry ingestion", () => {
 
   beforeEach(async () => {
     t = convexTest(schema, modules);
-    await t.mutation(internal.imports.begin, {
-      handle: "tester",
-      displayName: "Tester",
-      sourceUrl: "https://example.com",
-      collectorKeyHash: keyHash,
-      collectorKeyPrefix: token.slice(0, 10),
-      now: Date.now(),
-    });
+    await seedCollector(t, Date.now());
   });
 
   test("commits once and updates realtime projections", async () => {
@@ -76,6 +118,17 @@ describe("telemetry ingestion", () => {
     const profile = await t.query(api.public.profile, { handle: "tester" });
     expect(profile?.stats?.totalTokens).toBe(120);
     expect(profile?.stats?.sessions).toBe(1);
+    expect(profile?.stats).toMatchObject({
+      activeDays: 1,
+      currentStreakDays: 1,
+      longestStreakDays: 1,
+      deviceCount: 1,
+      peakDayCostMicros: 500,
+      avgCostPerActiveDayMicros: 500,
+    });
+    const breakdowns = await t.query(api.public.breakdowns, { handle: "tester", days: 30 });
+    expect(breakdowns.sources).toEqual([expect.objectContaining({ key: "test", totalTokens: 120 })]);
+    expect(breakdowns.devices).toEqual([expect.objectContaining({ key: "Device 1", totalTokens: 120 })]);
     const live = await t.query(api.public.live, { handle: "tester", now: receivedAt, agentLimit: 10, eventLimit: 10 });
     expect(live.agents).toHaveLength(1);
     expect(live.agents[0].online).toBe(true);
@@ -103,7 +156,7 @@ describe("telemetry ingestion", () => {
     expect(profile?.stats?.totalTokens).toBe(120);
   });
 
-  test("keeps observability events live without changing accounting totals", async () => {
+  test("keeps non-accounting agent events live without changing usage totals", async () => {
     const receivedAt = Date.now();
     await t.mutation(internal.telemetry.commitBatch, {
       keyHash,
@@ -113,7 +166,10 @@ describe("telemetry ingestion", () => {
       events: [event({
         eventKey: "event-observability",
         occurredAt: receivedAt,
-        accountingMode: "observability",
+        eventType: "agent_state",
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
         costBasis: "unknown",
         costMicros: 0,
       })],

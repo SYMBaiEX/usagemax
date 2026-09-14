@@ -44,13 +44,14 @@ curl https://usagemax.com/api/v1/telemetry/llm \
   -H "Authorization: Bearer $USAGEMAX_COLLECTOR_TOKEN" \
   -H "Idempotency-Key: example-batch-1" \
   -H "Content-Type: application/json" \
-  --data '{"schemaVersion":1,"events":[{"eventKey":"request-1","eventType":"model_request","provider":"openai","model":"gpt-5.6-sol","inputTokens":1200,"outputTokens":240,"totalTokens":1440,"costMicros":8200,"costBasis":"reported","accountingMode":"usage","status":"ok","occurredAt":"2026-09-13T12:00:00Z"}]}'
+  --data '{"schemaVersion":1,"events":[{"eventKey":"request-1","eventType":"model_request","provider":"openai","model":"gpt-5.6-sol","inputTokens":1200,"outputTokens":240,"totalTokens":1440,"costMicros":8200,"costBasis":"reported","status":"ok","occurredAt":"2026-09-13T12:00:00Z"}]}'
 ```
 
 OTLP/HTTP JSON traces are accepted at `/api/v1/traces`. Prompts, completions,
 source code, file paths, and arbitrary span attributes are not retained.
-Live display heartbeats use `accountingMode: "observability"`, so they animate
-the realtime agent feed without duplicating authoritative usage totals.
+Only `model_request` events update token and spend accounting. Agent, tool, and
+outcome telemetry stays separate from public usage totals; display frames and
+animation heartbeats are outside the UsageMax contract.
 
 Create dedicated collector keys from `/account`. Plaintext keys are returned
 once; Convex stores only their SHA-256 hashes. Keys can be rotated or revoked

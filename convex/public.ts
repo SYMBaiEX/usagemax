@@ -11,10 +11,11 @@ function mergeCostBasis(left: CostBasis | undefined, right: CostBasis | undefine
 }
 
 async function profileByHandle(ctx: QueryCtx, handle: string) {
-  return await ctx.db
+  const profile = await ctx.db
     .query("profiles")
     .withIndex("by_handle", (q) => q.eq("handle", handle.toLowerCase()))
     .unique();
+  return profile?.verification === "imported" ? null : profile;
 }
 
 export const profile = query({
@@ -112,10 +113,6 @@ export const dailyModels = query({
       .withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id).gte("day", cutoffDay))
       .order("desc")
       .take(4000);
-    const hasAuthoritativeImport = queriedRows.some((row) => row.source === "tokenmaxxing-import");
-    const rows = hasAuthoritativeImport
-      ? queriedRows.filter((row) => row.source === "tokenmaxxing-import")
-      : queriedRows;
     const grouped = new Map<string, {
       date: string;
       model: string;
@@ -124,7 +121,7 @@ export const dailyModels = query({
       costMicros: number;
       costBasis?: CostBasis;
     }>();
-    for (const row of rows) {
+    for (const row of queriedRows) {
       const key = `${row.day}\u0000${row.provider}\u0000${row.model}`;
       const current = grouped.get(key) ?? {
         date: row.day,
@@ -238,6 +235,7 @@ export const leaderboard = query({
     const rows = await ctx.db
       .query("leaderboardEntries")
       .withIndex("by_period_and_metric_and_score", (q) => q.eq("period", args.period).eq("metric", args.metric))
+      .filter((q) => q.neq(q.field("verification"), "imported"))
       .order("desc")
       .take(limit);
     return rows
@@ -254,24 +252,18 @@ export const leaderboard = query({
 export const network = query({
   args: {},
   handler: async (ctx) => {
-    const [baseline, shards] = await Promise.all([
-      ctx.db.query("networkStats").withIndex("by_key", (q) => q.eq("key", "global")).unique(),
-      ctx.db.query("networkCounterShards").collect(),
-    ]);
-    const latestDay = [
-      baseline ? new Date(baseline.updatedAt).toISOString().slice(0, 10) : "",
-      ...shards.map((shard) => shard.eventsDay),
-    ].sort().at(-1) ?? "";
+    // networkStats is a retired aggregate-import baseline. First-party account
+    // and telemetry counters live exclusively in bounded shards.
+    const shards = await ctx.db.query("networkCounterShards").collect();
+    const latestDay = shards.map((shard) => shard.eventsDay).sort().at(-1) ?? "";
     return {
-      totalTokens: (baseline?.totalTokens ?? 0) + shards.reduce((sum, shard) => sum + shard.totalTokens, 0),
-      totalCostMicros: (baseline?.totalCostMicros ?? 0) + shards.reduce((sum, shard) => sum + shard.totalCostMicros, 0),
-      totalSessions: (baseline?.totalSessions ?? 0) + shards.reduce((sum, shard) => sum + shard.totalSessions, 0),
-      profiles: (baseline?.profiles ?? 0) + shards.reduce((sum, shard) => sum + shard.profiles, 0),
-      activeAgents: baseline?.activeAgents ?? 0,
-      eventsToday:
-        (baseline && new Date(baseline.updatedAt).toISOString().slice(0, 10) === latestDay ? baseline.eventsToday : 0) +
-        shards.filter((shard) => shard.eventsDay === latestDay).reduce((sum, shard) => sum + shard.eventsToday, 0),
-      updatedAt: Math.max(baseline?.updatedAt ?? 0, ...shards.map((shard) => shard.updatedAt), 0),
+      totalTokens: shards.reduce((sum, shard) => sum + shard.totalTokens, 0),
+      totalCostMicros: shards.reduce((sum, shard) => sum + shard.totalCostMicros, 0),
+      totalSessions: shards.reduce((sum, shard) => sum + shard.totalSessions, 0),
+      profiles: shards.reduce((sum, shard) => sum + shard.profiles, 0),
+      activeAgents: 0,
+      eventsToday: shards.filter((shard) => shard.eventsDay === latestDay).reduce((sum, shard) => sum + shard.eventsToday, 0),
+      updatedAt: Math.max(...shards.map((shard) => shard.updatedAt), 0),
     };
   },
 });

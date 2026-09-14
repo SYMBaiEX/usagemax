@@ -69,7 +69,7 @@ Agent SDK / local collector
   -> daily/model/profile projections
   -> materialized leaderboard + agent live state
   -> Convex subscriptions
-  -> web dashboard and UsageMax screen app
+  -> UsageMax web and enterprise dashboards
 ```
 
 Convex is the only MVP data layer. It owns tenant configuration, collector keys,
@@ -80,9 +80,16 @@ leaderboards, and subscriptions. This follows the documented capabilities of
 [Next.js realtime integration](https://docs.convex.dev/client/nextjs/app-router/).
 
 The hot path writes batches of no more than 100 compact events. The UI subscribes
-to small projections, not the raw event lake. The screen animates at 30 FPS locally,
-while collectors publish meaningful changes at roughly 0.5–4 Hz. This preserves the
-“brrr” feel without paying for 30 database writes per second per display.
+to small projections, not the raw event lake. Only model requests affect accounting;
+agent, tool, and outcome events remain a bounded observability stream. The separate
+SYMBaiEX HUD reads local machine state and never publishes animation frames or
+heartbeats to UsageMax.
+
+The installed UsageMax client is a deliberate one-shot process, not a resident
+daemon. It fingerprints metadata under known agent data directories, exits without
+parsing logs or touching the network when nothing changed, parses only the current
+day during normal sync, and reconciles the prior day once at a UTC boundary. Full
+history remains an explicit `sync --full` operation.
 
 Convex documents and functions have explicit limits, including document size,
 transaction bytes, scans, and writes; those constraints are treated as design
@@ -127,10 +134,10 @@ Enterprise value comes from measurable waste reduction and governance evidence.
 
 ### 0–30 days — trustworthy parity
 
-- ship UsageMax.com, public APIs, imported owner profile, realtime leaderboards;
-- publish the local collector and setup flow for supported coding agents;
+- ship UsageMax.com, public APIs, first-party profiles, and realtime leaderboards;
+- publish the one-shot local collector and setup flow for supported coding agents;
 - finish outcome capture and show cost per accepted outcome;
-- add passkey or GitHub login, collector rotation, profile consent, export, deletion;
+- finish GitHub/Google login hardening, collector rotation, profile consent, export, deletion;
 - load-test realistic 100, 500, and 1,000 event/second workloads.
 
 ### 30–90 days — team control plane

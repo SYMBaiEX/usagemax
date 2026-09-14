@@ -148,7 +148,6 @@ export function buildDeltaPlan(report, priorSnapshots, deviceId, pricingVersion 
         costBasis: "estimated",
         pricingSource: "ccusage / LiteLLM",
         pricingVersion,
-        accountingMode: "usage",
         status: "ok",
         state: "synced",
         occurredAt: `${row.period}T12:00:00.000Z`,

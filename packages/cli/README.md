@@ -22,7 +22,8 @@ bunx usagemax sync         # same as above
 bunx usagemax sync --full  # inspect all available local history
 bunx usagemax link UMX-… --no-sync # link without uploading yet
 bunx usagemax status       # show link and last-sync state
-bunx usagemax doctor       # check the local collector and detected sources
+bunx usagemax doctor       # metadata-only source check; does not parse logs
+bunx usagemax doctor --deep # opt into a full local parser check
 bunx usagemax report       # open ccusage's local daily report
 bunx usagemax report session --breakdown
 bunx usagemax unlink       # remove the local collector key

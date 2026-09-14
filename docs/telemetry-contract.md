@@ -25,7 +25,6 @@ Useful optional fields:
 - `costBasis`: `reported`, `estimated`, or `unknown`
 - `pricingSource`, `pricingVersion`, `serviceTier`, `region`, `currency`
 - `projectId`, `costCenter` for private allocation and future chargeback
-- `accountingMode`: `usage` or `observability`
 - `status`: `ok`, `error`, or `cancelled`
 - `state`, `task`, `traceId`, `spanId`
 - `completeness`: `reported`, `estimated`, or `unknown`
@@ -50,11 +49,10 @@ zero is still `reported`; a locally calculated amount is `estimated`.
 `serviceTier`, `region`, and `currency` preserve modifiers that can materially
 change the amount. UsageMax does not guess these fields from a model nickname.
 
-Use `accountingMode: "usage"` for one authoritative accounting event per model
-attempt. Use `accountingMode: "observability"` for heartbeats, live display
-deltas, and duplicated transport signals. Observability events remain visible
-in the live agent feed but cannot alter profile totals, sessions, spend, or
-leaderboards.
+Only `model_request` events update token and spend accounting. `tool_call`,
+`agent_state`, and `outcome` events may feed bounded enterprise telemetry without
+changing profile totals, sessions, spend, or leaderboards. Display frames and
+animation heartbeats are not part of this API.
 
 ## OTLP endpoint
 

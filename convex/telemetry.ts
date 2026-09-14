@@ -31,7 +31,6 @@ export const telemetryEventValidator = v.object({
   currency: v.optional(v.string()),
   projectId: v.optional(v.string()),
   costCenter: v.optional(v.string()),
-  accountingMode: v.union(v.literal("usage"), v.literal("observability")),
   latencyMs: v.optional(v.number()),
   timeToFirstTokenMs: v.optional(v.number()),
   status: v.union(v.literal("ok"), v.literal("error"), v.literal("cancelled")),
@@ -105,6 +104,20 @@ function mergeCostBasis(
   return "mixed";
 }
 
+function streakMetrics(days: string[]) {
+  const ordered = [...new Set(days)].sort();
+  let longest = 0;
+  let run = 0;
+  let previous = Number.NaN;
+  for (const day of ordered) {
+    const index = Math.floor(Date.parse(`${day}T00:00:00.000Z`) / DAY_MS);
+    run = index === previous + 1 ? run + 1 : 1;
+    longest = Math.max(longest, run);
+    previous = index;
+  }
+  return { current: run, longest };
+}
+
 export const commitBatch = internalMutation({
   args: {
     keyHash: v.string(),
@@ -173,12 +186,13 @@ export const commitBatch = internalMutation({
     const dailyRollups = new Map<string, Rollup>();
     const dayRollups = new Map<string, Rollup>();
     const modelRollups = new Map<string, Rollup & { provider: string; lastUsedAt: number }>();
-    const uniqueSessions = new Map<string, string>();
+    const uniqueSessions = new Map<string, { day: string; dailyKey: string; sourceKey: string }>();
+    const sourceRollups = new Map<string, Rollup>();
     const liveAgents = new Map<string, Event>();
     const total = emptyRollup();
     for (const event of acceptedEvents) {
       const day = dayFromTimestamp(event.occurredAt);
-      if (event.accountingMode === "usage") {
+      if (event.eventType === "model_request") {
         addEvent(total, event);
         const dayTotal = dayRollups.get(day) ?? emptyRollup();
         addEvent(dayTotal, event);
@@ -187,11 +201,15 @@ export const commitBatch = internalMutation({
         const daily = dailyRollups.get(dailyKey) ?? emptyRollup();
         addEvent(daily, event);
         dailyRollups.set(dailyKey, daily);
+        const sourceKey = `${day}\u001f${event.source}`;
+        const sourceRollup = sourceRollups.get(sourceKey) ?? emptyRollup();
+        addEvent(sourceRollup, event);
+        sourceRollups.set(sourceKey, sourceRollup);
         const model = modelRollups.get(event.model) ?? { ...emptyRollup(), provider: event.provider, lastUsedAt: event.occurredAt };
         addEvent(model, event);
         model.lastUsedAt = Math.max(model.lastUsedAt, event.occurredAt);
         modelRollups.set(event.model, model);
-        if (event.sessionId) uniqueSessions.set(event.sessionId, day);
+        if (event.sessionId) uniqueSessions.set(event.sessionId, { day, dailyKey, sourceKey });
       }
       if (event.agentExternalId) {
         const previous = liveAgents.get(event.agentExternalId);
@@ -216,9 +234,36 @@ export const commitBatch = internalMutation({
       }
     }
 
+    for (const [externalId, event] of liveAgents) {
+      const prior = await ctx.db
+        .query("agentLiveStats")
+        .withIndex("by_workspaceId_and_externalId", (q) => q.eq("workspaceId", collector.workspaceId).eq("externalId", externalId))
+        .unique();
+      const tokensPerSecond = event.latencyMs && event.latencyMs > 0 ? event.outputTokens / (event.latencyMs / 1000) : 0;
+      const update = {
+        parentExternalId: event.parentAgentExternalId,
+        name: event.agentName ?? externalId,
+        model: event.model,
+        state: event.state ?? (event.status === "error" ? "error" : event.eventType === "tool_call" ? "tooling" : "running"),
+        task: event.task,
+        tokensPerSecond,
+        totalTokens: (prior?.totalTokens ?? 0) + event.totalTokens,
+        toolCalls: (prior?.toolCalls ?? 0) + (event.eventType === "tool_call" ? 1 : 0),
+        errorCount: (prior?.errorCount ?? 0) + (event.status === "error" ? 1 : 0),
+        sessionStartedAt: prior?.sessionStartedAt ?? event.occurredAt,
+        updatedAt: event.occurredAt,
+        expiresAt: event.occurredAt + 45_000,
+        traceId: event.traceId,
+      };
+      if (prior) await ctx.db.patch(prior._id, update);
+      else await ctx.db.insert("agentLiveStats", { workspaceId: collector.workspaceId, profileId: collector.profileId, externalId, ...update });
+    }
+
     let newSessions = 0;
     const sessionsByDay = new Map<string, number>();
-    for (const [sessionId, day] of uniqueSessions) {
+    const sessionsByDailyKey = new Map<string, number>();
+    const sessionsBySourceKey = new Map<string, number>();
+    for (const [sessionId, identity] of uniqueSessions) {
       const priorSession = await ctx.db
         .query("sessionReceipts")
         .withIndex("by_workspaceId_and_sessionId", (q) => q.eq("workspaceId", collector.workspaceId).eq("sessionId", sessionId))
@@ -231,19 +276,24 @@ export const commitBatch = internalMutation({
           firstSeenAt: args.receivedAt,
         });
         newSessions += 1;
-        sessionsByDay.set(day, (sessionsByDay.get(day) ?? 0) + 1);
+        sessionsByDay.set(identity.day, (sessionsByDay.get(identity.day) ?? 0) + 1);
+        sessionsByDailyKey.set(identity.dailyKey, (sessionsByDailyKey.get(identity.dailyKey) ?? 0) + 1);
+        sessionsBySourceKey.set(identity.sourceKey, (sessionsBySourceKey.get(identity.sourceKey) ?? 0) + 1);
       }
     }
 
-    const existingDays = new Set<string>();
-    const uniqueDays = new Set([...dailyRollups.keys()].map((key) => key.split("\u001f")[0]));
-    for (const day of uniqueDays) {
-      const prior = await ctx.db
-        .query("dailyUsage")
-        .withIndex("by_profileId_and_day", (q) => q.eq("profileId", collector.profileId).eq("day", day))
-        .first();
-      if (prior) existingDays.add(day);
-    }
+    // Non-accounting enterprise events are retained for bounded private
+    // analysis, but they do not invalidate public usage projections.
+    if (dailyRollups.size > 0) {
+      const existingDays = new Set<string>();
+      const uniqueDays = new Set([...dailyRollups.keys()].map((key) => key.split("\u001f")[0]));
+      for (const day of uniqueDays) {
+        const prior = await ctx.db
+          .query("dailyUsage")
+          .withIndex("by_profileId_and_day", (q) => q.eq("profileId", collector.profileId).eq("day", day))
+          .first();
+        if (prior) existingDays.add(day);
+      }
 
     for (const [key, rollup] of dailyRollups) {
       const [day, source, model] = key.split("\u001f");
@@ -264,7 +314,7 @@ export const commitBatch = internalMutation({
         totalTokens: (prior?.totalTokens ?? 0) + rollup.totalTokens,
         costMicros: (prior?.costMicros ?? 0) + rollup.costMicros,
         costBasis: mergeCostBasis(prior?.costBasis, aggregateCostBasis(rollup.costBasisMask)),
-        sessions: (prior?.sessions ?? 0) + (sessionsByDay.get(day) ?? 0),
+        sessions: (prior?.sessions ?? 0) + (sessionsByDailyKey.get(key) ?? 0),
         requests: (prior?.requests ?? 0) + rollup.requests,
         errors: (prior?.errors ?? 0) + rollup.errors,
         updatedAt: args.receivedAt,
@@ -300,6 +350,85 @@ export const commitBatch = internalMutation({
       }
     }
 
+    const deviceHash = String(collector._id);
+    const existingDevice = await ctx.db
+      .query("profileDevices")
+      .withIndex("by_profileId_and_deviceHash", (q) => q.eq("profileId", collector.profileId).eq("deviceHash", deviceHash))
+      .unique();
+    let deviceLabel = existingDevice?.publicLabel;
+    if (existingDevice) {
+      await ctx.db.patch(existingDevice._id, { lastSeenAt: args.receivedAt });
+    } else {
+      const devices = await ctx.db.query("profileDevices").withIndex("by_profileId", (q) => q.eq("profileId", collector.profileId)).take(20);
+      deviceLabel = `Device ${devices.length + 1}`;
+      await ctx.db.insert("profileDevices", {
+        workspaceId: collector.workspaceId,
+        profileId: collector.profileId,
+        deviceHash,
+        publicLabel: deviceLabel,
+        firstSeenAt: args.receivedAt,
+        lastSeenAt: args.receivedAt,
+      });
+    }
+
+    for (const [key, rollup] of sourceRollups) {
+      const [day, source] = key.split("\u001f");
+      const prior = await ctx.db
+        .query("dailyDimensions")
+        .withIndex("by_profileId_and_dimension_and_day_and_key", (q) =>
+          q.eq("profileId", collector.profileId).eq("dimension", "source").eq("day", day).eq("key", source),
+        )
+        .unique();
+      const update = {
+        outputTokens: (prior?.outputTokens ?? 0) + rollup.outputTokens,
+        unclassifiedTokens: prior?.unclassifiedTokens ?? 0,
+        totalTokens: (prior?.totalTokens ?? 0) + rollup.totalTokens,
+        costMicros: (prior?.costMicros ?? 0) + rollup.costMicros,
+        costBasis: mergeCostBasis(prior?.costBasis, aggregateCostBasis(rollup.costBasisMask)) ?? "unknown",
+        sessions: (prior?.sessions ?? 0) + (sessionsBySourceKey.get(key) ?? 0),
+        updatedAt: args.receivedAt,
+      };
+      if (prior) await ctx.db.patch(prior._id, update);
+      else await ctx.db.insert("dailyDimensions", {
+        workspaceId: collector.workspaceId,
+        profileId: collector.profileId,
+        day,
+        dimension: "source",
+        key: source,
+        origin: "first-party",
+        ...update,
+      });
+    }
+
+    for (const [day, rollup] of dayRollups) {
+      const prior = await ctx.db
+        .query("dailyDimensions")
+        .withIndex("by_profileId_and_dimension_and_day_and_key", (q) =>
+          q.eq("profileId", collector.profileId).eq("dimension", "device").eq("day", day).eq("key", deviceLabel!),
+        )
+        .unique();
+      const update = {
+        outputTokens: (prior?.outputTokens ?? 0) + rollup.outputTokens,
+        unclassifiedTokens: prior?.unclassifiedTokens ?? 0,
+        totalTokens: (prior?.totalTokens ?? 0) + rollup.totalTokens,
+        costMicros: (prior?.costMicros ?? 0) + rollup.costMicros,
+        costBasis: mergeCostBasis(prior?.costBasis, aggregateCostBasis(rollup.costBasisMask)) ?? "unknown",
+        sessions: (prior?.sessions ?? 0) + (sessionsByDay.get(day) ?? 0),
+        updatedAt: args.receivedAt,
+      };
+      if (prior) await ctx.db.patch(prior._id, update);
+      else await ctx.db.insert("dailyDimensions", {
+        workspaceId: collector.workspaceId,
+        profileId: collector.profileId,
+        day,
+        dimension: "device",
+        key: deviceLabel!,
+        keyHash: deviceHash,
+        origin: `collector:${collector._id}`,
+        ...update,
+      });
+    }
+
     for (const [modelName, rollup] of modelRollups) {
       const prior = await ctx.db
         .query("modelTotals")
@@ -324,31 +453,6 @@ export const commitBatch = internalMutation({
       else await ctx.db.insert("modelTotals", { workspaceId: collector.workspaceId, profileId: collector.profileId, model: modelName, ...update });
     }
 
-    for (const [externalId, event] of liveAgents) {
-      const prior = await ctx.db
-        .query("agentLiveStats")
-        .withIndex("by_workspaceId_and_externalId", (q) => q.eq("workspaceId", collector.workspaceId).eq("externalId", externalId))
-        .unique();
-      const tokensPerSecond = event.latencyMs && event.latencyMs > 0 ? event.outputTokens / (event.latencyMs / 1000) : 0;
-      const update = {
-        parentExternalId: event.parentAgentExternalId,
-        name: event.agentName ?? externalId,
-        model: event.model,
-        state: event.state ?? (event.status === "error" ? "error" : event.eventType === "tool_call" ? "tooling" : "running"),
-        task: event.task,
-        tokensPerSecond,
-        totalTokens: (prior?.totalTokens ?? 0) + event.totalTokens,
-        toolCalls: (prior?.toolCalls ?? 0) + (event.eventType === "tool_call" ? 1 : 0),
-        errorCount: (prior?.errorCount ?? 0) + (event.status === "error" ? 1 : 0),
-        sessionStartedAt: prior?.sessionStartedAt ?? event.occurredAt,
-        updatedAt: event.occurredAt,
-        expiresAt: event.occurredAt + 45_000,
-        traceId: event.traceId,
-      };
-      if (prior) await ctx.db.patch(prior._id, update);
-      else await ctx.db.insert("agentLiveStats", { workspaceId: collector.workspaceId, profileId: collector.profileId, externalId, ...update });
-    }
-
     const stats = await ctx.db.query("profileStats").withIndex("by_profileId", (q) => q.eq("profileId", collector.profileId)).unique();
     const leadingModel = await ctx.db
       .query("modelTotals")
@@ -357,11 +461,23 @@ export const commitBatch = internalMutation({
       .first();
     const uniqueNewDays = [...uniqueDays].filter((day) => !existingDays.has(day)).length;
     const eventDays = [...uniqueDays].sort();
+    const activityRows = await ctx.db
+      .query("profileDailyTotals")
+      .withIndex("by_profileId_and_day", (q) => q.eq("profileId", collector.profileId))
+      .order("desc")
+      .take(730);
+    const streaks = streakMetrics(activityRows.map((row) => row.day));
+    const bestRecentDay = [...activityRows].sort((left, right) => right.costMicros - left.costMicros)[0];
+    const priorPeakWins = (stats?.peakDayCostMicros ?? -1) > (bestRecentDay?.costMicros ?? -1);
+    const activeDeviceCount = (await ctx.db
+      .query("profileDevices")
+      .withIndex("by_profileId", (q) => q.eq("profileId", collector.profileId))
+      .take(20)).length;
     const lastEventAt = acceptedEvents.reduce((max, event) => Math.max(max, event.occurredAt), stats?.lastEventAt ?? 0);
     const firstDay = [stats?.firstDay, eventDays[0]].filter((value): value is string => Boolean(value)).sort()[0];
     const lastDay = [stats?.lastDay, eventDays.at(-1)].filter((value): value is string => Boolean(value)).sort().at(-1);
     const acceptedUsageSources = acceptedEvents
-      .filter((event) => event.accountingMode === "usage")
+      .filter((event) => event.eventType === "model_request")
       .map((event) => event.source);
     const nextStats = {
       totalTokens: (stats?.totalTokens ?? 0) + total.totalTokens,
@@ -381,13 +497,16 @@ export const commitBatch = internalMutation({
       sources: [...new Set([...(stats?.sources ?? []), ...acceptedUsageSources])].sort(),
       sessions: (stats?.sessions ?? 0) + newSessions,
       activeDays: (stats?.activeDays ?? 0) + uniqueNewDays,
-      currentStreakDays: stats?.currentStreakDays ?? 0,
-      longestStreakDays: stats?.longestStreakDays ?? 0,
-      deviceCount: stats?.deviceCount ?? 1,
+      currentStreakDays: streaks.current,
+      longestStreakDays: Math.max(stats?.longestStreakDays ?? 0, streaks.longest),
+      deviceCount: activeDeviceCount,
       topModel: leadingModel?.model ?? stats?.topModel ?? modelRollups.keys().next().value ?? "unknown",
       firstDay,
       lastDay,
       lastEventAt: lastEventAt || undefined,
+      peakDay: priorPeakWins ? stats?.peakDay : bestRecentDay?.day,
+      peakDayCostMicros: priorPeakWins ? stats?.peakDayCostMicros : bestRecentDay?.costMicros,
+      avgCostPerActiveDayMicros: Math.round(((stats?.totalCostMicros ?? 0) + total.costMicros) / Math.max(1, (stats?.activeDays ?? 0) + uniqueNewDays)),
       updatedAt: args.receivedAt,
     };
     if (stats) await ctx.db.patch(stats._id, nextStats);
@@ -448,7 +567,7 @@ export const commitBatch = internalMutation({
           });
         }
       }
-    }
+      }
 
     const shard = [...String(collector._id)].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 128;
     const eventsDay = dayFromTimestamp(args.receivedAt);
@@ -462,7 +581,7 @@ export const commitBatch = internalMutation({
         totalCostMicros: network.totalCostMicros + total.costMicros,
         totalSessions: network.totalSessions + newSessions,
         eventsDay,
-        eventsToday: network.eventsDay === eventsDay ? network.eventsToday + acceptedEvents.length : acceptedEvents.length,
+        eventsToday: network.eventsDay === eventsDay ? network.eventsToday + total.requests : total.requests,
         updatedAt: args.receivedAt,
       });
     } else {
@@ -473,9 +592,10 @@ export const commitBatch = internalMutation({
         totalSessions: newSessions,
         profiles: 0,
         eventsDay,
-        eventsToday: acceptedEvents.length,
+        eventsToday: total.requests,
         updatedAt: args.receivedAt,
       });
+    }
     }
 
     await ctx.db.patch(collector._id, { lastSeenAt: args.receivedAt, lastSuccessAt: args.receivedAt });

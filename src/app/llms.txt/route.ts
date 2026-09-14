@@ -6,7 +6,6 @@ const llmsText = `# UsageMax
 
 - [Home](https://usagemax.com/): product overview and realtime network signal
 - [Leaderboard](https://usagemax.com/leaderboard): ranked public profiles by tokens or indexed spend
-- [symbaiex profile](https://usagemax.com/symbaiex): featured public telemetry profile
 - [Documentation](https://usagemax.com/docs): native telemetry and OpenTelemetry ingestion
 - [Methodology](https://usagemax.com/methodology): aggregation, completeness, and ranking definitions
 - [Security](https://usagemax.com/security): public data boundaries and bounded reads

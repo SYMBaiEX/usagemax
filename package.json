@@ -15,7 +15,6 @@
     "cli:pack": "bun run --cwd packages/cli pack:check",
     "convex:dev": "convex dev",
     "convex:deploy": "convex deploy",
-    "data:import": "bun run scripts/import-tokenmaxxing.ts",
     "check": "bun run lint && bun run typecheck && bun run test && bun run build"
   },
   "dependencies": {

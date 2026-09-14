@@ -79,7 +79,6 @@ export function SiteFooter() {
           <div>
             <p className="footer-heading">Explore</p>
             <Link href="/leaderboard">Leaderboard</Link>
-            <Link href="/symbaiex">symbaiex profile</Link>
             <Link href="/methodology">Methodology</Link>
           </div>
           <div>

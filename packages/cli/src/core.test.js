@@ -47,7 +47,6 @@ test("creates additive, idempotent usage deltas without content fields", () => {
     costBasis: "estimated",
     pricingSource: "ccusage / LiteLLM",
     pricingVersion: "ccusage@20.0.20",
-    accountingMode: "usage",
     status: "ok",
     state: "synced",
     occurredAt: "2026-09-14T12:00:00.000Z",

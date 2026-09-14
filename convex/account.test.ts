@@ -32,15 +32,13 @@ describe("WorkOS-backed accounts", () => {
     expect(account?.profile).toMatchObject({ handle: "ada-builds", isPublic: false, isVerified: false });
   });
 
-  test("does not let a new identity claim an imported profile by typing its handle", async () => {
-    await t.mutation(internal.imports.begin, {
-      handle: "established-builder",
-      displayName: "Established Builder",
-      sourceUrl: "https://example.com/profile",
-      collectorKeyHash: "hash",
-      collectorKeyPrefix: "prefix",
-      now: Date.now(),
+  test("does not let a new identity claim another first-party profile handle", async () => {
+    const owner = t.withIdentity({
+      subject: "user_01OWNER",
+      issuer: "https://api.workos.com/",
+      tokenIdentifier: "https://api.workos.com/|user_01OWNER",
     });
+    await owner.mutation(api.account.ensureProfile, { handle: "established-builder" });
     const session = t.withIdentity({
       subject: "user_01ATTACKER",
       issuer: "https://api.workos.com/",

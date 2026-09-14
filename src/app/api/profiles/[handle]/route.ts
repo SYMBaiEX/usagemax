@@ -17,7 +17,6 @@ export async function GET(_request: Request, context: { params: Promise<{ handle
       bio: result.profile.bio,
       verified: result.profile.isVerified,
       verification: result.profile.verification,
-      importedAt: result.profile.importedAt ?? null,
     },
     stats: {
       activeDays: stats.activeDays,

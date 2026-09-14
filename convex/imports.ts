@@ -536,6 +536,9 @@ export const finish = internalMutation({
 export const importTokenMaxxing = action({
   args: { secret: v.string(), handle: v.string(), collectorToken: v.string() },
   handler: async (ctx, args): Promise<{ importedRows: number; importedDimensions: number; skippedRows: number; profileId: Id<"profiles"> }> => {
+    if (process.env.USAGEMAX_ENABLE_RETIRED_IMPORT !== "true") {
+      throw new ConvexError("TOKENMAXXING_IMPORT_RETIRED");
+    }
     if (!process.env.USAGEMAX_IMPORT_SECRET || args.secret !== process.env.USAGEMAX_IMPORT_SECRET) {
       throw new ConvexError("INVALID_IMPORT_SECRET");
     }
