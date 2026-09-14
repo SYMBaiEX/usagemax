@@ -38,6 +38,25 @@ export const daily = query({
       .withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id))
       .order("desc")
       .take(limit);
+    if (rows.length === 0) {
+      const legacyRows = await ctx.db
+        .query("dailyUsage")
+        .withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id))
+        .order("desc")
+        .take(4000);
+      const days = new Map<string, { date: string; totalTokens: number; outputTokens: number; costMicros: number; sessions: number; requests: number; errors: number }>();
+      for (const row of legacyRows) {
+        const current = days.get(row.day) ?? { date: row.day, totalTokens: 0, outputTokens: 0, costMicros: 0, sessions: 0, requests: 0, errors: 0 };
+        current.totalTokens += row.totalTokens;
+        current.outputTokens += row.outputTokens;
+        current.costMicros += row.costMicros;
+        current.sessions += row.sessions;
+        current.requests += row.requests;
+        current.errors += row.errors;
+        days.set(row.day, current);
+      }
+      return [...days.values()].sort((a, b) => a.date.localeCompare(b.date)).slice(-limit);
+    }
     return rows
       .map((row) => ({
         date: row.day,
@@ -63,7 +82,18 @@ export const dailyModels = query({
       .withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id))
       .order("desc")
       .take(limit);
-    const cutoffDay = recentDays.at(-1)?.day;
+    let cutoffDay = recentDays.at(-1)?.day;
+    if (!cutoffDay) {
+      const legacyRows = await ctx.db
+        .query("dailyUsage")
+        .withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id))
+        .order("desc")
+        .take(4000);
+      cutoffDay = [...new Set(legacyRows.map((row) => row.day))]
+        .sort((a, b) => b.localeCompare(a))
+        .slice(0, limit)
+        .at(-1);
+    }
     if (!cutoffDay) return [];
     const rows = await ctx.db
       .query("dailyUsage")
