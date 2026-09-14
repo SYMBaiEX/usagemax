@@ -1,4 +1,5 @@
 import { ConvexError, v } from "convex/values";
+import { internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
 import { DAY_MS, dayFromTimestamp } from "./lib";
 
@@ -23,6 +24,13 @@ export const telemetryEventValidator = v.object({
   totalTokens: v.number(),
   costMicros: v.number(),
   costBasis: v.union(v.literal("reported"), v.literal("estimated"), v.literal("unknown")),
+  pricingSource: v.optional(v.string()),
+  pricingVersion: v.optional(v.string()),
+  serviceTier: v.optional(v.string()),
+  region: v.optional(v.string()),
+  currency: v.optional(v.string()),
+  projectId: v.optional(v.string()),
+  costCenter: v.optional(v.string()),
   accountingMode: v.union(v.literal("usage"), v.literal("observability")),
   latencyMs: v.optional(v.number()),
   timeToFirstTokenMs: v.optional(v.number()),
@@ -107,7 +115,10 @@ export const commitBatch = internalMutation({
   },
   handler: async (ctx, args) => {
     const collector = await ctx.db.query("collectors").withIndex("by_keyHash", (q) => q.eq("keyHash", args.keyHash)).unique();
-    if (!collector || collector.revokedAt) throw new ConvexError("INVALID_COLLECTOR");
+    if (!collector || collector.revokedAt || !collector.scopes.includes("telemetry:write")) throw new ConvexError("INVALID_COLLECTOR");
+    if (args.events.some((event) => event.eventType === "outcome") && !collector.scopes.includes("outcomes:write")) {
+      throw new ConvexError("INVALID_COLLECTOR_SCOPE");
+    }
 
     const priorReceipt = await ctx.db
       .query("ingestReceipts")
@@ -467,7 +478,7 @@ export const commitBatch = internalMutation({
       });
     }
 
-    await ctx.db.patch(collector._id, { lastSeenAt: args.receivedAt });
+    await ctx.db.patch(collector._id, { lastSeenAt: args.receivedAt, lastSuccessAt: args.receivedAt });
     await ctx.db.insert("ingestReceipts", {
       workspaceId: collector.workspaceId,
       collectorId: collector._id,
@@ -483,18 +494,45 @@ export const commitBatch = internalMutation({
 
 export const deleteExpired = internalMutation({
   args: {},
-  handler: async (ctx) => {
+  handler: async (ctx): Promise<{ events: number; receipts: number; rateBuckets: number; liveAgents: number; quarantine: number }> => {
     const now = Date.now();
-    const events = await ctx.db
-      .query("telemetryEvents")
-      .withIndex("by_receivedAt", (q) => q.lt("receivedAt", now - 30 * DAY_MS))
-      .take(250);
-    const receipts = await ctx.db
-      .query("ingestReceipts")
-      .withIndex("by_createdAt", (q) => q.lt("createdAt", now - 90 * DAY_MS))
-      .take(250);
+    const batchSize = 250;
+    const [events, receipts, rateBuckets, liveAgents, quarantine] = await Promise.all([
+      ctx.db
+        .query("telemetryEvents")
+        .withIndex("by_receivedAt", (q) => q.lt("receivedAt", now - 30 * DAY_MS))
+        .take(batchSize),
+      ctx.db
+        .query("ingestReceipts")
+        .withIndex("by_createdAt", (q) => q.lt("createdAt", now - 90 * DAY_MS))
+        .take(batchSize),
+      ctx.db
+        .query("ingestRateBuckets")
+        .withIndex("by_bucketStart", (q) => q.lt("bucketStart", now - 2 * DAY_MS))
+        .take(batchSize),
+      ctx.db
+        .query("agentLiveStats")
+        .withIndex("by_expiresAt", (q) => q.lt("expiresAt", now - DAY_MS))
+        .take(batchSize),
+      ctx.db
+        .query("quarantine")
+        .withIndex("by_receivedAt", (q) => q.lt("receivedAt", now - 30 * DAY_MS))
+        .take(batchSize),
+    ]);
     for (const event of events) await ctx.db.delete(event._id);
     for (const receipt of receipts) await ctx.db.delete(receipt._id);
-    return { events: events.length, receipts: receipts.length };
+    for (const bucket of rateBuckets) await ctx.db.delete(bucket._id);
+    for (const agent of liveAgents) await ctx.db.delete(agent._id);
+    for (const row of quarantine) await ctx.db.delete(row._id);
+    if ([events, receipts, rateBuckets, liveAgents, quarantine].some((rows) => rows.length === batchSize)) {
+      await ctx.scheduler.runAfter(0, internal.telemetry.deleteExpired, {});
+    }
+    return {
+      events: events.length,
+      receipts: receipts.length,
+      rateBuckets: rateBuckets.length,
+      liveAgents: liveAgents.length,
+      quarantine: quarantine.length,
+    };
   },
 });

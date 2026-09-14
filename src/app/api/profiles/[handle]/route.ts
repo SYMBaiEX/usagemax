@@ -40,6 +40,15 @@ export async function GET(_request: Request, context: { params: Promise<{ handle
       costSource: stats.costSource ?? null,
       sources: stats.sources ?? [],
       lastEventAt: stats.lastEventAt ?? null,
+      leaderboardRank: stats.leaderboardRank ?? null,
+      peakDay: stats.peakDay
+        ? { date: stats.peakDay, spendUsd: (stats.peakDayCostMicros ?? 0) / 1_000_000 }
+        : null,
+      avgSpendPerActiveDay: (stats.avgCostPerActiveDayMicros ?? 0) / 1_000_000,
+      lastSyncAt: stats.lastSyncAt ?? null,
+      syncStatus: stats.syncStatus ?? "stale",
+      syncErrorCode: stats.syncErrorCode ?? null,
+      pricingVersion: stats.pricingVersion ?? null,
     },
     models: result.models.map((model) => ({
       provider: model.provider,

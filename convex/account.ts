@@ -1,7 +1,10 @@
 import { ConvexError, v } from "convex/values";
 
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import { mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
+import { action, internalMutation, mutation, query } from "./_generated/server";
+import { cleanText, sha256 } from "./lib";
 
 const RESERVED_HANDLES = new Set([
   "account",
@@ -58,6 +61,12 @@ function normalizeHandle(value: string) {
   return value.trim().toLowerCase().replace(/^@/, "");
 }
 
+function newCollectorToken() {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return `umx_${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+}
+
 export const current = query({
   args: {},
   handler: async (ctx) => {
@@ -67,6 +76,9 @@ export const current = query({
     const profile = user
       ? await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", user._id)).unique()
       : null;
+    const collectors = profile
+      ? await ctx.db.query("collectors").withIndex("by_workspaceId", (q) => q.eq("workspaceId", profile.workspaceId)).take(20)
+      : [];
     return {
       user: {
         workosUserId: identity.subject,
@@ -83,7 +95,123 @@ export const current = query({
             isVerified: profile.isVerified,
           }
         : null,
+      collectors: collectors
+        .sort((left, right) => right.createdAt - left.createdAt)
+        .map((collector) => ({
+          id: collector._id,
+          name: collector.name,
+          keyPrefix: collector.keyPrefix,
+          scopes: collector.scopes,
+          createdAt: collector.createdAt,
+          lastSeenAt: collector.lastSeenAt,
+          rotatedAt: collector.rotatedAt,
+          revokedAt: collector.revokedAt,
+        })),
     };
+  },
+});
+
+export const writeCollector = internalMutation({
+  args: {
+    workosUserId: v.string(),
+    name: v.optional(v.string()),
+    keyHash: v.string(),
+    keyPrefix: v.string(),
+    collectorId: v.optional(v.id("collectors")),
+    now: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const user = await userForIdentity(ctx, args.workosUserId);
+    if (!user) throw new ConvexError("PROFILE_REQUIRED");
+    const profile = await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", user._id)).unique();
+    if (!profile) throw new ConvexError("PROFILE_REQUIRED");
+
+    if (args.collectorId) {
+      const collector = await ctx.db.get(args.collectorId);
+      if (!collector || collector.workspaceId !== profile.workspaceId || collector.revokedAt) {
+        throw new ConvexError("COLLECTOR_NOT_FOUND");
+      }
+      await ctx.db.patch(collector._id, {
+        name: args.name ?? collector.name,
+        keyHash: args.keyHash,
+        keyPrefix: args.keyPrefix,
+        lastSeenAt: undefined,
+        lastSuccessAt: undefined,
+        lastFailureAt: undefined,
+        lastFailureCode: undefined,
+        rotatedAt: args.now,
+      });
+      return collector._id;
+    }
+
+    const existing = await ctx.db
+      .query("collectors")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", profile.workspaceId))
+      .take(20);
+    if (existing.filter((collector) => !collector.revokedAt).length >= 8) {
+      throw new ConvexError("COLLECTOR_LIMIT_REACHED");
+    }
+    return await ctx.db.insert("collectors", {
+      workspaceId: profile.workspaceId,
+      profileId: profile._id,
+      name: args.name ?? "My computer",
+      keyHash: args.keyHash,
+      keyPrefix: args.keyPrefix,
+      scopes: ["telemetry:write", "outcomes:write"],
+      createdAt: args.now,
+    });
+  },
+});
+
+export const createCollector = action({
+  args: { name: v.string() },
+  handler: async (ctx, args): Promise<{ collectorId: Id<"collectors">; token: string; keyPrefix: string }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new ConvexError("AUTH_REQUIRED");
+    const token = newCollectorToken();
+    const keyPrefix = token.slice(0, 12);
+    const collectorId: Id<"collectors"> = await ctx.runMutation(internal.account.writeCollector, {
+      workosUserId: identity.subject,
+      name: cleanText(args.name, "My computer", 80),
+      keyHash: await sha256(token),
+      keyPrefix,
+      now: Date.now(),
+    });
+    return { collectorId, token, keyPrefix };
+  },
+});
+
+export const rotateCollector = action({
+  args: { collectorId: v.id("collectors") },
+  handler: async (ctx, args): Promise<{ collectorId: Id<"collectors">; token: string; keyPrefix: string }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new ConvexError("AUTH_REQUIRED");
+    const token = newCollectorToken();
+    const keyPrefix = token.slice(0, 12);
+    const collectorId: Id<"collectors"> = await ctx.runMutation(internal.account.writeCollector, {
+      workosUserId: identity.subject,
+      keyHash: await sha256(token),
+      keyPrefix,
+      collectorId: args.collectorId,
+      now: Date.now(),
+    });
+    return { collectorId, token, keyPrefix };
+  },
+});
+
+export const revokeCollector = mutation({
+  args: { collectorId: v.id("collectors") },
+  handler: async (ctx, args) => {
+    const identity = await identityOrThrow(ctx);
+    const user = await userForIdentity(ctx, identity.subject);
+    if (!user) throw new ConvexError("PROFILE_REQUIRED");
+    const profile = await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", user._id)).unique();
+    const collector = await ctx.db.get(args.collectorId);
+    if (!profile || !collector || collector.workspaceId !== profile.workspaceId) {
+      throw new ConvexError("COLLECTOR_NOT_FOUND");
+    }
+    if (!collector.revokedAt) await ctx.db.patch(collector._id, { revokedAt: Date.now() });
+    return { collectorId: collector._id, revoked: true };
   },
 });
 

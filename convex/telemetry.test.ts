@@ -211,4 +211,38 @@ describe("telemetry ingestion", () => {
       costBasis: "reported",
     });
   });
+
+  test("preserves pricing and allocation provenance without exposing it as calculated truth", async () => {
+    const receivedAt = Date.now();
+    await t.mutation(internal.telemetry.commitBatch, {
+      keyHash,
+      batchId: "batch-pricing-context",
+      payloadHash: "payload-pricing-context",
+      receivedAt,
+      events: [event({
+        eventKey: "event-pricing-context",
+        occurredAt: receivedAt,
+        pricingSource: "provider-billing-export",
+        pricingVersion: "2026-09-14",
+        serviceTier: "priority",
+        region: "us-east",
+        currency: "USD",
+        projectId: "agent-platform",
+        costCenter: "engineering",
+      })],
+    });
+    const stored = await t.run(async (ctx) => ctx.db
+      .query("telemetryEvents")
+      .filter((q) => q.eq(q.field("eventKey"), "event-pricing-context"))
+      .unique());
+    expect(stored).toMatchObject({
+      pricingSource: "provider-billing-export",
+      pricingVersion: "2026-09-14",
+      serviceTier: "priority",
+      region: "us-east",
+      currency: "USD",
+      projectId: "agent-platform",
+      costCenter: "engineering",
+    });
+  });
 });

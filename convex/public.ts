@@ -88,7 +88,7 @@ export const dailyModels = query({
   handler: async (ctx, args) => {
     const profile = await profileByHandle(ctx, args.handle);
     if (!profile?.isPublic) return [];
-    const limit = Math.min(90, Math.max(1, Math.round(args.days ?? 30)));
+    const limit = Math.min(730, Math.max(1, Math.round(args.days ?? 30)));
     const recentDays = await ctx.db
       .query("profileDailyTotals")
       .withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id))
@@ -111,7 +111,7 @@ export const dailyModels = query({
       .query("dailyUsage")
       .withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id).gte("day", cutoffDay))
       .order("desc")
-      .take(2500);
+      .take(4000);
     const hasAuthoritativeImport = queriedRows.some((row) => row.source === "tokenmaxxing-import");
     const rows = hasAuthoritativeImport
       ? queriedRows.filter((row) => row.source === "tokenmaxxing-import")
@@ -142,6 +142,88 @@ export const dailyModels = query({
     return [...grouped.values()].sort((a, b) =>
       a.date === b.date ? b.totalTokens - a.totalTokens : a.date.localeCompare(b.date),
     );
+  },
+});
+
+export const dailyBreakdown = query({
+  args: {
+    handle: v.string(),
+    groupBy: v.union(v.literal("source"), v.literal("device")),
+    days: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const profile = await profileByHandle(ctx, args.handle);
+    if (!profile?.isPublic) return [];
+    const limit = Math.min(730, Math.max(1, Math.round(args.days ?? 365)));
+    const recentDays = await ctx.db
+      .query("profileDailyTotals")
+      .withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id))
+      .order("desc")
+      .take(limit);
+    const cutoffDay = recentDays.at(-1)?.day;
+    if (!cutoffDay) return [];
+    const rows = await ctx.db
+      .query("dailyDimensions")
+      .withIndex("by_profileId_and_dimension_and_day", (q) =>
+        q.eq("profileId", profile._id).eq("dimension", args.groupBy).gte("day", cutoffDay),
+      )
+      .order("desc")
+      .take(4000);
+    return rows
+      .map((row) => ({
+        date: row.day,
+        key: row.key,
+        outputTokens: row.outputTokens,
+        unclassifiedTokens: row.unclassifiedTokens,
+        totalTokens: row.totalTokens,
+        costMicros: row.costMicros,
+        costBasis: row.costBasis,
+        sessions: row.sessions,
+      }))
+      .sort((left, right) => left.date === right.date
+        ? right.totalTokens - left.totalTokens
+        : left.date.localeCompare(right.date));
+  },
+});
+
+export const breakdowns = query({
+  args: { handle: v.string(), days: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const profile = await profileByHandle(ctx, args.handle);
+    if (!profile?.isPublic) return { sources: [], devices: [] };
+    const days = Math.min(90, Math.max(1, Math.round(args.days ?? 30)));
+    const recentDays = await ctx.db
+      .query("profileDailyTotals")
+      .withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id))
+      .order("desc")
+      .take(days);
+    const cutoff = recentDays.at(-1)?.day;
+    if (!cutoff) return { sources: [], devices: [] };
+    const [sourceRows, deviceRows] = await Promise.all([
+      ctx.db
+        .query("dailyDimensions")
+        .withIndex("by_profileId_and_dimension_and_day", (q) =>
+          q.eq("profileId", profile._id).eq("dimension", "source").gte("day", cutoff),
+        )
+        .take(1000),
+      ctx.db
+        .query("dailyDimensions")
+        .withIndex("by_profileId_and_dimension_and_day", (q) =>
+          q.eq("profileId", profile._id).eq("dimension", "device").gte("day", cutoff),
+        )
+        .take(1000),
+    ]);
+    const summarize = (rows: typeof sourceRows) => {
+      const totals = new Map<string, { key: string; totalTokens: number; costMicros: number }>();
+      for (const row of rows) {
+        const current = totals.get(row.key) ?? { key: row.key, totalTokens: 0, costMicros: 0 };
+        current.totalTokens += row.totalTokens;
+        current.costMicros += row.costMicros;
+        totals.set(row.key, current);
+      }
+      return [...totals.values()].sort((left, right) => right.totalTokens - left.totalTokens).slice(0, 12);
+    };
+    return { sources: summarize(sourceRows), devices: summarize(deviceRows) };
   },
 });
 
@@ -227,6 +309,7 @@ export const live = query({
         online: agent.expiresAt > args.now,
       })),
       events: events.map((event) => ({
+        eventKey: event.eventKey,
         agentName: event.agentName,
         eventType: event.eventType,
         source: event.source,

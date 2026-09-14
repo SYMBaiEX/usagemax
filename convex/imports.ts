@@ -27,12 +27,62 @@ const importedDailyTotalValidator = v.object({
   costMicros: v.number(),
 });
 
+const importedDimensionValidator = v.object({
+  day: v.string(),
+  key: v.string(),
+  keyHash: v.optional(v.string()),
+  outputTokens: v.number(),
+  totalTokens: v.number(),
+  costMicros: v.number(),
+});
+
 function record(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
 function number(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+async function responseRecord(response: Response | null) {
+  if (!response?.ok) return null;
+  try {
+    return record(await response.json());
+  } catch {
+    return null;
+  }
+}
+
+function dimensionRows(root: Record<string, unknown> | null, now: number) {
+  const values = Array.isArray(root?.days) ? root.days : [];
+  return values.flatMap((value) => {
+    const row = record(value);
+    const day = typeof row?.date === "string" ? row.date : "";
+    const key = cleanText(row?.key, "", 120);
+    if (!key || !isValidHistoricalDay(day, now)) return [];
+    const totalTokens = Math.max(0, Math.round(number(row?.totalTokens)));
+    return [{
+      day,
+      key,
+      outputTokens: Math.min(totalTokens, Math.max(0, Math.round(number(row?.outputTokens)))),
+      totalTokens,
+      costMicros: Math.max(0, Math.round(number(row?.costUsd) * 1_000_000)),
+    }];
+  });
+}
+
+function reconcileRoundedCosts<T extends { costMicros: number }>(rows: T[], expectedTotal: number) {
+  if (rows.length === 0) return rows;
+  const residual = expectedTotal - rows.reduce((sum, row) => sum + row.costMicros, 0);
+  if (Math.abs(residual) > rows.length) return rows;
+  const largestIndex = rows.reduce(
+    (largest, row, index) => row.costMicros > rows[largest]!.costMicros ? index : largest,
+    0,
+  );
+  if (rows[largestIndex]!.costMicros + residual < 0) return rows;
+  return rows.map((row, index) => index === largestIndex
+    ? { ...row, costMicros: row.costMicros + residual }
+    : row);
 }
 
 function providerFor(model: string) {
@@ -188,12 +238,155 @@ export const pruneStaleImportedDays = internalMutation({
   },
 });
 
+export const registerDevices = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    profileId: v.id("profiles"),
+    deviceHashes: v.array(v.string()),
+    now: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("profileDevices")
+      .withIndex("by_profileId", (q) => q.eq("profileId", args.profileId))
+      .take(100);
+    const byHash = new Map(existing.map((device) => [device.deviceHash, device]));
+    let nextNumber = existing.reduce((max, device) => {
+      const match = /^(?:Device) (\d+)$/.exec(device.publicLabel);
+      return Math.max(max, match ? Number(match[1]) : 0);
+    }, 0) + 1;
+    const labels: Array<{ deviceHash: string; publicLabel: string }> = [];
+    for (const deviceHash of [...new Set(args.deviceHashes)].slice(0, 100)) {
+      const prior = byHash.get(deviceHash);
+      if (prior) {
+        await ctx.db.patch(prior._id, { lastSeenAt: args.now });
+        labels.push({ deviceHash, publicLabel: prior.publicLabel });
+        continue;
+      }
+      const publicLabel = `Device ${nextNumber++}`;
+      await ctx.db.insert("profileDevices", {
+        workspaceId: args.workspaceId,
+        profileId: args.profileId,
+        deviceHash,
+        publicLabel,
+        firstSeenAt: args.now,
+        lastSeenAt: args.now,
+      });
+      labels.push({ deviceHash, publicLabel });
+    }
+    return labels;
+  },
+});
+
+export const applyDimensions = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    profileId: v.id("profiles"),
+    dimension: v.union(v.literal("source"), v.literal("device")),
+    rows: v.array(importedDimensionValidator),
+    now: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const origin = `tokenmaxxing-import:${args.dimension}`;
+    for (const row of args.rows) {
+      const prior = await ctx.db
+        .query("dailyDimensions")
+        .withIndex("by_profileId_and_dimension_and_day_and_key", (q) =>
+          q.eq("profileId", args.profileId).eq("dimension", args.dimension).eq("day", row.day).eq("key", row.key),
+        )
+        .unique();
+      const value = {
+        workspaceId: args.workspaceId,
+        profileId: args.profileId,
+        day: row.day,
+        dimension: args.dimension,
+        key: row.key,
+        keyHash: row.keyHash,
+        origin,
+        outputTokens: row.outputTokens,
+        unclassifiedTokens: Math.max(0, row.totalTokens - row.outputTokens),
+        totalTokens: row.totalTokens,
+        costMicros: row.costMicros,
+        costBasis: "api-equivalent" as const,
+        sessions: 0,
+        updatedAt: args.now,
+      };
+      if (prior) await ctx.db.replace(prior._id, value);
+      else await ctx.db.insert("dailyDimensions", value);
+    }
+    return args.rows.length;
+  },
+});
+
+export const pruneStaleImportedDimensions = internalMutation({
+  args: {
+    profileId: v.id("profiles"),
+    dimension: v.union(v.literal("source"), v.literal("device")),
+    now: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("dailyDimensions")
+      .withIndex("by_profileId_and_origin_and_updatedAt", (q) =>
+        q.eq("profileId", args.profileId).eq("origin", `tokenmaxxing-import:${args.dimension}`).lt("updatedAt", args.now),
+      )
+      .take(200);
+    for (const row of rows) await ctx.db.delete(row._id);
+    return rows.length;
+  },
+});
+
+export const applyDailyTotals = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    profileId: v.id("profiles"),
+    rows: v.array(importedDailyTotalValidator),
+    now: v.number(),
+  },
+  handler: async (ctx, args) => {
+    for (const row of args.rows) {
+      const prior = await ctx.db
+        .query("profileDailyTotals")
+        .withIndex("by_profileId_and_day", (q) => q.eq("profileId", args.profileId).eq("day", row.day))
+        .unique();
+      const value = {
+        workspaceId: args.workspaceId,
+        profileId: args.profileId,
+        day: row.day,
+        totalTokens: row.totalTokens,
+        outputTokens: row.outputTokens,
+        unclassifiedTokens: Math.max(0, row.totalTokens - row.outputTokens),
+        costMicros: row.costMicros,
+        costBasis: "api-equivalent" as const,
+        sessions: 0,
+        requests: 0,
+        errors: 0,
+        updatedAt: args.now,
+      };
+      if (prior) await ctx.db.replace(prior._id, value);
+      else await ctx.db.insert("profileDailyTotals", value);
+    }
+    return args.rows.length;
+  },
+});
+
+export const pruneStaleDailyTotals = internalMutation({
+  args: { profileId: v.id("profiles"), now: v.number() },
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("profileDailyTotals")
+      .withIndex("by_profileId_and_updatedAt", (q) => q.eq("profileId", args.profileId).lt("updatedAt", args.now))
+      .take(200);
+    for (const row of rows) await ctx.db.delete(row._id);
+    return rows.length;
+  },
+});
+
 export const finish = internalMutation({
   args: {
     workspaceId: v.id("workspaces"),
     profileId: v.id("profiles"),
     models: v.array(importedModelValidator),
-    dailyTotals: v.array(importedDailyTotalValidator),
     totalTokens: v.number(),
     totalCostMicros: v.number(),
     outputTokens: v.number(),
@@ -206,6 +399,13 @@ export const finish = internalMutation({
     topModel: v.string(),
     firstDay: v.optional(v.string()),
     lastDay: v.optional(v.string()),
+    leaderboardRank: v.optional(v.number()),
+    peakDay: v.optional(v.string()),
+    peakDayCostMicros: v.optional(v.number()),
+    avgCostPerActiveDayMicros: v.optional(v.number()),
+    syncStatus: v.union(v.literal("healthy"), v.literal("degraded")),
+    syncErrorCode: v.optional(v.string()),
+    pricingVersion: v.string(),
     windows: v.object({
       sevenTokens: v.number(),
       sevenCostMicros: v.number(),
@@ -242,28 +442,6 @@ export const finish = internalMutation({
       await ctx.db.insert("modelTotals", value);
     }
 
-    const existingDailyTotals = await ctx.db
-      .query("profileDailyTotals")
-      .withIndex("by_profileId_and_day", (q) => q.eq("profileId", args.profileId))
-      .collect();
-    for (const row of existingDailyTotals) await ctx.db.delete(row._id);
-    for (const row of args.dailyTotals) {
-      await ctx.db.insert("profileDailyTotals", {
-        workspaceId: args.workspaceId,
-        profileId: args.profileId,
-        day: row.day,
-        totalTokens: row.totalTokens,
-        outputTokens: row.outputTokens,
-        unclassifiedTokens: Math.max(0, row.totalTokens - row.outputTokens),
-        costMicros: row.costMicros,
-        costBasis: "api-equivalent",
-        sessions: 0,
-        requests: 0,
-        errors: 0,
-        updatedAt: args.now,
-      });
-    }
-
     const priorStats = await ctx.db.query("profileStats").withIndex("by_profileId", (q) => q.eq("profileId", args.profileId)).unique();
     const stats = {
       workspaceId: args.workspaceId,
@@ -288,6 +466,14 @@ export const finish = internalMutation({
       firstDay: args.firstDay,
       lastDay: args.lastDay,
       lastEventAt: args.lastDay ? Date.parse(`${args.lastDay}T23:59:59.999Z`) : undefined,
+      leaderboardRank: args.leaderboardRank,
+      peakDay: args.peakDay,
+      peakDayCostMicros: args.peakDayCostMicros,
+      avgCostPerActiveDayMicros: args.avgCostPerActiveDayMicros,
+      lastSyncAt: args.now,
+      syncStatus: args.syncStatus,
+      syncErrorCode: args.syncErrorCode,
+      pricingVersion: args.pricingVersion,
       updatedAt: args.now,
     };
     if (priorStats) await ctx.db.replace(priorStats._id, stats);
@@ -349,20 +535,26 @@ export const finish = internalMutation({
 
 export const importTokenMaxxing = action({
   args: { secret: v.string(), handle: v.string(), collectorToken: v.string() },
-  handler: async (ctx, args): Promise<{ importedRows: number; skippedRows: number; profileId: Id<"profiles"> }> => {
+  handler: async (ctx, args): Promise<{ importedRows: number; importedDimensions: number; skippedRows: number; profileId: Id<"profiles"> }> => {
     if (!process.env.USAGEMAX_IMPORT_SECRET || args.secret !== process.env.USAGEMAX_IMPORT_SECRET) {
       throw new ConvexError("INVALID_IMPORT_SECRET");
     }
     if (args.collectorToken.length < 32) throw new ConvexError("COLLECTOR_TOKEN_TOO_SHORT");
     const handle = cleanText(args.handle, "", 39).toLowerCase();
     if (!/^[a-z0-9-]+$/.test(handle)) throw new ConvexError("INVALID_HANDLE");
-    const [profileResponse, dailyResponse] = await Promise.all([
+    const [profileResponse, dailyResponse, sourceResponse, deviceResponse] = await Promise.all([
       fetch(`https://api.tokenmaxxing.sh/profiles/${encodeURIComponent(handle)}`),
       fetch(`https://api.tokenmaxxing.sh/profiles/${encodeURIComponent(handle)}/daily?since=2024-01-01`),
+      fetch(`https://api.tokenmaxxing.sh/profiles/${encodeURIComponent(handle)}/daily?since=2024-01-01&groupBy=source`).catch(() => null),
+      fetch(`https://api.tokenmaxxing.sh/profiles/${encodeURIComponent(handle)}/daily?since=2024-01-01&groupBy=device`).catch(() => null),
     ]);
     if (!profileResponse.ok || !dailyResponse.ok) throw new ConvexError("IMPORT_SOURCE_UNAVAILABLE");
-    const profileRoot = record(await profileResponse.json());
-    const dailyRoot = record(await dailyResponse.json());
+    const [profileRoot, dailyRoot, sourceRoot, deviceRoot] = await Promise.all([
+      responseRecord(profileResponse),
+      responseRecord(dailyResponse),
+      responseRecord(sourceResponse),
+      responseRecord(deviceResponse),
+    ]);
     const user = record(profileRoot?.user);
     const sourceStats = record(profileRoot?.stats);
     const rawDays = Array.isArray(dailyRoot?.days) ? dailyRoot.days : [];
@@ -423,6 +615,49 @@ export const importTokenMaxxing = action({
       // disappeared from a corrected backfill before rebuilding projections.
     }
 
+    const rawSourceRows = reconcileRoundedCosts(dimensionRows(sourceRoot, now), reportedTotalCostMicros);
+    const rawDeviceRows = reconcileRoundedCosts(dimensionRows(deviceRoot, now), reportedTotalCostMicros);
+    const sourceAvailable = Boolean(sourceResponse?.ok && Array.isArray(sourceRoot?.days));
+    const deviceAvailable = Boolean(deviceResponse?.ok && Array.isArray(deviceRoot?.days));
+    const sourceRows = rawSourceRows.map((row) => ({ ...row, key: cleanText(row.key, "unknown", 60) }));
+    const hashedDeviceRows = await Promise.all(rawDeviceRows.map(async (row) => ({
+      ...row,
+      keyHash: await sha256(`${process.env.USAGEMAX_IMPORT_SECRET}\u0000device\u0000${handle}\u0000${row.key}`),
+    })));
+    const deviceLabels = deviceAvailable
+      ? await ctx.runMutation(internal.imports.registerDevices, {
+          ...ids,
+          deviceHashes: [...new Set(hashedDeviceRows.map((row) => row.keyHash))],
+          now,
+        })
+      : [];
+    const labelByHash = new Map(deviceLabels.map((device) => [device.deviceHash, device.publicLabel]));
+    const deviceRows = hashedDeviceRows.flatMap((row) => {
+      const key = labelByHash.get(row.keyHash);
+      return key ? [{ ...row, key }] : [];
+    });
+    for (const [dimension, available, dimensionValues] of [
+      ["source", sourceAvailable, sourceRows],
+      ["device", deviceAvailable, deviceRows],
+    ] as const) {
+      if (!available) continue;
+      for (let index = 0; index < dimensionValues.length; index += 200) {
+        await ctx.runMutation(internal.imports.applyDimensions, {
+          ...ids,
+          dimension,
+          rows: dimensionValues.slice(index, index + 200),
+          now,
+        });
+      }
+      while (await ctx.runMutation(internal.imports.pruneStaleImportedDimensions, {
+        profileId: ids.profileId,
+        dimension,
+        now,
+      })) {
+        // Each dimension is authoritative only when that source endpoint succeeds.
+      }
+    }
+
     const modelMap = new Map<string, { model: string; totalTokens: number; outputTokens: number; costMicros: number; lastUsedAt: number }>();
     const dayMap = new Map<string, { day: string; totalTokens: number; outputTokens: number; costMicros: number }>();
     for (const row of rows) {
@@ -448,6 +683,7 @@ export const importTokenMaxxing = action({
     const sevenCutoff = trailingDayCutoff(now, 7);
     const thirtyCutoff = trailingDayCutoff(now, 30);
     const sourceTopModel = record(sourceStats.topModel);
+    const sourcePeakDay = record(sourceStats.peakDay);
     const topModel = cleanText(
       sourceTopModel?.model,
       [...modelMap.values()].sort((a, b) => b.costMicros - a.costMicros)[0]?.model ?? "unknown",
@@ -462,10 +698,28 @@ export const importTokenMaxxing = action({
     const importedSources = Array.isArray(sourceStats.sources)
       ? sourceStats.sources.flatMap((source) => typeof source === "string" ? [cleanText(source, "", 60)] : []).filter(Boolean)
       : [];
+    const dailyTotals = [...dayMap.values()].sort((a, b) => a.day.localeCompare(b.day));
+    for (let index = 0; index < dailyTotals.length; index += 200) {
+      await ctx.runMutation(internal.imports.applyDailyTotals, {
+        ...ids,
+        rows: dailyTotals.slice(index, index + 200),
+        now,
+      });
+    }
+    while (await ctx.runMutation(internal.imports.pruneStaleDailyTotals, { profileId: ids.profileId, now })) {
+      // Keep authoritative daily projections bounded to the current import.
+    }
+    const syncErrors = [
+      !sourceAvailable ? "source_breakdown_unavailable" : "",
+      !deviceAvailable ? "device_breakdown_unavailable" : "",
+    ].filter(Boolean);
+    const peakDay = typeof sourcePeakDay?.date === "string" && isValidHistoricalDay(sourcePeakDay.date, now)
+      ? sourcePeakDay.date
+      : undefined;
+    const leaderboardRank = Math.max(0, Math.round(number(sourceStats.leaderboardRank))) || undefined;
     await ctx.runMutation(internal.imports.finish, {
       ...ids,
       models: [...modelMap.values()],
-      dailyTotals: [...dayMap.values()].sort((a, b) => a.day.localeCompare(b.day)),
       totalTokens,
       totalCostMicros,
       outputTokens,
@@ -478,6 +732,13 @@ export const importTokenMaxxing = action({
       topModel,
       firstDay: sourceFirstDay,
       lastDay: sourceLastDay,
+      leaderboardRank,
+      peakDay,
+      peakDayCostMicros: peakDay ? Math.max(0, Math.round(number(sourcePeakDay?.spendUsd) * 1_000_000)) : undefined,
+      avgCostPerActiveDayMicros: Math.max(0, Math.round(number(sourceStats.avgSpendPerActiveDay) * 1_000_000)),
+      syncStatus: syncErrors.length ? "degraded" : "healthy",
+      syncErrorCode: syncErrors.join(",") || undefined,
+      pricingVersion: "tokenmaxxing:v0.6.0;ccusage:^20.0.19",
       windows: {
         sevenTokens: rows.filter((row) => row.day >= sevenCutoff).reduce((sum, row) => sum + row.totalTokens, 0),
         sevenCostMicros: rows.filter((row) => row.day >= sevenCutoff).reduce((sum, row) => sum + row.costMicros, 0),
@@ -486,6 +747,11 @@ export const importTokenMaxxing = action({
       },
       now,
     });
-    return { importedRows: rows.length, skippedRows: rawDays.length - rows.length, profileId: ids.profileId };
+    return {
+      importedRows: rows.length,
+      importedDimensions: sourceRows.length + deviceRows.length,
+      skippedRows: rawDays.length - rows.length,
+      profileId: ids.profileId,
+    };
   },
 });

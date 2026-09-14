@@ -52,6 +52,11 @@ source code, file paths, and arbitrary span attributes are not retained.
 Live display heartbeats use `accountingMode: "observability"`, so they animate
 the realtime agent feed without duplicating authoritative usage totals.
 
+Create dedicated collector keys from `/account`. Plaintext keys are returned
+once; Convex stores only their SHA-256 hashes. Keys can be rotated or revoked
+without changing a profile. Public daily data supports `groupBy=model`,
+`groupBy=source`, and privacy-safe `groupBy=device`.
+
 See [the research and roadmap](docs/research-and-roadmap.md) and
 [the telemetry contract](docs/telemetry-contract.md). Pricing provenance and the
 TokenMaxxing parity audit are documented in

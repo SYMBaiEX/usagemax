@@ -23,6 +23,8 @@ Useful optional fields:
 - `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheWriteTokens`, `reasoningTokens`, `totalTokens`
 - `costMicros`, `latencyMs`, `timeToFirstTokenMs`
 - `costBasis`: `reported`, `estimated`, or `unknown`
+- `pricingSource`, `pricingVersion`, `serviceTier`, `region`, `currency`
+- `projectId`, `costCenter` for private allocation and future chargeback
 - `accountingMode`: `usage` or `observability`
 - `status`: `ok`, `error`, or `cancelled`
 - `state`, `task`, `traceId`, `spanId`
@@ -44,6 +46,9 @@ Token categories follow the current OpenTelemetry GenAI convention:
 `costMicros` is only meaningful together with `costBasis`. An omitted cost is
 stored as unknown, never silently treated as free usage. A provider-returned
 zero is still `reported`; a locally calculated amount is `estimated`.
+`pricingSource` and `pricingVersion` identify the calculator or billing export;
+`serviceTier`, `region`, and `currency` preserve modifiers that can materially
+change the amount. UsageMax does not guess these fields from a model nickname.
 
 Use `accountingMode: "usage"` for one authoritative accounting event per model
 attempt. Use `accountingMode: "observability"` for heartbeats, live display
@@ -59,6 +64,9 @@ including `gen_ai.usage.cache_read.input_tokens`,
 `gen_ai.usage.cache_creation.input_tokens`, and
 `gen_ai.usage.reasoning.output_tokens`. Deprecated UsageMax aliases remain
 accepted during migration.
+Pricing context is accepted from `gen_ai.usage.cost.source`,
+`gen_ai.usage.cost.version`, `gen_ai.request.service_tier`, `cloud.region`, and
+`gen_ai.usage.cost.currency`; UsageMax-specific aliases are also supported.
 OTLP protobuf and gzip belong in the planned collector gateway rather than the
 MVP Convex HTTP action.
 
@@ -68,3 +76,6 @@ The allowlist intentionally excludes prompts, completions, source code, file
 paths, tool arguments, tool output, environment variables, and free-form OTLP
 attributes. API keys are SHA-256 hashed before storage. Public profiles are
 separate from workspace telemetry and are designed to be opt-in.
+Imported device names are salted and hashed before persistence. Public grouped
+data uses stable labels such as `Device 1`; hostnames never enter the public
+projection.

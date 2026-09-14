@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useAuth } from "@workos-inc/authkit-nextjs/components";
-import { AuthLoading, Authenticated, Unauthenticated, useMutation, useQuery } from "convex/react";
+import { AuthLoading, Authenticated, Unauthenticated, useAction, useMutation, useQuery } from "convex/react";
 
 import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
 import { ArrowUpRight } from "./icons";
 import { GitHubIcon } from "./auth-controls";
 
@@ -14,17 +15,39 @@ function friendlyError(error: unknown) {
   const message = String(error);
   if (message.includes("PROFILE_UNAVAILABLE")) return "That handle is already in use.";
   if (message.includes("INVALID_HANDLE")) return "Use 1–39 letters, numbers, or hyphens.";
+  if (message.includes("COLLECTOR_LIMIT_REACHED")) return "This workspace already has eight active collectors.";
+  if (message.includes("COLLECTOR_NOT_FOUND")) return "That collector is no longer active.";
   return "We could not save that change. Please try again.";
+}
+
+function collectorStatus(lastSeenAt?: number, revokedAt?: number) {
+  if (revokedAt) return "Revoked";
+  if (!lastSeenAt) return "Waiting for first sync";
+  const age = Date.now() - lastSeenAt;
+  if (age < 5 * 60_000) return "Live";
+  if (age < 24 * 60 * 60_000) return "Recently synced";
+  return "Stale";
+}
+
+function collectorTime(value?: number) {
+  if (!value) return "Never";
+  return new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
 function AccountPanel() {
   const account = useQuery(api.account.current, {});
   const ensureProfile = useMutation(api.account.ensureProfile);
   const setVisibility = useMutation(api.account.setProfileVisibility);
+  const createCollector = useAction(api.account.createCollector);
+  const rotateCollector = useAction(api.account.rotateCollector);
+  const revokeCollector = useMutation(api.account.revokeCollector);
   const { signOut } = useAuth();
   const [handle, setHandle] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [collectorName, setCollectorName] = useState("");
+  const [issuedToken, setIssuedToken] = useState("");
+  const [copied, setCopied] = useState(false);
 
   async function createProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -52,6 +75,54 @@ function AccountPanel() {
     }
   }
 
+  async function addCollector(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setSaving(true);
+    try {
+      const result = await createCollector({ name: collectorName || "My computer" });
+      setIssuedToken(result.token);
+      setCollectorName("");
+    } catch (caught) {
+      setError(friendlyError(caught));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function rotate(collectorId: Id<"collectors">) {
+    if (!window.confirm("Rotate this collector key now? The old key will stop working immediately.")) return;
+    setError("");
+    setSaving(true);
+    try {
+      const result = await rotateCollector({ collectorId });
+      setIssuedToken(result.token);
+    } catch (caught) {
+      setError(friendlyError(caught));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function revoke(collectorId: Id<"collectors">) {
+    if (!window.confirm("Revoke this collector? It will no longer be able to upload usage.")) return;
+    setError("");
+    setSaving(true);
+    try {
+      await revokeCollector({ collectorId });
+    } catch (caught) {
+      setError(friendlyError(caught));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function copyToken() {
+    await navigator.clipboard.writeText(issuedToken);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  }
+
   if (account === undefined) return <div className="account-loading">Loading your workspace…</div>;
   if (!account) return <div className="account-loading">Confirming your secure session…</div>;
 
@@ -67,7 +138,7 @@ function AccountPanel() {
       </div>
 
       {account.profile ? (
-        <div className="account-profile-row">
+        <><div className="account-profile-row">
           <div>
             <span>Public profile</span>
             <strong>@{account.profile.handle}</strong>
@@ -80,6 +151,12 @@ function AccountPanel() {
             <Link className="button button-dark" href={`/${account.profile.handle}`}>View profile <ArrowUpRight size={15} /></Link>
           </div>
         </div>
+        <section className="collector-section">
+          <div className="collector-head"><div><span className="section-index">Collectors</span><h2>Connect your machines.</h2><p>Keys are scoped to ingestion and shown only once. Collectors send aggregate counters—not prompts, code, files, or responses.</p></div><form onSubmit={addCollector}><input maxLength={80} onChange={(event) => setCollectorName(event.target.value)} placeholder="Laptop, workstation, CI…" value={collectorName} /><button className="button button-primary" disabled={saving} type="submit">Create key</button></form></div>
+          {issuedToken ? <div className="collector-token" role="status"><span>Copy this key now. UsageMax stores only its SHA-256 hash.</span><code>{issuedToken}</code><button className="button button-dark" onClick={() => void copyToken()} type="button">{copied ? "Copied" : "Copy key"}</button></div> : null}
+          <div className="collector-list">{account.collectors.length ? account.collectors.map((collector) => <div className={collector.revokedAt ? "collector-row is-revoked" : "collector-row"} key={collector.id}><span className="collector-state"><i /><span><strong>{collector.name}</strong><small>{collectorStatus(collector.lastSeenAt, collector.revokedAt)} · {collector.keyPrefix}…</small></span></span><span><small>Last sync</small><strong>{collectorTime(collector.lastSeenAt)}</strong></span><span className="collector-actions">{collector.revokedAt ? null : <><button disabled={saving} onClick={() => void rotate(collector.id)} type="button">Rotate</button><button disabled={saving} onClick={() => void revoke(collector.id)} type="button">Revoke</button></>}</span></div>) : <div className="collector-empty">No collectors yet. Create a key when you are ready to connect a machine.</div>}</div>
+          <div className="collector-runtime-note"><span>Low-impact by design</span><p>Run a bounded one-shot sync on a schedule. Do not keep a high-frequency filesystem scanner resident when no usage changed.</p></div>
+        </section></>
       ) : (
         <form className="account-create" onSubmit={createProfile}>
           <div>

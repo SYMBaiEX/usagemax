@@ -68,6 +68,10 @@ export default defineSchema({
     scopes: v.array(v.string()),
     createdAt: v.number(),
     lastSeenAt: v.optional(v.number()),
+    lastSuccessAt: v.optional(v.number()),
+    lastFailureAt: v.optional(v.number()),
+    lastFailureCode: v.optional(v.string()),
+    rotatedAt: v.optional(v.number()),
     revokedAt: v.optional(v.number()),
   })
     .index("by_keyHash", ["keyHash"])
@@ -96,6 +100,14 @@ export default defineSchema({
     firstDay: v.optional(v.string()),
     lastDay: v.optional(v.string()),
     lastEventAt: v.optional(v.number()),
+    leaderboardRank: v.optional(v.number()),
+    peakDay: v.optional(v.string()),
+    peakDayCostMicros: v.optional(v.number()),
+    avgCostPerActiveDayMicros: v.optional(v.number()),
+    lastSyncAt: v.optional(v.number()),
+    syncStatus: v.optional(v.union(v.literal("healthy"), v.literal("degraded"), v.literal("stale"))),
+    syncErrorCode: v.optional(v.string()),
+    pricingVersion: v.optional(v.string()),
     updatedAt: v.number(),
   })
     .index("by_profileId", ["profileId"])
@@ -140,7 +152,39 @@ export default defineSchema({
     errors: v.number(),
     updatedAt: v.number(),
   })
-    .index("by_profileId_and_day", ["profileId", "day"]),
+    .index("by_profileId_and_day", ["profileId", "day"])
+    .index("by_profileId_and_updatedAt", ["profileId", "updatedAt"]),
+
+  dailyDimensions: defineTable({
+    workspaceId: v.id("workspaces"),
+    profileId: v.id("profiles"),
+    day: v.string(),
+    dimension: v.union(v.literal("source"), v.literal("device")),
+    key: v.string(),
+    keyHash: v.optional(v.string()),
+    origin: v.string(),
+    outputTokens: v.number(),
+    unclassifiedTokens: v.number(),
+    totalTokens: v.number(),
+    costMicros: v.number(),
+    costBasis: v.union(v.literal("reported"), v.literal("estimated"), v.literal("api-equivalent"), v.literal("mixed"), v.literal("unknown")),
+    sessions: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_profileId_and_dimension_and_day", ["profileId", "dimension", "day"])
+    .index("by_profileId_and_dimension_and_day_and_key", ["profileId", "dimension", "day", "key"])
+    .index("by_profileId_and_origin_and_updatedAt", ["profileId", "origin", "updatedAt"]),
+
+  profileDevices: defineTable({
+    workspaceId: v.id("workspaces"),
+    profileId: v.id("profiles"),
+    deviceHash: v.string(),
+    publicLabel: v.string(),
+    firstSeenAt: v.number(),
+    lastSeenAt: v.number(),
+  })
+    .index("by_profileId_and_deviceHash", ["profileId", "deviceHash"])
+    .index("by_profileId", ["profileId"]),
 
   modelTotals: defineTable({
     workspaceId: v.id("workspaces"),
@@ -191,6 +235,13 @@ export default defineSchema({
     totalTokens: v.number(),
     costMicros: v.number(),
     costBasis: v.optional(v.union(v.literal("reported"), v.literal("estimated"), v.literal("unknown"))),
+    pricingSource: v.optional(v.string()),
+    pricingVersion: v.optional(v.string()),
+    serviceTier: v.optional(v.string()),
+    region: v.optional(v.string()),
+    currency: v.optional(v.string()),
+    projectId: v.optional(v.string()),
+    costCenter: v.optional(v.string()),
     accountingMode: v.optional(v.union(v.literal("usage"), v.literal("observability"))),
     latencyMs: v.optional(v.number()),
     timeToFirstTokenMs: v.optional(v.number()),
@@ -225,7 +276,9 @@ export default defineSchema({
     bucketStart: v.number(),
     requests: v.number(),
     events: v.number(),
-  }).index("by_collectorId_and_bucketStart", ["collectorId", "bucketStart"]),
+  })
+    .index("by_collectorId_and_bucketStart", ["collectorId", "bucketStart"])
+    .index("by_bucketStart", ["bucketStart"]),
 
   sessionReceipts: defineTable({
     workspaceId: v.id("workspaces"),
@@ -253,7 +306,8 @@ export default defineSchema({
     traceId: v.optional(v.string()),
   })
     .index("by_workspaceId_and_externalId", ["workspaceId", "externalId"])
-    .index("by_profileId_and_updatedAt", ["profileId", "updatedAt"]),
+    .index("by_profileId_and_updatedAt", ["profileId", "updatedAt"])
+    .index("by_expiresAt", ["expiresAt"]),
 
   leaderboardEntries: defineTable({
     workspaceId: v.id("workspaces"),

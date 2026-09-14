@@ -87,6 +87,27 @@ rather than mislabeled as ordinary input.
    rejected. This avoids malformed historical/global data entering UsageMax.
 8. Realtime display telemetry is isolated from accounting, preventing duplicate
    Codex log ingestion while retaining immediate agent activity.
+9. Source/day and device/day projections now support public grouping. Device
+   hostnames are salted and hashed before persistence, then exposed only as
+   stable aliases.
+10. Imported rank, peak day, average active-day spend, pricing version,
+    freshness, and partial-sync status are first-class profile fields.
+11. Collector keys are created once, hashed at rest, and can be rotated or
+    revoked from the authenticated account surface.
+12. Large authoritative daily projections are applied and pruned in bounded
+    200-row mutations rather than deleted and rebuilt in one transaction.
+13. Native events preserve pricing source/version, service tier, region,
+    currency, project, and cost-center context without deriving them from an
+    ambiguous model name.
+
+## Client resource audit
+
+The desktop display relay previously rescanned active trees, reparsed unchanged
+session tails, copied snapshots, and emitted one OTLP HTTP request per event on
+a 100 ms loop. It now caches by file size/mtime, discovers sessions every 30
+seconds, batches up to 64 OTLP records, deduplicates cloud events locally, and
+copies snapshots only on change or a 15-second heartbeat. On the audited Mac,
+idle relay CPU fell from 35.1% to 0.1–0.2% while live events remained intact.
 
 ## Pricing policy
 
@@ -112,20 +133,23 @@ Priority 0 is accounting integrity; the implemented changes cover that path.
 The following TokenMaxxing capabilities still need first-party UsageMax product
 work rather than depending on its public aggregate API:
 
-1. Ship a native UsageMax CLI/daemon over the same supported local agents,
-   pinned to a tested ccusage release, with source failure status and a dry-run.
-2. Store source/day and privacy-safe device/day dimensions so the public API can
-   group by model, source, or device without guessing joins.
-3. Retain encrypted, access-controlled raw usage reports for parser backfills,
+1. Ship a native UsageMax one-shot CLI over the supported local agents, pinned
+   to a tested ccusage release, with source failure status, dry-run, change
+   detection, backoff, and OS scheduling. Do not ship a high-frequency daemon.
+2. Retain encrypted, access-controlled raw usage reports for parser backfills,
    with short retention and explicit opt-in; never retain prompts or code.
-4. Add scheduled incremental sync, cursor/freshness status, key rotation,
-   collector revoke/delete, and a user-visible reconciliation report.
-5. Add pricing-version, service-tier, region, currency, contract-rate, and
-   invoice-adjustment dimensions for enterprise FinOps.
-6. Add workspace budgets, anomaly alerts, team/project/cost-center allocation,
+   The current product deliberately stores aggregates instead of pretending
+   that application-level encryption without a key-management design is safe.
+3. Add scheduled incremental sync, cursors, source-level failure reporting, and
+   a user-visible reconciliation report. Freshness, rotation, and revocation
+   are implemented.
+4. Add encrypted contract-rate and invoice-adjustment records plus provider
+   billing reconciliation. Pricing version, service tier, region, currency,
+   project, and cost-center event dimensions are implemented.
+5. Add workspace budgets, anomaly alerts, team/project/cost-center allocation,
    RBAC audit logs, SSO/SCIM policy, exports, and billing-source reconciliation.
-7. Expose source/device grouping, peak day, average spend per active day, and
-   explicit sync failures in UsageMax's profile/API surfaces.
+   WorkOS organization identity and allocation fields are foundations, not a
+   claim that these control-plane features are finished.
 
 TokenMaxxing's public global stats currently include malformed extreme date
 values. UsageMax should keep its stricter date boundary rather than cloning that

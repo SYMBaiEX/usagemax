@@ -73,6 +73,13 @@ function nativeEvent(value: unknown, now: number): Omit<NormalizedEvent, "eventH
     totalTokens: reportedTotal || inputTokens + outputTokens,
     costMicros,
     costBasis,
+    pricingSource: optionalText(event.pricingSource, 120),
+    pricingVersion: optionalText(event.pricingVersion, 120),
+    serviceTier: optionalText(event.serviceTier, 40),
+    region: optionalText(event.region, 60),
+    currency: optionalText(event.currency, 3)?.toUpperCase(),
+    projectId: optionalText(event.projectId, 80),
+    costCenter: optionalText(event.costCenter, 80),
     accountingMode,
     latencyMs: event.latencyMs === undefined ? undefined : clampNonNegative(event.latencyMs, 86_400_000),
     timeToFirstTokenMs: event.timeToFirstTokenMs === undefined ? undefined : clampNonNegative(event.timeToFirstTokenMs, 86_400_000),
@@ -193,6 +200,13 @@ function otelEvents(body: JsonObject, now: number): Omit<NormalizedEvent, "event
           totalTokens: inputTokens + outputTokens,
           costMicros: clampNonNegative(reportedCost, 1_000_000_000_000_000),
           costBasis: hasReportedCost ? "reported" : "unknown",
+          pricingSource: optionalText(attrs["gen_ai.usage.cost.source"] ?? attrs["usagemax.pricing.source"], 120),
+          pricingVersion: optionalText(attrs["gen_ai.usage.cost.version"] ?? attrs["usagemax.pricing.version"], 120),
+          serviceTier: optionalText(attrs["gen_ai.request.service_tier"] ?? attrs["usagemax.service_tier"], 40),
+          region: optionalText(attrs["cloud.region"] ?? attrs["usagemax.region"], 60),
+          currency: optionalText(attrs["gen_ai.usage.cost.currency"] ?? attrs["usagemax.currency"], 3)?.toUpperCase(),
+          projectId: optionalText(attrs["project.id"] ?? attrs["usagemax.project_id"], 80),
+          costCenter: optionalText(attrs["usagemax.cost_center"], 80),
           accountingMode: "usage",
           latencyMs: Number.isFinite(start) && Number.isFinite(end) ? clampNonNegative(end - start, 86_400_000) : undefined,
           timeToFirstTokenMs: attributeNumber(attrs, "gen_ai.server.time_to_first_token") || undefined,
@@ -254,6 +268,7 @@ async function ingest(ctx: Parameters<Parameters<typeof httpAction>[0]>[0], requ
     return jsonResponse({ ok: true, ...result }, result.replay ? 200 : 202);
   } catch (error) {
     const message = String(error);
+    if (message.includes("INVALID_COLLECTOR_SCOPE")) return jsonResponse({ error: "forbidden" }, 403);
     if (message.includes("INVALID_COLLECTOR")) return jsonResponse({ error: "unauthorized" }, 401);
     if (message.includes("RATE_LIMITED")) return jsonResponse({ error: "rate_limited" }, 429, { "retry-after": "60" });
     if (message.includes("IDEMPOTENCY_CONFLICT")) return jsonResponse({ error: "idempotency_conflict" }, 409);
