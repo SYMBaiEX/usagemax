@@ -15,7 +15,7 @@
   },
   "type": "module",
   "bin": {
-    "usagemax": "./src/cli.js"
+    "usagemax": "src/cli.js"
   },
   "files": [
     "src/cli.js",
