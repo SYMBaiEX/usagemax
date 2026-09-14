@@ -524,6 +524,9 @@ export const commitBatch = internalMutation({
       peakDay: priorPeakWins ? stats?.peakDay : bestRecentDay?.day,
       peakDayCostMicros: priorPeakWins ? stats?.peakDayCostMicros : bestRecentDay?.costMicros,
       avgCostPerActiveDayMicros: Math.round(((stats?.totalCostMicros ?? 0) + total.costMicros) / Math.max(1, (stats?.activeDays ?? 0) + uniqueNewDays)),
+      lastSyncAt: args.receivedAt,
+      syncStatus: "healthy" as const,
+      syncErrorCode: undefined,
       updatedAt: args.receivedAt,
     };
     if (stats) await ctx.db.patch(stats._id, nextStats);

@@ -13,6 +13,7 @@ import type * as crons from "../crons.js";
 import type * as http from "../http.js";
 import type * as imports from "../imports.js";
 import type * as lib from "../lib.js";
+import type * as maintenance from "../maintenance.js";
 import type * as migrations from "../migrations.js";
 import type * as public_ from "../public.js";
 import type * as telemetry from "../telemetry.js";
@@ -29,6 +30,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   imports: typeof imports;
   lib: typeof lib;
+  maintenance: typeof maintenance;
   migrations: typeof migrations;
   public: typeof public_;
   telemetry: typeof telemetry;

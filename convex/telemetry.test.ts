@@ -191,6 +191,79 @@ describe("telemetry ingestion", () => {
     })).rejects.toThrow("DEVICE_ID_MISMATCH");
   });
 
+  test("repairs only a proven semantically identical duplicate collector", async () => {
+    const now = Date.now();
+    const duplicateToken = "umx_duplicate_0123456789abcdef0123456789";
+    const duplicateKeyHash = createHash("sha256").update(duplicateToken).digest("hex");
+    const ids = await t.run(async (ctx) => {
+      const canonical = await ctx.db.query("collectors").filter((q) => q.eq(q.field("keyHash"), keyHash)).unique();
+      if (!canonical) throw new Error("missing canonical collector");
+      const duplicateCollectorId = await ctx.db.insert("collectors", {
+        workspaceId: canonical.workspaceId,
+        profileId: canonical.profileId,
+        name: "Duplicate collector",
+        keyHash: duplicateKeyHash,
+        keyPrefix: duplicateToken.slice(0, 10),
+        scopes: ["telemetry:write", "outcomes:write"],
+        createdAt: now,
+      });
+      return { canonicalCollectorId: canonical._id, duplicateCollectorId };
+    });
+    const canonicalRawId = "11111111-2222-4333-8444-555555555555";
+    const duplicateRawId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+    const occurredAt = now;
+    await t.mutation(internal.telemetry.commitBatch, {
+      keyHash,
+      batchId: `cli:${canonicalRawId}:canonical`,
+      payloadHash: "canonical-payload",
+      receivedAt: now + 10,
+      events: [event({
+        eventKey: `ccusage-v1:${canonicalRawId}:same-row`,
+        eventHash: "canonical-hash",
+        agentExternalId: `${canonicalRawId}:codex`,
+        sessionId: undefined,
+        occurredAt,
+      })],
+    });
+    await t.mutation(internal.telemetry.commitBatch, {
+      keyHash: duplicateKeyHash,
+      batchId: `cli:${duplicateRawId}:duplicate`,
+      payloadHash: "duplicate-payload",
+      receivedAt: now + 20,
+      events: [event({
+        eventKey: `ccusage-v1:${duplicateRawId}:same-row`,
+        eventHash: "duplicate-hash",
+        agentExternalId: `${duplicateRawId}:codex`,
+        sessionId: undefined,
+        occurredAt,
+      })],
+    });
+
+    await expect(t.mutation(internal.maintenance.repairDuplicateCollector, {
+      ...ids,
+      expectedEvents: 1,
+      expectedTotalTokens: 121,
+      now: now + 30,
+    })).rejects.toThrow("DUPLICATE_REPAIR_TOTAL_MISMATCH");
+    await expect(t.mutation(internal.maintenance.repairDuplicateCollector, {
+      ...ids,
+      expectedEvents: 1,
+      expectedTotalTokens: 120,
+      now: now + 30,
+    })).resolves.toEqual({ removedEvents: 1, removedTokens: 120, deviceCount: 1 });
+
+    const profile = await t.query(api.public.profile, { handle: "tester" });
+    expect(profile?.stats?.totalTokens).toBe(120);
+    expect(profile?.stats?.deviceCount).toBe(1);
+    const stored = await t.run(async (ctx) => ({
+      events: await ctx.db.query("telemetryEvents").collect(),
+      duplicate: await ctx.db.get(ids.duplicateCollectorId),
+    }));
+    expect(stored.events).toHaveLength(1);
+    expect(stored.duplicate?.lastFailureCode).toBe("duplicate_import_removed");
+    expect(stored.duplicate?.revokedAt).toBe(now + 30);
+  });
+
   test("keeps non-accounting agent events live without changing usage totals", async () => {
     const receivedAt = Date.now();
     await t.mutation(internal.telemetry.commitBatch, {
