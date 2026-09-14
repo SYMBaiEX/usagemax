@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import { HomeView } from "@/components/usagemax";
 
 export const metadata: Metadata = {
-  title: "Public AI telemetry for the visible frontier",
-  description: "Follow AI usage, agent activity, and model signal in public.",
+  title: "Your AI work, made visible",
+  description: "Track your AI token usage, compare stats, and share the public record of what you build.",
 };
 
 export default function Home() {

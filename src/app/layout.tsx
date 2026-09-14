@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Instrument_Sans } from "next/font/google";
 
 import { Providers } from "@/components/providers";
 import { SiteFooter, SiteHeader } from "@/components/site-shell";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const instrumentSans = Instrument_Sans({
+  variable: "--font-instrument-sans",
   subsets: ["latin"],
 });
 
@@ -18,10 +18,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://usagemax.com"),
   title: {
-    default: "UsageMax — Public AI telemetry",
+    default: "UsageMax — Your AI work, made visible",
     template: "%s · UsageMax",
   },
-  description: "A public observability layer for builders running serious AI systems.",
+  description: "Track your AI token usage, compare stats, and share the public record of what you build.",
   applicationName: "UsageMax",
   keywords: ["AI telemetry", "agent observability", "LLM usage", "AI usage analytics", "OpenTelemetry"],
   authors: [{ name: "UsageMax" }],
@@ -32,20 +32,20 @@ export const metadata: Metadata = {
     type: "website",
     url: "https://usagemax.com",
     siteName: "UsageMax",
-    title: "UsageMax — Public AI telemetry",
-    description: "Make your agent signal legible.",
+    title: "UsageMax — Your AI work, made visible",
+    description: "Track your AI usage, compare stats, and share your public profile.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "UsageMax — Public AI telemetry",
-    description: "Make your agent signal legible.",
+    title: "UsageMax — Your AI work, made visible",
+    description: "Track your AI usage, compare stats, and share your public profile.",
   },
   robots: { index: true, follow: true },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en" className={`${instrumentSans.variable} ${geistMono.variable}`}>
       <body className="site-body">
         <Providers>
           <a className="skip-link" href="#main-content">Skip to main content</a>

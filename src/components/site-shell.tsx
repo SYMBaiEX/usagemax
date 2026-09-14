@@ -3,16 +3,27 @@ import Link from "next/link";
 import { ArrowRight, ArrowUpRight, ChevronDown, UsageMark } from "./icons";
 
 const navigation = [
-  { href: "/leaderboard", label: "Leaderboard" },
-  { href: "/methodology", label: "Methodology" },
-  { href: "/security", label: "Security" },
-  { href: "/docs", label: "Docs" },
+  { href: "/leaderboard", label: "Explore" },
+  { href: "/methodology", label: "How it works" },
+  { href: "/docs", label: "Connect" },
+  { href: "/enterprise", label: "For teams" },
 ];
 
 export function SiteHeader() {
   return (
-    <header className="site-header">
-      <div className="shell header-inner">
+    <>
+      <div className="announcement-bar">
+        <div className="announcement-track">
+          <span>AI work deserves a public record</span><i />
+          <span>Realtime usage profiles</span><i />
+          <span>Built on Convex</span><i />
+          <span>AI work deserves a public record</span><i />
+          <span>Realtime usage profiles</span><i />
+          <span>Built on Convex</span><i />
+        </div>
+      </div>
+      <header className="site-header">
+        <div className="shell header-inner">
         <Link aria-label="UsageMax home" className="brand" href="/">
           <span className="brand-mark">
             <UsageMark size={27} />
@@ -31,12 +42,11 @@ export function SiteHeader() {
         </nav>
 
         <div className="header-actions">
-          <span className="live-chip">
-            <span className="live-dot" />
-            Network live
-          </span>
-          <Link className="header-cta" href="/enterprise">
-            For teams <ArrowUpRight size={15} />
+          <Link className="header-login" href="/symbaiex">
+            View profile
+          </Link>
+          <Link className="header-cta" href="/docs">
+            Start tracking <ArrowUpRight size={15} />
           </Link>
         </div>
 
@@ -51,13 +61,14 @@ export function SiteHeader() {
                 {item.label} <ArrowRight size={14} />
               </Link>
             ))}
-            <Link href="/enterprise">
-              For teams <ArrowUpRight size={14} />
+            <Link href="/docs">
+              Start tracking <ArrowUpRight size={14} />
             </Link>
           </nav>
         </details>
-      </div>
-    </header>
+        </div>
+      </header>
+    </>
   );
 }
 
@@ -74,7 +85,7 @@ export function SiteFooter() {
               Usage<span>Max</span>
             </span>
           </Link>
-          <p>Public telemetry for the people building with AI.</p>
+          <p>Your AI usage, made visible. A public record of the work behind the work.</p>
         </div>
         <div className="footer-links">
           <div>
@@ -101,9 +112,9 @@ export function SiteFooter() {
         <span>© 2026 UsageMax</span>
         <span className="footer-status">
           <span className="live-dot" />
-          Ingesting signal
+          Realtime on Convex
         </span>
-        <span>Built for the open model era</span>
+        <span>Make the work visible</span>
       </div>
     </footer>
   );

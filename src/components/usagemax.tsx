@@ -1,898 +1,208 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { useQuery } from "convex/react";
 
 import { api } from "../../convex/_generated/api";
 import { compactNumber, currencyFromMicros, relativeTime, shortDate } from "@/lib/format";
-import {
-  ActivityIcon,
-  ArrowRight,
-  ArrowUpRight,
-  ChartLine,
-  DatabaseIcon,
-  LayersIcon,
-  LockClosed,
-  PulseIcon,
-  ShieldCheck,
-} from "./icons";
+import { ArrowRight, ArrowUpRight, CopyIcon } from "./icons";
 
 type Period = "7d" | "30d" | "all";
 type Metric = "tokens" | "spend";
 
-type NetworkData = {
-  totalTokens: number;
-  totalCostMicros: number;
-  totalSessions: number;
-  profiles: number;
-  activeAgents: number;
-  eventsToday: number;
-  updatedAt: number;
-};
-
-type LeaderboardRowData = {
-  handle: string;
-  displayName: string;
-  avatarUrl?: string;
-  verification: string;
-  period: Period;
-  metric: Metric;
-  score: number;
-  totalTokens: number;
-  totalCostMicros: number;
-  updatedAt: number;
-};
-
-type DailyRow = {
-  date: string;
-  totalTokens: number;
-  outputTokens: number;
-  costMicros: number;
-  sessions: number;
-  requests: number;
-  errors: number;
-};
-
-type ModelRow = {
-  provider: string;
-  model: string;
-  totalTokens: number;
-  inputTokens: number;
-  outputTokens: number;
-  costMicros: number;
-  requests: number;
-  errors: number;
-  lastUsedAt: number;
-};
-
-type ProfileStats = {
-  totalTokens: number;
-  totalCostMicros: number;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadTokens: number;
-  reasoningTokens: number;
-  sessions: number;
-  activeDays: number;
-  currentStreakDays: number;
-  longestStreakDays: number;
-  deviceCount: number;
-  topModel: string;
-  firstDay?: string;
-  lastDay?: string;
-  lastEventAt?: number;
-  updatedAt: number;
-};
-
-type ProfileData = {
-  profile: {
-    handle: string;
-    displayName: string;
-    bio: string;
-    avatarUrl?: string;
-    isPublic: boolean;
-    isVerified: boolean;
-    verification: string;
-    sourceUrl?: string;
-    importedAt?: number;
-    createdAt: number;
-  };
-  stats: ProfileStats | null;
-  models: ModelRow[];
-};
-
-type AgentRow = {
-  externalId: string;
-  parentExternalId?: string;
-  name: string;
-  model: string;
-  state: string;
-  task?: string;
-  tokensPerSecond: number;
-  totalTokens: number;
-  toolCalls: number;
-  errorCount: number;
-  sessionStartedAt: number;
-  updatedAt: number;
-  expiresAt: number;
-  online: boolean;
-  traceId?: string;
-};
-
-type EventRow = {
-  _id: string;
-  eventKey: string;
-  sessionId?: string;
-  agentExternalId?: string;
-  agentName?: string;
-  eventType: "model_request" | "tool_call" | "agent_state" | "outcome";
-  source: string;
-  provider: string;
-  requestedModel?: string;
-  model: string;
-  totalTokens: number;
-  costMicros: number;
-  latencyMs?: number;
-  status: "ok" | "error" | "cancelled";
-  state?: string;
-  task?: string;
-  traceId?: string;
-  occurredAt: number;
-  completeness: "reported" | "estimated" | "unknown";
-};
-
-type LiveData = {
-  agents: AgentRow[];
-  events: EventRow[];
-};
+type NetworkData = { totalTokens: number; totalCostMicros: number; totalSessions: number; profiles: number; activeAgents: number; eventsToday: number; updatedAt: number };
+type LeaderboardRowData = { handle: string; displayName: string; avatarUrl?: string; verification: string; period: Period; metric: Metric; score: number; totalTokens: number; totalCostMicros: number; sessions: number; activeDays: number; lastEventAt: number; updatedAt: number };
+type DailyRow = { date: string; totalTokens: number; outputTokens: number; costMicros: number; sessions: number; requests: number; errors: number };
+type DailyModelRow = { date: string; model: string; provider: string; totalTokens: number; costMicros: number };
+type ModelRow = { provider: string; model: string; totalTokens: number; inputTokens: number; outputTokens: number; costMicros: number; requests: number; errors: number; lastUsedAt: number };
+type ProfileStats = { totalTokens: number; totalCostMicros: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; reasoningTokens: number; sessions: number; activeDays: number; currentStreakDays: number; longestStreakDays: number; deviceCount: number; topModel: string; firstDay?: string; lastDay?: string; lastEventAt?: number; updatedAt: number };
+type ProfileData = { profile: { handle: string; displayName: string; bio: string; avatarUrl?: string; isPublic: boolean; isVerified: boolean; verification: string; sourceUrl?: string; importedAt?: number; createdAt: number }; stats: ProfileStats | null; models: ModelRow[] };
+type AgentRow = { externalId: string; parentExternalId?: string; name: string; model: string; state: string; task?: string; tokensPerSecond: number; totalTokens: number; toolCalls: number; errorCount: number; sessionStartedAt: number; updatedAt: number; expiresAt: number; online: boolean };
+type EventRow = { _id: string; eventKey: string; agentName?: string; eventType: "model_request" | "tool_call" | "agent_state" | "outcome"; source: string; model: string; totalTokens: number; costMicros: number; latencyMs?: number; status: "ok" | "error" | "cancelled"; task?: string; occurredAt: number };
+type LiveData = { agents: AgentRow[]; events: EventRow[] };
 
 const convexConfigured = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
+const installCommand = "bunx usagemax@latest bootstrap";
+const modelColors = ["#ff5a1f", "#171412", "#4976f2", "#a9d56e", "#f3b64e", "#b483ff"];
 
-function valueOrZero(value: number | null | undefined) {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+function safeNumber(value: number | null | undefined) { return typeof value === "number" && Number.isFinite(value) ? value : 0; }
+function initials(value: string) { const words = value.trim().split(/\s+/).filter(Boolean); return words.length > 1 ? `${words[0][0]}${words.at(-1)?.[0] ?? ""}`.toUpperCase() : value.slice(0, 2).toUpperCase() || "UM"; }
+function toneFor(value: string) { return value.split("").reduce((total, character) => total + character.charCodeAt(0), 0) % 360; }
+function formatModel(value: string) { return value.replace(/^claude-/, "Claude ").replace(/^gpt-/, "GPT-").replace(/^gemini-/, "Gemini ").replace(/-/g, " "); }
+function sentenceCase(value: string) { return value.replace(/_/g, " ").replace(/\b\w/g, (character) => character.toUpperCase()); }
+
+function Avatar({ name, size = "small" }: { name: string; size?: "small" | "large" }) {
+  return <span aria-hidden="true" className={`avatar avatar-${size}`} style={{ "--avatar-hue": toneFor(name) } as CSSProperties}>{initials(name)}</span>;
+}
+function VerifyBadge() { return <span aria-label="Verified profile" className="verify-badge" title="Verified profile">✓</span>; }
+function Skeleton({ className = "" }: { className?: string }) { return <span aria-hidden="true" className={`skeleton ${className}`} />; }
+function LivePill({ children = "Live" }: { children?: string }) { return <span className="live-pill"><i />{children}</span>; }
+
+function CopyCommand() {
+  const [copied, setCopied] = useState(false);
+  async function copy() { await navigator.clipboard.writeText(installCommand); setCopied(true); window.setTimeout(() => setCopied(false), 1800); }
+  return <div className="install-command"><span className="command-prompt">$</span><code>{installCommand}</code><button aria-label="Copy install command" onClick={copy} type="button"><CopyIcon size={16} /> {copied ? "Copied" : "Copy"}</button></div>;
 }
 
-function initials(value: string) {
-  const words = value.trim().split(/\s+/).filter(Boolean);
-  if (words.length > 1) return `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase();
-  return value.slice(0, 2).toUpperCase() || "UM";
+function HeroVisual({ network }: { network: NetworkData | null | undefined }) {
+  const bars = [28, 44, 36, 62, 48, 78, 58, 91, 72, 100, 83, 95, 70, 88, 96, 82, 100, 92];
+  return <div className="hero-scene" aria-label="Live UsageMax network activity"><div className="hero-sun" /><div className="hero-orbit hero-orbit-a" /><div className="hero-orbit hero-orbit-b" /><div className="hero-scene-copy"><LivePill>Network live</LivePill><span>Tokens tracked</span><strong>{network ? compactNumber(network.totalTokens, 2) : "—"}</strong></div><div className="hero-bars" aria-hidden="true">{bars.map((height, index) => <i key={index} style={{ "--bar-height": `${height}%`, "--bar-delay": `${index * 70}ms` } as CSSProperties} />)}</div><div className="hero-scene-footer"><span>{network ? `${compactNumber(network.profiles)} public profiles` : "Public profiles"}</span><span>{network ? `${compactNumber(network.eventsToday)} events today` : "Realtime updates"}</span></div></div>;
 }
 
-function toneFor(value: string) {
-  return value.split("").reduce((total, character) => total + character.charCodeAt(0), 0) % 360;
+function ProfileCard({ row, rank }: { row: LeaderboardRowData; rank: number }) {
+  return <Link className="featured-profile-card" href={`/${row.handle}`}><div className="featured-profile-top"><Avatar name={row.displayName || row.handle} /><span>#{String(rank).padStart(2, "0")}</span></div><div><h3>{row.displayName || row.handle}{row.verification === "verified" ? <VerifyBadge /> : null}</h3><p>@{row.handle}</p></div><div className="featured-profile-stats"><span><small>Tokens</small><strong>{compactNumber(row.totalTokens, 2)}</strong></span><span><small>Spend</small><strong>{currencyFromMicros(row.totalCostMicros)}</strong></span></div><ArrowUpRight size={18} /></Link>;
 }
 
-function sentenceCase(value: string) {
-  return value.replace(/_/g, " ").replace(/\b\w/g, (character) => character.toUpperCase());
+function pathFor(values: number[]) {
+  if (values.length < 2) return "M0 220 L800 220";
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values);
+  const range = Math.max(max - min, 1);
+  return values.map((value, index) => {
+    const x = (index / (values.length - 1)) * 800;
+    const y = 220 - ((value - min) / range) * 190;
+    return `${index ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
+  }).join(" ");
 }
 
-function formatModel(value: string) {
-  return value.replace(/^claude-/, "Claude ").replace(/^gpt-/, "GPT-").replace(/^gemini-/, "Gemini ");
+function movingAverage(values: number[], windowSize = 5) {
+  return values.map((_, index) => {
+    const start = Math.max(0, index - windowSize + 1);
+    const sample = values.slice(start, index + 1);
+    return sample.reduce((sum, value) => sum + value, 0) / sample.length;
+  });
 }
 
-function Avatar({ name, size = "small" }: { name: string; size?: "small" | "medium" | "large" }) {
-  const tone = toneFor(name);
-  return (
-    <span
-      aria-hidden="true"
-      className={`avatar avatar-${size}`}
-      style={{ "--avatar-hue": tone } as CSSProperties}
-    >
-      {initials(name)}
-    </span>
-  );
-}
-
-function VerifyBadge() {
-  return (
-    <span aria-label="Verified profile" className="verify-badge" title="Verified profile">
-      ✓
-    </span>
-  );
-}
-
-function Skeleton({ className = "" }: { className?: string }) {
-  return <span aria-hidden="true" className={`skeleton ${className}`} />;
-}
-
-function DataUnavailable({ label = "Live telemetry is not connected in this preview." }: { label?: string }) {
-  return (
-    <div className="data-unavailable">
-      <span className="data-unavailable-mark">
-        <PulseIcon size={19} />
-      </span>
-      <div>
-        <strong>Signal pending</strong>
-        <p>{label}</p>
-      </div>
-    </div>
-  );
-}
-
-function NetworkWave() {
-  return (
-    <svg
-      aria-label="Recent network activity waveform"
-      className="network-wave"
-      role="img"
-      viewBox="0 0 600 128"
-    >
-      <defs>
-        <linearGradient id="network-wave-fill" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor="#caff39" stopOpacity="0.28" />
-          <stop offset="1" stopColor="#caff39" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path className="wave-grid" d="M0 32H600M0 64H600M0 96H600" />
-      <path
-        className="wave-area"
-        d="M0 93L24 90L48 95L72 71L96 82L120 60L144 71L168 38L192 58L216 52L240 78L264 64L288 70L312 36L336 46L360 29L384 57L408 51L432 70L456 44L480 51L504 25L528 48L552 37L576 45L600 21V128H0Z"
-        fill="url(#network-wave-fill)"
-      />
-      <path
-        className="wave-line"
-        d="M0 93L24 90L48 95L72 71L96 82L120 60L144 71L168 38L192 58L216 52L240 78L264 64L288 70L312 36L336 46L360 29L384 57L408 51L432 70L456 44L480 51L504 25L528 48L552 37L576 45L600 21"
-      />
-      <circle className="wave-ping" cx="504" cy="25" r="4" />
-    </svg>
-  );
-}
-
-function NetworkBoard({ network }: { network: NetworkData | null | undefined }) {
-  const loading = network === undefined;
-  const live = Boolean(network);
-  return (
-    <div className="signal-board panel panel-glow">
-      <div className="board-header">
-        <div className="board-label">
-          <span className="icon-chip icon-chip-acid">
-            <PulseIcon size={17} />
-          </span>
-          <span>
-            <strong>Network pulse</strong>
-            <small>all public signals</small>
-          </span>
-        </div>
-        <span className={`signal-state ${live ? "signal-state-live" : ""}`}>
-          <span className="live-dot" />
-          {loading ? "Syncing" : live ? "Live" : "Awaiting"}
-        </span>
-      </div>
-
-      <div className="board-primary">
-        <span className="metric-label">Tokens indexed</span>
-        <strong className="board-number">
-          {loading ? <Skeleton className="skeleton-number" /> : network ? compactNumber(network.totalTokens, 2) : "—"}
-        </strong>
-        <span className="board-caption">across every connected workspace</span>
-      </div>
-
-      <NetworkWave />
-
-      <div className="board-stats">
-        <div>
-          <span className="metric-label">Active agents</span>
-          <strong>{loading ? <Skeleton /> : network ? compactNumber(network.activeAgents) : "—"}</strong>
-        </div>
-        <div>
-          <span className="metric-label">Profiles tracked</span>
-          <strong>{loading ? <Skeleton /> : network ? compactNumber(network.profiles) : "—"}</strong>
-        </div>
-        <div>
-          <span className="metric-label">Sessions logged</span>
-          <strong>{loading ? <Skeleton /> : network ? compactNumber(network.totalSessions) : "—"}</strong>
-        </div>
-        <div>
-          <span className="metric-label">Events today</span>
-          <strong>{loading ? <Skeleton /> : network ? compactNumber(network.eventsToday) : "—"}</strong>
-        </div>
-      </div>
-
-      <div className="board-footer">
-        <span>Spend indexed {network ? currencyFromMicros(network.totalCostMicros) : "—"}</span>
-        <span>{network?.updatedAt ? `Updated ${relativeTime(new Date(network.updatedAt))}` : "Awaiting first snapshot"}</span>
-      </div>
-    </div>
-  );
-}
-
-function CapabilityCard({
-  number,
-  icon,
-  title,
-  description,
-  accent,
-}: {
-  number: string;
-  icon: ReactNode;
-  title: string;
-  description: string;
-  accent: "acid" | "cyan" | "orange";
-}) {
-  return (
-    <article className={`capability-card capability-${accent}`}>
-      <div className="capability-topline">
-        <span className="capability-number">{number}</span>
-        <span className="capability-icon">{icon}</span>
-      </div>
-      <h3>{title}</h3>
-      <p>{description}</p>
-      <span aria-hidden="true" className="card-arrow">
-        <ArrowUpRight size={16} />
-      </span>
-    </article>
-  );
-}
-
-function LeaderboardRow({ row, rank }: { row: LeaderboardRowData; rank: number }) {
-  return (
-    <tr>
-      <td className="rank-cell" data-label="Rank">
-        <span className={`rank-number ${rank < 4 ? "rank-highlight" : ""}`}>{String(rank).padStart(2, "0")}</span>
-      </td>
-      <td data-label="Builder">
-        <Link className="builder-cell" href={`/${row.handle}`}>
-          <Avatar name={row.displayName || row.handle} />
-          <span>
-            <strong>{row.displayName || row.handle}</strong>
-            <small>
-              @{row.handle} {row.verification === "verified" ? <VerifyBadge /> : null}
-            </small>
-          </span>
-        </Link>
-      </td>
-      <td className="right-cell" data-label="Signal">
-        <strong>{compactNumber(valueOrZero(row.score), 2)}</strong>
-        <small>{row.metric === "spend" ? "indexed spend" : "tokens"}</small>
-      </td>
-      <td className="right-cell secondary-cell" data-label="Sessions">
-        <strong>{compactNumber(valueOrZero(row.totalTokens), 2)}</strong>
-        <small>total tokens</small>
-      </td>
-      <td className="row-action-cell">
-        <Link aria-label={`Open ${row.handle} profile`} className="row-action" href={`/${row.handle}`}>
-          <ArrowUpRight size={15} />
-        </Link>
-      </td>
-    </tr>
-  );
+function ProfileHeroChart({ rows }: { rows: DailyRow[] }) {
+  const recent = rows.slice(-90);
+  return <div className="profile-chart-line" aria-hidden="true"><svg viewBox="0 0 800 240" preserveAspectRatio="none"><path d={pathFor(movingAverage(recent.map((row) => row.totalTokens)))} /><path className="chart-ghost" d={pathFor(movingAverage(recent.map((row) => row.costMicros)))} /></svg></div>;
 }
 
 function LeaderboardTable({ rows, loading }: { rows?: LeaderboardRowData[]; loading?: boolean }) {
-  return (
-    <div className="leaderboard-table-wrap">
-      <table className="leaderboard-table">
-        <thead>
-          <tr>
-            <th scope="col">Rank</th>
-            <th scope="col">Builder</th>
-            <th className="right-cell" scope="col">Signal</th>
-            <th className="right-cell" scope="col">Total</th>
-            <th aria-label="Open profile" scope="col" />
-          </tr>
-        </thead>
-        <tbody>
-          {loading
-            ? Array.from({ length: 5 }, (_, index) => (
-                <tr key={`loading-${index}`}>
-                  <td><Skeleton className="skeleton-short" /></td>
-                  <td><span className="builder-cell"><Skeleton className="skeleton-avatar" /><span><Skeleton className="skeleton-line" /><Skeleton className="skeleton-line skeleton-line-small" /></span></span></td>
-                  <td><Skeleton className="skeleton-short" /></td>
-                  <td><Skeleton className="skeleton-short" /></td>
-                  <td />
-                </tr>
-              ))
-            : rows?.length
-              ? rows.map((row, index) => <LeaderboardRow key={`${row.handle}-${row.period}-${row.metric}`} rank={index + 1} row={row} />)
-              : (
-                <tr>
-                  <td colSpan={5}><DataUnavailable label="The public board will fill as builders connect a collector." /></td>
-                </tr>
-              )}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function LeaderboardPreview({ rows }: { rows?: LeaderboardRowData[] }) {
-  return (
-    <section className="section shell leaderboard-preview" id="leaderboard-preview">
-      <div className="section-heading section-heading-row">
-        <div>
-          <div className="eyebrow"><span className="eyebrow-line" />Public signal board</div>
-          <h2>Who is putting in the reps?</h2>
-        </div>
-        <Link className="text-link" href="/leaderboard">View full board <ArrowUpRight size={15} /></Link>
-      </div>
-      <div className="preview-frame panel">
-        <div className="preview-frame-topline">
-          <span><span className="live-dot" /> 7 day token signal</span>
-          <span className="mono-muted">RANK / 050</span>
-        </div>
-        <LeaderboardTable loading={rows === undefined} rows={rows} />
-      </div>
-    </section>
-  );
-}
-
-function HomeUnavailable() {
-  return (
-    <div className="home-page page-surface">
-      <section className="hero shell">
-        <div className="hero-copy">
-          <div className="eyebrow"><span className="eyebrow-line" />Public AI telemetry</div>
-          <h1>Make your <span className="hero-accent">agent signal</span> legible.</h1>
-          <p className="hero-description">UsageMax is the public observability layer for builders running serious AI systems.</p>
-          <DataUnavailable />
-        </div>
-      </section>
-    </div>
-  );
+  return <div className="ranking-table-wrap"><table className="ranking-table"><thead><tr><th>#</th><th>Builder</th><th>Spend</th><th>Tokens</th><th>Sessions</th><th>Active days</th><th>Last active</th><th /></tr></thead><tbody>{loading ? Array.from({ length: 7 }, (_, index) => <tr key={index}><td><Skeleton /></td><td><Skeleton className="skeleton-wide" /></td><td><Skeleton /></td><td><Skeleton /></td><td><Skeleton /></td><td><Skeleton /></td><td><Skeleton /></td><td /></tr>) : rows?.length ? rows.map((row, index) => <tr key={`${row.handle}-${row.period}-${row.metric}`}><td><span className={`table-rank ${index < 3 ? "is-top" : ""}`}>{index + 1}</span></td><td><Link className="table-person" href={`/${row.handle}`}><Avatar name={row.displayName || row.handle} /><span><strong>{row.displayName || row.handle}{row.verification === "verified" ? <VerifyBadge /> : null}</strong><small>@{row.handle}</small></span></Link></td><td><strong>{currencyFromMicros(row.totalCostMicros)}</strong></td><td><strong>{compactNumber(row.totalTokens, 2)}</strong></td><td>{compactNumber(row.sessions)}</td><td>{compactNumber(row.activeDays)}</td><td>{row.lastEventAt ? relativeTime(new Date(row.lastEventAt)) : "—"}</td><td><Link aria-label={`View ${row.handle}`} className="table-open" href={`/${row.handle}`}><ArrowUpRight size={15} /></Link></td></tr>) : <tr><td colSpan={8} className="table-empty">No public profiles in this window yet.</td></tr>}</tbody></table></div>;
 }
 
 function HomeData() {
   const network = useQuery(api.public.network, {}) as NetworkData | null | undefined;
-  const rows = useQuery(api.public.leaderboard, { period: "7d", metric: "tokens", limit: 5 }) as LeaderboardRowData[] | undefined;
-
-  return (
-    <div className="home-page page-surface">
-      <section className="hero shell">
-        <div className="hero-copy">
-          <div className="eyebrow"><span className="eyebrow-line" />Public AI telemetry / 2026</div>
-          <h1>Make your <span className="hero-accent">agent signal</span> legible.</h1>
-          <p className="hero-description">UsageMax is the public observability layer for builders running serious AI systems. Follow the work, understand the cost, and see the signal in motion.</p>
-          <div className="hero-actions">
-            <Link className="button button-acid" href="/leaderboard">Explore the board <ArrowUpRight size={16} /></Link>
-            <Link className="button button-quiet" href="/docs">Read the docs <ArrowRight size={16} /></Link>
-          </div>
-          <div className="hero-proof">
-            <div className="proof-avatars" aria-hidden="true">
-              <Avatar name="symbaiex" />
-              <Avatar name="open source" />
-              <Avatar name="agent systems" />
-            </div>
-            <span><strong>Built for the visible frontier.</strong><br />A public profile for every private loop.</span>
-          </div>
-        </div>
-        <div className="hero-visual">
-          <div className="hero-visual-stamp">UM / 001</div>
-          <NetworkBoard network={network} />
-          <div className="hero-visual-caption"><span className="caption-rule" />A live readout of the open AI workload.</div>
-        </div>
-      </section>
-
-      <div className="ticker-strip" aria-label="UsageMax product principles">
-        <div className="ticker-inner">
-          <span>EVENTS, NOT VIBES</span><i />
-          <span>TRACE THE WORK</span><i />
-          <span>MEASURE THE OUTCOME</span><i />
-          <span>SHIP WITH SIGNAL</span><i />
-          <span>EVENTS, NOT VIBES</span><i />
-          <span>TRACE THE WORK</span>
-        </div>
-      </div>
-
-      <section className="section shell capabilities-section">
-        <div className="section-heading">
-          <div className="eyebrow"><span className="eyebrow-line" />One layer, three views</div>
-          <h2>Less dashboard. More <span className="text-accent">signal.</span></h2>
-          <p>UsageMax turns the messy middle of agent work into a small set of durable, public facts.</p>
-        </div>
-        <div className="capability-grid">
-          <CapabilityCard accent="acid" icon={<ActivityIcon size={21} />} number="01" title="Watch the pulse" description="See requests, tools, outcomes, and live agent state as one connected stream." />
-          <CapabilityCard accent="cyan" icon={<ChartLine size={21} />} number="02" title="Know the shape" description="Daily cadence, model mix, spend, and streaks make the work comparable." />
-          <CapabilityCard accent="orange" icon={<ShieldCheck size={21} />} number="03" title="Share with proof" description="A public profile that says what happened without exposing what should stay private." />
-        </div>
-      </section>
-
-      <LeaderboardPreview rows={rows} />
-
-      <section className="section shell symbaiex-feature">
-        <div className="symbaiex-art" aria-hidden="true">
-          <div className="orbit orbit-one" />
-          <div className="orbit orbit-two" />
-          <span className="orbit-core">S</span>
-          <span className="art-coordinate art-coordinate-a">30.2672° N</span>
-          <span className="art-coordinate art-coordinate-b">97.7431° W</span>
-          <span className="art-coordinate art-coordinate-c">LIVE / 07</span>
-        </div>
-        <div className="symbaiex-copy">
-          <div className="eyebrow"><span className="eyebrow-line" />Featured public profile</div>
-          <h2>Meet <span className="text-accent">symbaiex.</span></h2>
-          <p>A public telemetry profile for an agent-native builder. Follow the daily rhythm, the model choices, and the work happening right now.</p>
-          <Link className="button button-outline" href="/symbaiex">Open profile <ArrowUpRight size={16} /></Link>
-        </div>
-      </section>
-
-      <section className="section shell closing-cta">
-        <div className="closing-cta-copy">
-          <div className="eyebrow"><span className="eyebrow-line" />The useful layer</div>
-          <h2>Telemetry that earns its place in the room.</h2>
-        </div>
-        <div className="closing-cta-action">
-          <p>Start with one collector. Grow into a shared operating picture.</p>
-          <Link className="text-link" href="/enterprise">See the team surface <ArrowUpRight size={15} /></Link>
-        </div>
-      </section>
-    </div>
-  );
+  const rows = useQuery(api.public.leaderboard, { period: "7d", metric: "tokens", limit: 8 }) as LeaderboardRowData[] | undefined;
+  return <div className="page-surface home-page">
+    <section className="home-hero shell"><div className="home-hero-copy"><span className="hero-kicker">Usage intelligence for people and teams</span><h1>Your AI work,<br /><em>made visible.</em></h1><p>Track every token across every model and machine. Give builders a public profile and teams a trustworthy usage ledger.</p><div className="home-hero-actions"><Link className="button button-primary" href="/docs">Start tracking <ArrowUpRight size={16} /></Link><Link className="button button-light" href="/leaderboard">Explore profiles <ArrowRight size={16} /></Link></div><CopyCommand /></div><HeroVisual network={network} /></section>
+    <section className="featured-strip shell" aria-label="Featured UsageMax profiles"><div className="featured-strip-label"><span>Trending builders</span><small>Updated in realtime</small></div><div className="featured-profile-grid">{rows === undefined ? Array.from({ length: 3 }, (_, index) => <div className="featured-profile-card is-loading" key={index}><Skeleton className="skeleton-card" /></div>) : rows.slice(0, 3).map((row, index) => <ProfileCard key={row.handle} rank={index + 1} row={row} />)}</div></section>
+    <section className="home-proof shell"><div className="proof-heading"><span className="section-index">01 / YOUR NUMBERS</span><h2>One command.<br />Your whole AI life.</h2></div><div className="proof-copy"><p>UsageMax turns local usage from Codex, Claude Code, Gemini, OpenCode, Copilot, Hermes, and Pi into a private-by-default daily ledger.</p><div className="supported-agents" aria-label="Supported AI coding agents"><span>Codex</span><span>Claude</span><span>Gemini</span><span>OpenCode</span><span>Copilot</span><span>Hermes</span><span>Pi</span></div></div></section>
+    <section className="home-ranking shell"><div className="ranking-heading"><div><span className="section-index">02 / LEADERBOARD</span><h2>See who&apos;s putting<br />the models to work.</h2></div><div><p>A living scoreboard for the people building through the agent era.</p><Link className="arrow-link" href="/leaderboard">See the full board <ArrowUpRight size={15} /></Link></div></div><div className="ranking-shell"><div className="ranking-shell-top"><LivePill>Realtime ranking</LivePill><span>7 day activity</span></div><LeaderboardTable loading={rows === undefined} rows={rows} /></div></section>
+    <section className="profile-promise shell"><div className="promise-art" aria-hidden="true"><div className="promise-disc"><span>{rows?.[0] ? compactNumber(rows[0].totalTokens, 1) : "—"}</span><small>TOKENS</small></div><i className="promise-ring ring-one" /><i className="promise-ring ring-two" /><span className="promise-tag promise-tag-a">TOP PROFILE</span><span className="promise-tag promise-tag-b">LIVE STATS</span></div><div className="promise-copy"><span className="section-index">03 / PUBLIC PROFILE</span><h2>Turn your usage into a reputation.</h2><p>Share a page with the numbers that matter: token volume, spend, model mix, streaks, sessions, daily cadence, and what is running now.</p><Link className="button button-light" href="/symbaiex">View a live profile <ArrowUpRight size={16} /></Link></div></section>
+    <section className="home-faq shell"><div><span className="section-index">04 / THE DETAILS</span><h2>Questions,<br />answered plainly.</h2></div><div className="faq-list"><details><summary>What is UsageMax?<span>+</span></summary><p>A local-first AI usage tracker and public stats network. It turns aggregate model usage into profiles, rankings, and realtime activity.</p></details><details><summary>What data gets uploaded?<span>+</span></summary><p>Daily aggregate counts such as model, agent, tokens, sessions, timestamps, and estimated provider cost. Prompts, files, responses, and project content stay out.</p></details><details><summary>Which agents are supported?<span>+</span></summary><p>Codex, Claude Code, OpenCode, Gemini CLI, GitHub Copilot CLI, Hermes, and Pi are the initial targets, with a native telemetry endpoint for custom runtimes.</p></details><details><summary>Can I sync multiple machines?<span>+</span></summary><p>Yes. Idempotent daily rollups merge usage from every connected device into one profile.</p></details><details><summary>How are costs calculated?<span>+</span></summary><p>Reported cost is preferred. When a runtime only exposes token counts, UsageMax uses a versioned provider price table and marks the result as estimated.</p></details><details><summary>Can I keep my profile private?<span>+</span></summary><p>Yes. Public visibility is a deliberate profile setting, never a requirement for collecting your own usage.</p></details></div></section>
+  </div>;
 }
 
-export function HomeView() {
-  return convexConfigured ? <HomeData /> : <HomeUnavailable />;
-}
+export function HomeView() { return convexConfigured ? <HomeData /> : <div className="page-surface empty-page"><h1>UsageMax is waiting for Convex.</h1></div>; }
 
-function MetricToggle({
-  metric,
-  onChange,
-}: {
-  metric: Metric;
-  onChange: (value: Metric) => void;
-}) {
-  return (
-    <div aria-label="Leaderboard metric" className="segmented-control" role="tablist">
-      {(["tokens", "spend"] as Metric[]).map((item) => (
-        <button
-          aria-selected={metric === item}
-          className={metric === item ? "is-selected" : ""}
-          key={item}
-          onClick={() => onChange(item)}
-          role="tab"
-          type="button"
-        >
-          {item === "tokens" ? "Tokens" : "Spend"}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function PeriodToggle({
-  period,
-  onChange,
-}: {
-  period: Period;
-  onChange: (value: Period) => void;
-}) {
-  return (
-    <div aria-label="Leaderboard period" className="period-toggle" role="tablist">
-      {(["7d", "30d", "all"] as Period[]).map((item) => (
-        <button
-          aria-selected={period === item}
-          className={period === item ? "is-selected" : ""}
-          key={item}
-          onClick={() => onChange(item)}
-          role="tab"
-          type="button"
-        >
-          {item === "all" ? "All time" : item}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function LeaderboardUnavailable() {
-  return (
-    <div className="page-surface">
-      <div className="shell page-intro">
-        <div className="eyebrow"><span className="eyebrow-line" />Signal board</div>
-        <h1>Ranked by <span className="text-accent">real work.</span></h1>
-        <p>Connect the public Convex deployment to load the live board.</p>
-      </div>
-    </div>
-  );
+function Toggle<T extends string>({ values, value, labels, onChange }: { values: T[]; value: T; labels: Record<T, string>; onChange: (value: T) => void }) {
+  return <div className="filter-pills">{values.map((item) => <button className={item === value ? "is-active" : ""} key={item} onClick={() => onChange(item)} type="button">{labels[item]}</button>)}</div>;
 }
 
 function LeaderboardData() {
   const [period, setPeriod] = useState<Period>("7d");
   const [metric, setMetric] = useState<Metric>("tokens");
-  const rows = useQuery(api.public.leaderboard, { period, metric, limit: 50 }) as LeaderboardRowData[] | undefined;
-
-  return (
-    <div className="page-surface leaderboard-page">
-      <section className="shell page-intro leaderboard-intro">
-        <div className="eyebrow"><span className="eyebrow-line" />Signal board / ranked</div>
-        <h1>Ranked by <span className="text-accent">real work.</span></h1>
-        <p>Public telemetry, made legible. Compare the builders and agent systems choosing to show their signal.</p>
-        <div className="leaderboard-intro-foot">
-          <span><span className="live-dot" /> Updates as collectors report</span>
-          <span className="mono-muted">PUBLIC / READ-ONLY</span>
-        </div>
-      </section>
-
-      <section className="shell leaderboard-workspace">
-        <div className="leaderboard-toolbar">
-          <MetricToggle metric={metric} onChange={setMetric} />
-          <PeriodToggle period={period} onChange={setPeriod} />
-        </div>
-        <div className="leaderboard-main-grid">
-          <div className="panel leaderboard-panel">
-            <div className="panel-heading">
-              <div>
-                <span className="metric-label">Current view</span>
-                <h2>{metric === "tokens" ? "Token signal" : "Indexed spend"}</h2>
-              </div>
-              <span className="panel-count">{rows ? `${rows.length} profiles` : "Syncing"}</span>
-            </div>
-            <LeaderboardTable loading={rows === undefined} rows={rows} />
-          </div>
-          <aside className="board-aside">
-            <div className="aside-marker">HOW TO READ THIS</div>
-            <h2>Signal over spectacle.</h2>
-            <p>Rank is calculated from bounded public telemetry windows. It rewards sustained usage, not a one-off spike.</p>
-            <div className="aside-list">
-              <div><span className="aside-index">01</span><span><strong>Tokens</strong><small>total model tokens observed</small></span></div>
-              <div><span className="aside-index">02</span><span><strong>Spend</strong><small>provider cost reported in USD</small></span></div>
-              <div><span className="aside-index">03</span><span><strong>Windows</strong><small>7 day, 30 day, and all time</small></span></div>
-            </div>
-            <Link className="text-link" href="/methodology">Read the methodology <ArrowUpRight size={15} /></Link>
-          </aside>
-        </div>
-      </section>
-    </div>
-  );
+  const [query, setQuery] = useState("");
+  const rows = useQuery(api.public.leaderboard, { period, metric, limit: 100 }) as LeaderboardRowData[] | undefined;
+  const visibleRows = rows?.filter((row) => `${row.displayName} ${row.handle}`.toLowerCase().includes(query.toLowerCase()));
+  return <div className="page-surface leaderboard-page">
+    <section className="leaderboard-hero shell"><span className="section-index">PUBLIC SCOREBOARD / LIVE</span><h1>The people putting<br /><em>AI to work.</em></h1><p>Ranked from real, connected usage. Choose a window, follow a builder, inspect the proof.</p></section>
+    <section className="leaderboard-browser shell"><div className="leaderboard-controls"><Toggle labels={{ tokens: "Most tokens", spend: "Most spend" }} onChange={setMetric} value={metric} values={["tokens", "spend"]} /><Toggle labels={{ "7d": "7 days", "30d": "30 days", all: "All time" }} onChange={setPeriod} value={period} values={["7d", "30d", "all"]} /><label className="profile-search"><span className="sr-only">Search profiles</span><input onChange={(event) => setQuery(event.target.value)} placeholder="Search builders" type="search" value={query} /></label></div><div className="ranking-shell leaderboard-ranking"><div className="ranking-shell-top"><LivePill>{rows ? `${visibleRows?.length ?? 0} profiles` : "Loading profiles"}</LivePill><span>{metric === "tokens" ? "Token volume" : "API-equivalent spend"} / {period === "all" ? "all time" : period}</span></div><LeaderboardTable loading={rows === undefined} rows={visibleRows} /></div></section>
+    <section className="leaderboard-note shell"><span>Numbers should invite a closer look.</span><p>Ranking is only the door. Every row opens into the builder&apos;s model mix, cadence, streaks, sessions, and live public activity.</p><Link className="arrow-link" href="/methodology">Read the methodology <ArrowUpRight size={15} /></Link></section>
+  </div>;
 }
 
-export function LeaderboardView() {
-  return convexConfigured ? <LeaderboardData /> : <LeaderboardUnavailable />;
+export function LeaderboardView() { return convexConfigured ? <LeaderboardData /> : <div className="page-surface empty-page"><h1>The board is waiting for Convex.</h1></div>; }
+
+function StatTile({ label, value, note, featured = false }: { label: string; value: string; note: string; featured?: boolean }) {
+  return <div className={`stat-tile ${featured ? "is-featured" : ""}`}><span>{label}</span><strong>{value}</strong><small>{note}</small></div>;
 }
 
-function DailyChart({ rows, loading }: { rows: DailyRow[]; loading: boolean }) {
-  const values = rows.slice(-30).map((row) => valueOrZero(row.totalTokens));
-  const hasData = values.some((value) => value > 0);
+function DailyBars({ rows, metric }: { rows: DailyRow[]; metric: "tokens" | "spend" }) {
+  const data = rows.slice(-30);
+  const values = data.map((row) => metric === "tokens" ? row.totalTokens : row.costMicros);
   const max = Math.max(...values, 1);
-  const points = values.length > 1
-    ? values.map((value, index) => `${(index / (values.length - 1)) * 100},${96 - (value / max) * 76}`).join(" ")
-    : "0,96 100,96";
-  const areaPoints = `0,100 ${points} 100,100`;
-
-  return (
-    <div className="chart-card panel">
-      <div className="chart-card-header">
-        <div>
-          <span className="metric-label">Daily throughput</span>
-          <h3>Tokens over time</h3>
-        </div>
-        <span className="chart-period">30D</span>
-      </div>
-      {loading ? (
-        <div className="chart-loading"><Skeleton className="skeleton-chart" /></div>
-      ) : hasData ? (
-        <>
-          <svg aria-label="Daily token throughput chart" className="daily-chart" role="img" viewBox="0 0 600 120" preserveAspectRatio="none">
-            <defs>
-              <linearGradient id="daily-area-fill" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0" stopColor="#73e8ff" stopOpacity="0.35" />
-                <stop offset="1" stopColor="#73e8ff" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <path className="chart-grid-line" d="M0 20H600M0 58H600M0 96H600" />
-            <polygon fill="url(#daily-area-fill)" points={areaPoints} />
-            <polyline className="daily-line" points={points} />
-            <circle className="daily-endpoint" cx="100" cy={96 - (values[values.length - 1] / max) * 76} r="3.5" />
-          </svg>
-          <div className="chart-axis"><span>{rows[Math.max(0, rows.length - 30)]?.date ? shortDate(rows[Math.max(0, rows.length - 30)].date) : "30 days ago"}</span><span>Today</span></div>
-        </>
-      ) : (
-        <div className="chart-empty"><ActivityIcon size={18} /><span>No daily activity reported yet.</span></div>
-      )}
-    </div>
-  );
+  const total = values.reduce((sum, value) => sum + value, 0);
+  return <div className={`data-chart chart-${metric}`}><div className="data-chart-head"><div><span>Daily {metric}</span><strong>{metric === "tokens" ? compactNumber(total, 2) : currencyFromMicros(total)}</strong></div><small>Last 30 days</small></div><div className="bar-chart" aria-label={`Daily ${metric} for the last 30 days`}>{data.map((row, index) => <i key={row.date} title={`${shortDate(row.date)} · ${metric === "tokens" ? compactNumber(row.totalTokens, 2) : currencyFromMicros(row.costMicros)}`} style={{ "--height": `${Math.max(2, (values[index] / max) * 100)}%` } as CSSProperties} />)}</div><div className="chart-axis"><span>{data[0]?.date ? shortDate(data[0].date) : "30 days ago"}</span><span>Today</span></div></div>;
 }
 
-function UsageHeatmap({ rows, loading }: { rows: DailyRow[]; loading: boolean }) {
-  const max = Math.max(...rows.map((row) => valueOrZero(row.totalTokens)), 1);
-  const cells = Array.from({ length: 364 }, (_, index): DailyRow | null => {
-    const offset = index - Math.max(0, 364 - rows.length);
-    return offset >= 0 ? rows[offset] ?? null : null;
-  });
-  return (
-    <div className="heatmap-card panel">
-      <div className="chart-card-header">
-        <div>
-          <span className="metric-label">Consistency map</span>
-          <h3>Usage cadence</h3>
-        </div>
-        <span className="chart-period">1Y</span>
-      </div>
-      {loading ? <div className="heatmap-loading"><Skeleton className="skeleton-heatmap" /></div> : (
-        <>
-          <div aria-hidden="true" className="heatmap">
-            {cells.map((row, index) => {
-              const level = row ? Math.min(4, Math.ceil((valueOrZero(row.totalTokens) / max) * 4)) : 0;
-              return <span className={`heat-cell heat-level-${level}`} key={`${row?.date ?? "empty"}-${index}`} />;
-            })}
-          </div>
-          <div className="heatmap-legend"><span>quiet</span><span className="heatmap-key"><i className="heat-level-0" /><i className="heat-level-1" /><i className="heat-level-2" /><i className="heat-level-3" /><i className="heat-level-4" /></span><span>heavy</span></div>
-          <p className="sr-only">A one-year heatmap of daily token activity, with brighter cells representing higher usage.</p>
-        </>
-      )}
-    </div>
-  );
+function ModelDailyChart({ rows, metric }: { rows: DailyModelRow[]; metric: "tokens" | "spend" }) {
+  const topModels = useMemo(() => { const totals = new Map<string, number>(); for (const row of rows) totals.set(row.model, (totals.get(row.model) ?? 0) + (metric === "tokens" ? row.totalTokens : row.costMicros)); return [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([model]) => model); }, [rows, metric]);
+  const days = useMemo(() => { const grouped = new Map<string, Map<string, number>>(); for (const row of rows) { const day = grouped.get(row.date) ?? new Map<string, number>(); day.set(row.model, (day.get(row.model) ?? 0) + (metric === "tokens" ? row.totalTokens : row.costMicros)); grouped.set(row.date, day); } return [...grouped.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-30); }, [rows, metric]);
+  const max = Math.max(...days.map(([, values]) => [...values.values()].reduce((sum, value) => sum + value, 0)), 1);
+  return <div className="model-daily-chart"><div className="stacked-bars" aria-label={`Daily ${metric} split by model`}>{days.map(([date, values]) => { const total = [...values.values()].reduce((sum, value) => sum + value, 0); return <div className="stack-column" key={date} title={`${shortDate(date)} · ${metric === "tokens" ? compactNumber(total, 2) : currencyFromMicros(total)}`} style={{ height: `${Math.max(2, (total / max) * 100)}%` }}>{topModels.map((model, index) => { const amount = values.get(model) ?? 0; return amount > 0 ? <i key={model} style={{ background: modelColors[index], height: `${(amount / total) * 100}%` }} /> : null; })}</div>; })}</div><div className="model-legend">{topModels.map((model, index) => <span key={model}><i style={{ background: modelColors[index] }} />{formatModel(model)}</span>)}</div></div>;
 }
 
-function ModelBreakdown({ models, loading, totalTokens }: { models: ModelRow[]; loading: boolean; totalTokens: number }) {
-  return (
-    <section className="model-card panel">
-      <div className="panel-heading">
-        <div><span className="metric-label">Model mix</span><h2>Where the work lands</h2></div>
-        <LayersIcon size={20} />
-      </div>
-      {loading ? <div className="stacked-loading"><Skeleton className="skeleton-line" /><Skeleton className="skeleton-line" /><Skeleton className="skeleton-line" /></div> : models.length ? (
-        <div className="model-list">
-          {models.slice(0, 8).map((model) => {
-            const share = totalTokens > 0 ? Math.round((model.totalTokens / totalTokens) * 100) : 0;
-            return (
-              <div className="model-row" key={`${model.provider}-${model.model}`}>
-                <div className="model-row-heading"><span><strong>{formatModel(model.model)}</strong><small>{model.provider} / {compactNumber(model.requests)} requests</small></span><strong>{compactNumber(model.totalTokens, 2)}</strong></div>
-                <div className="model-bar"><span style={{ width: `${Math.max(share, model.totalTokens > 0 ? 2 : 0)}%` }} /></div>
-                <div className="model-row-foot"><span>{share}% of tokens</span><span>{currencyFromMicros(model.costMicros)}</span></div>
-              </div>
-            );
-          })}
-        </div>
-      ) : <div className="empty-inline"><DatabaseIcon size={18} /> No model totals yet.</div>}
-    </section>
-  );
+function ActivityHeatmap({ rows }: { rows: DailyRow[] }) {
+  const values = new Map(rows.map((row) => [row.date, row.totalTokens]));
+  const max = Math.max(...rows.map((row) => row.totalTokens), 1);
+  const endValue = rows.at(-1)?.date ?? new Date().toISOString().slice(0, 10);
+  const end = new Date(`${endValue}T00:00:00Z`);
+  const start = new Date(end); start.setUTCDate(start.getUTCDate() - 364);
+  const cells: Array<{ date?: string; value?: number }> = Array.from({ length: start.getUTCDay() }, () => ({}));
+  for (let cursor = new Date(start); cursor <= end; cursor.setUTCDate(cursor.getUTCDate() + 1)) { const date = cursor.toISOString().slice(0, 10); cells.push({ date, value: values.get(date) ?? 0 }); }
+  return <div className="heatmap-panel"><div className="panel-title"><div><span>Activity</span><h3>{rows.filter((row) => row.totalTokens > 0).length} active days</h3></div><small>Last 12 months</small></div><div className="calendar-wrap"><div className="calendar-labels"><span>M</span><span>W</span><span>F</span></div><div className="calendar-grid">{cells.map((cell, index) => { const level = cell.value ? Math.min(4, Math.ceil((cell.value / max) * 4)) : 0; return <i className={cell.date ? `level-${level}` : "is-spacer"} key={cell.date ?? `spacer-${index}`} title={cell.date ? `${cell.date} · ${compactNumber(cell.value ?? 0, 2)} tokens` : undefined} />; })}</div></div><div className="heatmap-key"><span>Less</span><i className="level-0" /><i className="level-1" /><i className="level-2" /><i className="level-3" /><i className="level-4" /><span>More</span></div></div>;
 }
 
-function AgentList({ agents, loading }: { agents: AgentRow[]; loading: boolean }) {
-  return (
-    <section className="agents-card panel">
-      <div className="panel-heading">
-        <div><span className="metric-label">Live now</span><h2>Agent activity</h2></div>
-        <span className="panel-count"><span className="live-dot" />{loading ? "Syncing" : `${agents.filter((agent) => agent.online).length} online`}</span>
-      </div>
-      {loading ? <div className="agent-loading"><Skeleton className="skeleton-agent" /><Skeleton className="skeleton-agent" /></div> : agents.length ? (
-        <div className="agent-list">
-          {agents.map((agent) => (
-            <div className={`agent-row ${agent.online ? "agent-online" : ""}`} key={agent.externalId}>
-              <span className="agent-pulse"><span /></span>
-              <span className="agent-main"><strong>{agent.name}</strong><small>{agent.task || sentenceCase(agent.state)} / {formatModel(agent.model)}</small></span>
-              <span className="agent-rate"><strong>{compactNumber(agent.tokensPerSecond, 1)}</strong><small>tok / sec</small></span>
-              <span className="agent-state">{agent.online ? "online" : "idle"}</span>
-            </div>
-          ))}
-        </div>
-      ) : <div className="empty-inline"><PulseIcon size={18} /> No active agents in this window.</div>}
-    </section>
-  );
+function WeekdayActivity({ rows }: { rows: DailyRow[] }) {
+  const labels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const totals = Array(7).fill(0) as number[];
+  rows.forEach((row) => { totals[new Date(`${row.date}T00:00:00Z`).getUTCDay()] += row.totalTokens; });
+  const max = Math.max(...totals, 1);
+  return <div className="weekday-panel"><div className="panel-title"><div><span>Most active time</span><h3>When the work happens</h3></div></div><div className="weekday-bars">{totals.map((total, index) => <div key={labels[index]}><i style={{ height: `${Math.max(3, (total / max) * 100)}%` }} /><span>{labels[index]}</span></div>)}</div></div>;
 }
 
-function EventStream({ events, loading }: { events: EventRow[]; loading: boolean }) {
-  return (
-    <section className="events-card panel">
-      <div className="panel-heading">
-        <div><span className="metric-label">Latest trace events</span><h2>What just happened</h2></div>
-        <span className="panel-count">{loading ? "Syncing" : `${events.length} recent`}</span>
-      </div>
-      {loading ? <div className="event-loading"><Skeleton className="skeleton-event" /><Skeleton className="skeleton-event" /><Skeleton className="skeleton-event" /></div> : events.length ? (
-        <div className="event-list">
-          {events.slice(0, 12).map((event) => (
-            <div className="event-row" key={event._id || event.eventKey}>
-              <span className={`event-status event-status-${event.status}`}><span /></span>
-              <span className="event-type">{sentenceCase(event.eventType)}</span>
-              <span className="event-description"><strong>{event.agentName || event.source}</strong><small>{formatModel(event.model)}{event.task ? ` / ${event.task}` : ""}</small></span>
-              <span className="event-metric"><strong>{compactNumber(event.totalTokens, 2)}</strong><small>{event.latencyMs ? `${event.latencyMs}ms` : currencyFromMicros(event.costMicros)}</small></span>
-              <time dateTime={new Date(event.occurredAt).toISOString()}>{relativeTime(new Date(event.occurredAt))}</time>
-            </div>
-          ))}
-        </div>
-      ) : <div className="empty-inline"><ActivityIcon size={18} /> No trace events in this window.</div>}
-    </section>
-  );
+function MonthlySpend({ rows }: { rows: DailyRow[] }) {
+  const totals = new Map<string, number>();
+  rows.forEach((row) => totals.set(row.date.slice(0, 7), (totals.get(row.date.slice(0, 7)) ?? 0) + row.costMicros));
+  const months = [...totals.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-6);
+  const max = Math.max(...months.map(([, value]) => value), 1);
+  return <div className="monthly-panel"><div className="panel-title"><div><span>Monthly spend</span><h3>Cost over time</h3></div><small>Last 6 months</small></div><div className="monthly-list">{months.map(([month, value]) => <div key={month}><span>{new Intl.DateTimeFormat("en", { month: "short", timeZone: "UTC" }).format(new Date(`${month}-01T00:00:00Z`))}</span><i><b style={{ width: `${(value / max) * 100}%` }} /></i><strong>{currencyFromMicros(value)}</strong></div>)}</div></div>;
 }
 
-function ProfileLoading({ handle }: { handle: string }) {
-  return (
-    <div className="page-surface profile-page">
-      <section className="shell profile-hero profile-loading-hero">
-        <div className="profile-identity"><Skeleton className="skeleton-profile-avatar" /><div><Skeleton className="skeleton-line skeleton-line-wide" /><Skeleton className="skeleton-line" /><Skeleton className="skeleton-line skeleton-line-wide" /></div></div>
-        <div className="profile-loading-note"><span className="live-dot" /> Loading @{handle}</div>
-      </section>
-      <section className="shell profile-section"><div className="profile-loading-grid"><Skeleton className="skeleton-profile-panel" /><Skeleton className="skeleton-profile-panel" /></div></section>
-    </div>
-  );
+function ModelTable({ models, totalTokens }: { models: ModelRow[]; totalTokens: number }) {
+  return <div className="model-panel"><div className="panel-title"><div><span>Model mix</span><h3>Where the tokens went</h3></div><small>{models.length} models</small></div><div className="model-table">{models.slice(0, 10).map((model, index) => { const share = totalTokens ? (model.totalTokens / totalTokens) * 100 : 0; return <div key={`${model.provider}-${model.model}`}><span className="model-index">{String(index + 1).padStart(2, "0")}</span><span><strong>{formatModel(model.model)}</strong><small>{model.provider} · {compactNumber(model.requests)} requests</small></span><i><b style={{ background: modelColors[index % modelColors.length], width: `${Math.max(1, share)}%` }} /></i><span className="model-value"><strong>{compactNumber(model.totalTokens, 2)}</strong><small>{currencyFromMicros(model.costMicros)}</small></span></div>; })}</div></div>;
+}
+
+function LiveActivity({ live, loading }: { live: LiveData; loading: boolean }) {
+  const online = live.agents.filter((agent) => agent.online);
+  return <section className="live-activity-section"><div className="live-activity-head"><div><LivePill>{loading ? "Connecting" : `${online.length} agents online`}</LivePill><h2>What&apos;s happening now.</h2></div><p>A bounded public window into current agent and tool activity. Content and payloads stay private.</p></div><div className="live-activity-grid"><div className="agent-feed"><div className="feed-label">Recent agents</div>{loading ? <Skeleton className="skeleton-tall" /> : live.agents.length ? live.agents.slice(0, 8).map((agent) => <div className="agent-item" key={agent.externalId}><span className={agent.online ? "agent-status is-online" : "agent-status"} /><span><strong>{agent.name}</strong><small>{agent.task || sentenceCase(agent.state)} · {formatModel(agent.model)}</small></span><span><strong>{agent.online ? compactNumber(agent.tokensPerSecond, 1) : "Idle"}</strong><small>{agent.online ? "tok/s" : relativeTime(new Date(agent.updatedAt))}</small></span></div>) : <div className="feed-empty">No agent heartbeat in this window.</div>}</div><div className="event-feed"><div className="feed-label">Recent log</div>{loading ? <Skeleton className="skeleton-tall" /> : live.events.length ? live.events.slice(0, 12).map((event) => <div className="event-item" key={event._id || event.eventKey}><span className={`event-dot is-${event.status}`} /><time>{new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date(event.occurredAt))}</time><span><strong>{event.agentName || event.source}</strong><small>{sentenceCase(event.eventType)} · {formatModel(event.model)}</small></span><span>{event.totalTokens ? compactNumber(event.totalTokens, 1) : event.latencyMs ? `${event.latencyMs}ms` : "—"}</span></div>) : <div className="feed-empty">No public events in this window.</div>}</div></div></section>;
 }
 
 function ProfileNotFound({ handle }: { handle: string }) {
-  return (
-    <div className="page-surface profile-page">
-      <section className="shell not-found-card panel">
-        <div className="not-found-code">404 / PUBLIC PROFILE</div>
-        <h1>No signal for <span className="text-accent">@{handle}</span>.</h1>
-        <p>This profile is private, hasn&apos;t connected a collector, or doesn&apos;t exist yet.</p>
-        <div className="hero-actions"><Link className="button button-acid" href="/leaderboard">Browse the board <ArrowUpRight size={16} /></Link><Link className="button button-quiet" href="/docs">Connect a profile <ArrowRight size={16} /></Link></div>
-      </section>
-    </div>
-  );
-}
-
-function ProfileUnavailable({ handle }: { handle: string }) {
-  return (
-    <div className="page-surface profile-page">
-      <section className="shell not-found-card panel"><div className="not-found-code">PUBLIC PROFILE / PAUSED</div><h1>Signal pending for <span className="text-accent">@{handle}</span>.</h1><p>Connect the public Convex deployment to see this profile&apos;s live telemetry.</p></section>
-    </div>
-  );
+  return <div className="page-surface empty-page"><span className="section-index">404 / PUBLIC PROFILE</span><h1>No public stats for <em>@{handle}</em>.</h1><p>This profile is private, disconnected, or has not been claimed yet.</p><Link className="button button-primary" href="/leaderboard">Explore profiles <ArrowUpRight size={16} /></Link></div>;
 }
 
 function ProfileDataView({ handle }: { handle: string }) {
   const normalizedHandle = handle.replace(/^@/, "").toLowerCase();
   const profileResult = useQuery(api.public.profile, { handle: normalizedHandle }) as ProfileData | null | undefined;
   const dailyResult = useQuery(api.public.daily, { handle: normalizedHandle, days: 365 }) as DailyRow[] | undefined;
+  const dailyModels = useQuery(api.public.dailyModels, { handle: normalizedHandle, days: 30 }) as DailyModelRow[] | undefined;
+  const allRanks = useQuery(api.public.leaderboard, { period: "all", metric: "tokens", limit: 100 }) as LeaderboardRowData[] | undefined;
   const [now, setNow] = useState(0);
+  const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    const refresh = () => setNow(Date.now());
-    refresh();
-    const interval = window.setInterval(refresh, 15_000);
-    return () => window.clearInterval(interval);
-  }, []);
-
-  const liveResult = useQuery(
-    api.public.live,
-    now ? { handle: normalizedHandle, now, agentLimit: 8, eventLimit: 20 } : "skip",
-  ) as LiveData | undefined;
-
-  if (profileResult === undefined) return <ProfileLoading handle={normalizedHandle} />;
+  useEffect(() => { const refresh = () => setNow(Date.now()); refresh(); const timer = window.setInterval(refresh, 15_000); return () => window.clearInterval(timer); }, []);
+  const liveResult = useQuery(api.public.live, now ? { handle: normalizedHandle, now, agentLimit: 12, eventLimit: 24 } : "skip") as LiveData | undefined;
+  if (profileResult === undefined) return <div className="page-surface profile-loading"><Skeleton className="skeleton-profile" /><Skeleton className="skeleton-profile-body" /></div>;
   if (profileResult === null) return <ProfileNotFound handle={normalizedHandle} />;
 
-  const profile = profileResult.profile;
-  const stats = profileResult.stats;
+  const { profile, stats, models } = profileResult;
   const daily = dailyResult ?? [];
   const live = liveResult ?? { agents: [], events: [] };
-  const onlineAgents = live.agents.filter((agent) => agent.online);
+  const rankIndex = allRanks?.findIndex((row) => row.handle === profile.handle) ?? -1;
+  const rank = rankIndex >= 0 ? `#${rankIndex + 1}` : "—";
+  async function share() { await navigator.clipboard.writeText(window.location.href); setCopied(true); window.setTimeout(() => setCopied(false), 1800); }
 
-  return (
-    <div className="page-surface profile-page">
-      <section className="shell profile-hero">
-        <div className="profile-identity">
-          <div className="profile-avatar-frame"><Avatar name={profile.displayName || profile.handle} size="large" /><span className="profile-avatar-signal" /></div>
-          <div className="profile-copy">
-            <div className="eyebrow"><span className="eyebrow-line" />Public telemetry profile</div>
-            <div className="profile-title-line"><h1>{profile.displayName || profile.handle}</h1>{profile.isVerified ? <VerifyBadge /> : null}</div>
-            <p className="profile-handle">@{profile.handle} <span>/</span> {profile.verification} signal</p>
-            <p className="profile-bio">{profile.bio || "An open telemetry profile for an AI-native builder."}</p>
-            <div className="profile-meta"><span>First seen {profileResult.stats?.firstDay ? shortDate(profileResult.stats.firstDay) : "recently"}</span><span className="meta-divider" /><span>Updated {stats?.lastEventAt ? relativeTime(new Date(stats.lastEventAt)) : "on ingest"}</span></div>
-          </div>
-        </div>
-        <div className="profile-live-card">
-          <div className="profile-live-card-top"><span className="live-chip"><span className="live-dot" />Live feed</span><span className="mono-muted">15 SEC</span></div>
-          <strong>{onlineAgents.length}</strong>
-          <span>active agent{onlineAgents.length === 1 ? "" : "s"} right now</span>
-          <div className="mini-wave" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /></div>
-          <small>{now ? "Watching the latest public heartbeat" : "Starting live listener"}</small>
-        </div>
-      </section>
-
-      <section className="shell profile-stat-grid" aria-label="Profile totals">
-        <div className="profile-stat profile-stat-featured"><span className="metric-label">Total tokens</span><strong>{compactNumber(valueOrZero(stats?.totalTokens), 2)}</strong><small>all observed model work</small></div>
-        <div className="profile-stat"><span className="metric-label">Indexed spend</span><strong>{currencyFromMicros(valueOrZero(stats?.totalCostMicros))}</strong><small>reported provider cost</small></div>
-        <div className="profile-stat"><span className="metric-label">Sessions</span><strong>{compactNumber(valueOrZero(stats?.sessions))}</strong><small>{compactNumber(valueOrZero(stats?.activeDays))} active days</small></div>
-        <div className="profile-stat"><span className="metric-label">Current streak</span><strong>{valueOrZero(stats?.currentStreakDays)}<em>d</em></strong><small>best {valueOrZero(stats?.longestStreakDays)} days</small></div>
-      </section>
-
-      <section className="shell profile-section">
-        <div className="section-heading section-heading-row"><div><div className="eyebrow"><span className="eyebrow-line" />Cadence / volume</div><h2>Show your work over time.</h2></div><span className="section-side-note">{daily.length ? `${daily.length} days indexed` : "No daily rollup yet"}</span></div>
-        <div className="profile-activity-grid"><DailyChart loading={dailyResult === undefined} rows={daily} /><UsageHeatmap loading={dailyResult === undefined} rows={daily} /></div>
-      </section>
-
-      <section className="shell profile-lower-grid">
-        <ModelBreakdown loading={profileResult.models === undefined} models={profileResult.models ?? []} totalTokens={valueOrZero(stats?.totalTokens)} />
-        <AgentList loading={liveResult === undefined} agents={live.agents} />
-      </section>
-
-      <section className="shell profile-section profile-events-section"><div className="section-heading section-heading-row"><div><div className="eyebrow"><span className="eyebrow-line" />Trace surface</div><h2>Live events, without the noise.</h2></div><span className="section-side-note">Public fields only / bounded feed</span></div><EventStream events={live.events} loading={liveResult === undefined} /></section>
-
-      <section className="shell profile-footer-note"><div><span className="icon-chip icon-chip-cyan"><LockClosed size={17} /></span><span><strong>Privacy by construction.</strong><small>This profile exposes aggregated usage and selected event context—not prompts, payloads, or credentials.</small></span></div><Link className="text-link" href="/methodology">Understand the data <ArrowUpRight size={15} /></Link></section>
-    </div>
-  );
+  return <div className="page-surface profile-page">
+    <section className="profile-cover shell"><div className="profile-chart-hero"><ProfileHeroChart rows={daily} /><div className="profile-chart-total"><span>All-time tokens</span><strong>{compactNumber(safeNumber(stats?.totalTokens), 2)}</strong><small>{currencyFromMicros(safeNumber(stats?.totalCostMicros))} API-equivalent spend</small></div><div className="profile-chart-meta"><LivePill>{live.agents.filter((agent) => agent.online).length ? "Working now" : "Profile live"}</LivePill><span>Since {stats?.firstDay ? shortDate(stats.firstDay) : "first sync"}</span></div></div><aside className="profile-identity-card"><div className="profile-avatar-row"><Avatar name={profile.displayName || profile.handle} size="large" /><button onClick={share} type="button">{copied ? "Copied" : "Share"} <ArrowUpRight size={14} /></button></div><div><h1>{profile.displayName || profile.handle}{profile.isVerified ? <VerifyBadge /> : null}</h1><p className="profile-handle">@{profile.handle}</p></div><p className="profile-bio">{profile.bio || "Building in public, one token at a time."}</p><div className="identity-facts"><span><small>Rank</small><strong>{rank}</strong></span><span><small>Top model</small><strong>{formatModel(stats?.topModel || "—")}</strong></span></div><div className="identity-update"><i /> Updated {stats?.lastEventAt ? relativeTime(new Date(stats.lastEventAt)) : "on sync"}</div></aside></section>
+    <section className="profile-stats shell"><StatTile featured label="Total spend" note="API-equivalent" value={currencyFromMicros(safeNumber(stats?.totalCostMicros))} /><StatTile label="Total tokens" note={`${compactNumber(safeNumber(stats?.outputTokens), 2)} output`} value={compactNumber(safeNumber(stats?.totalTokens), 2)} /><StatTile label="Sessions" note={`${compactNumber(safeNumber(stats?.deviceCount))} connected devices`} value={compactNumber(safeNumber(stats?.sessions))} /><StatTile label="Top model" note="by token volume" value={formatModel(stats?.topModel || "—")} /><StatTile label="Current streak" note={`best ${safeNumber(stats?.longestStreakDays)} days`} value={`${safeNumber(stats?.currentStreakDays)} days`} /><StatTile label="Active days" note={stats?.firstDay ? `since ${shortDate(stats.firstDay)}` : "since first sync"} value={compactNumber(safeNumber(stats?.activeDays))} /><StatTile label="Leaderboard" note="all-time tokens" value={rank} /><StatTile label="Cache reads" note={`${compactNumber(safeNumber(stats?.reasoningTokens), 2)} reasoning`} value={compactNumber(safeNumber(stats?.cacheReadTokens), 2)} /></section>
+    <section className="profile-data shell"><div className="profile-section-title"><span className="section-index">USAGE / LAST 30 DAYS</span><h2>The shape of the work.</h2></div><div className="daily-chart-grid"><div><DailyBars metric="spend" rows={daily} />{dailyModels?.length ? <ModelDailyChart metric="spend" rows={dailyModels} /> : null}</div><div><DailyBars metric="tokens" rows={daily} />{dailyModels?.length ? <ModelDailyChart metric="tokens" rows={dailyModels} /> : null}</div></div><ActivityHeatmap rows={daily} /><div className="behavior-grid"><WeekdayActivity rows={daily} /><MonthlySpend rows={daily} /></div><ModelTable models={models} totalTokens={safeNumber(stats?.totalTokens)} /><LiveActivity live={live} loading={liveResult === undefined} /></section>
+  </div>;
 }
 
-export function ProfileView({ handle }: { handle: string }) {
-  return convexConfigured ? <ProfileDataView handle={handle} /> : <ProfileUnavailable handle={handle.replace(/^@/, "").toLowerCase()} />;
-}
+export function ProfileView({ handle }: { handle: string }) { return convexConfigured ? <ProfileDataView handle={handle} /> : <div className="page-surface empty-page"><h1>This profile is waiting for Convex.</h1></div>; }

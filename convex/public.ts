@@ -53,6 +53,48 @@ export const daily = query({
   },
 });
 
+export const dailyModels = query({
+  args: { handle: v.string(), days: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const profile = await profileByHandle(ctx, args.handle);
+    if (!profile?.isPublic) return [];
+    const limit = Math.min(90, Math.max(1, Math.round(args.days ?? 30)));
+    const rows = await ctx.db
+      .query("dailyUsage")
+      .withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id))
+      .order("desc")
+      .take(4000);
+    const cutoffDays = [...new Set(rows.map((row) => row.day))]
+      .sort((a, b) => b.localeCompare(a))
+      .slice(0, limit);
+    const cutoff = new Set(cutoffDays);
+    const grouped = new Map<string, {
+      date: string;
+      model: string;
+      provider: string;
+      totalTokens: number;
+      costMicros: number;
+    }>();
+    for (const row of rows) {
+      if (!cutoff.has(row.day)) continue;
+      const key = `${row.day}\u0000${row.provider}\u0000${row.model}`;
+      const current = grouped.get(key) ?? {
+        date: row.day,
+        model: row.model,
+        provider: row.provider,
+        totalTokens: 0,
+        costMicros: 0,
+      };
+      current.totalTokens += row.totalTokens;
+      current.costMicros += row.costMicros;
+      grouped.set(key, current);
+    }
+    return [...grouped.values()].sort((a, b) =>
+      a.date === b.date ? b.totalTokens - a.totalTokens : a.date.localeCompare(b.date),
+    );
+  },
+});
+
 export const leaderboard = query({
   args: {
     period: v.union(v.literal("7d"), v.literal("30d"), v.literal("all")),
@@ -61,11 +103,26 @@ export const leaderboard = query({
   },
   handler: async (ctx, args) => {
     const limit = Math.min(100, Math.max(1, Math.round(args.limit ?? 50)));
-    return await ctx.db
+    const rows = await ctx.db
       .query("leaderboardEntries")
       .withIndex("by_period_and_metric_and_score", (q) => q.eq("period", args.period).eq("metric", args.metric))
       .order("desc")
       .take(limit);
+    const visibleRows = await Promise.all(rows.map(async (row) => {
+      const profile = await ctx.db.get(row.profileId);
+      if (!profile?.isPublic) return null;
+      const stats = await ctx.db
+        .query("profileStats")
+        .withIndex("by_profileId", (q) => q.eq("profileId", row.profileId))
+        .unique();
+      return {
+        ...row,
+        sessions: stats?.sessions ?? 0,
+        activeDays: stats?.activeDays ?? 0,
+        lastEventAt: stats?.lastEventAt ?? row.updatedAt,
+      };
+    }));
+    return visibleRows.filter((row) => row !== null);
   },
 });
 
