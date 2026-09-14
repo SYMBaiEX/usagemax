@@ -36,6 +36,11 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Local AI skill bundles (regenerated with `bunx convex ai-files install`)
+.agents/
+.claude/skills/
+skills-lock.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

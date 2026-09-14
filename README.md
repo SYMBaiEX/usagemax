@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# UsageMax
 
-## Getting Started
+UsageMax is a privacy-first AI usage network: public work profiles and leaderboards
+for individuals, plus realtime cost, agent, outcome, and governance telemetry for teams.
 
-First, run the development server:
+The application uses Next.js 16 on Vercel and Convex for the database, functions,
+HTTP ingestion, materialized rollups, leaderboards, and realtime subscriptions.
+There is no Postgres dependency.
+
+## Local development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+bun install
+bunx convex dev
+bun run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The Vercel Marketplace Convex integration supplies `CONVEX_DEPLOY_KEY`,
+`NEXT_PUBLIC_CONVEX_URL`, and `NEXT_PUBLIC_CONVEX_SITE_URL`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Verification
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+bun run check
+```
 
-## Learn More
+## Ingestion
 
-To learn more about Next.js, take a look at the following resources:
+Native normalized events:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+curl https://usagemax.com/api/v1/telemetry/llm \
+  -H "Authorization: Bearer $USAGEMAX_COLLECTOR_TOKEN" \
+  -H "Idempotency-Key: example-batch-1" \
+  -H "Content-Type: application/json" \
+  --data '{"schemaVersion":1,"events":[{"eventKey":"request-1","eventType":"model_request","provider":"openai","model":"gpt-5.6-sol","inputTokens":1200,"outputTokens":240,"totalTokens":1440,"costMicros":8200,"status":"ok","occurredAt":"2026-09-13T12:00:00Z"}]}'
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+OTLP/HTTP JSON traces are accepted at `/api/v1/traces`. Prompts, completions,
+source code, file paths, and arbitrary span attributes are not retained.
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See [the research and roadmap](docs/research-and-roadmap.md) and
+[the telemetry contract](docs/telemetry-contract.md).
