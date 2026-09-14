@@ -369,7 +369,7 @@ export const importTokenMaxxing = action({
     if (!user || !sourceStats) throw new ConvexError("IMPORT_SOURCE_INVALID");
 
     const now = Date.now();
-    const rows = rawDays.flatMap((value) => {
+    let rows = rawDays.flatMap((value) => {
       const row = record(value);
       const day = typeof row?.date === "string" ? row.date : "";
       const model = cleanText(row?.key, "unknown", 120);
@@ -385,6 +385,21 @@ export const importTokenMaxxing = action({
     });
     if (number(sourceStats.totalTokens) > 0 && rows.length === 0) {
       throw new ConvexError("IMPORT_SOURCE_DAILY_EMPTY");
+    }
+    const reportedTotalTokens = Math.max(0, Math.round(number(sourceStats.totalTokens)));
+    const reportedTotalCostMicros = Math.max(0, Math.round(number(sourceStats.totalSpendUsd) * 1_000_000));
+    const roundedRowCostMicros = rows.reduce((sum, row) => sum + row.costMicros, 0);
+    const costRoundingResidual = reportedTotalCostMicros - roundedRowCostMicros;
+    if (rows.length > 0 && Math.abs(costRoundingResidual) <= rows.length) {
+      const largestIndex = rows.reduce(
+        (largest, row, index) => row.costMicros > rows[largest]!.costMicros ? index : largest,
+        0,
+      );
+      if (rows[largestIndex]!.costMicros + costRoundingResidual >= 0) {
+        rows = rows.map((row, index) => index === largestIndex
+          ? { ...row, costMicros: row.costMicros + costRoundingResidual }
+          : row);
+      }
     }
     const collectorKeyHash = await sha256(args.collectorToken);
     const ids: { workspaceId: Id<"workspaces">; profileId: Id<"profiles"> } = await ctx.runMutation(internal.imports.begin, {
@@ -425,8 +440,6 @@ export const importTokenMaxxing = action({
     }
     const summedTokens = rows.reduce((sum, row) => sum + row.totalTokens, 0);
     const summedCostMicros = rows.reduce((sum, row) => sum + row.costMicros, 0);
-    const reportedTotalTokens = Math.max(0, Math.round(number(sourceStats.totalTokens)));
-    const reportedTotalCostMicros = Math.max(0, Math.round(number(sourceStats.totalSpendUsd) * 1_000_000));
     const totalTokens = reportedTotalTokens || summedTokens;
     const totalCostMicros = reportedTotalCostMicros || summedCostMicros;
     const outputTokens = rows.reduce((sum, row) => sum + row.outputTokens, 0);
