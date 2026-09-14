@@ -2,6 +2,14 @@ import { v } from "convex/values";
 import { query } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
 
+type CostBasis = "reported" | "estimated" | "api-equivalent" | "mixed" | "unknown";
+
+function mergeCostBasis(left: CostBasis | undefined, right: CostBasis | undefined): CostBasis | undefined {
+  if (!right) return left;
+  if (!left || left === right) return right;
+  return "mixed";
+}
+
 async function profileByHandle(ctx: QueryCtx, handle: string) {
   return await ctx.db
     .query("profiles")
@@ -44,12 +52,14 @@ export const daily = query({
         .withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id))
         .order("desc")
         .take(4000);
-      const days = new Map<string, { date: string; totalTokens: number; outputTokens: number; costMicros: number; sessions: number; requests: number; errors: number }>();
+      const days = new Map<string, { date: string; totalTokens: number; outputTokens: number; unclassifiedTokens: number; costMicros: number; costBasis?: CostBasis; sessions: number; requests: number; errors: number }>();
       for (const row of legacyRows) {
-        const current = days.get(row.day) ?? { date: row.day, totalTokens: 0, outputTokens: 0, costMicros: 0, sessions: 0, requests: 0, errors: 0 };
+        const current = days.get(row.day) ?? { date: row.day, totalTokens: 0, outputTokens: 0, unclassifiedTokens: 0, costMicros: 0, costBasis: undefined, sessions: 0, requests: 0, errors: 0 };
         current.totalTokens += row.totalTokens;
         current.outputTokens += row.outputTokens;
+        current.unclassifiedTokens += row.unclassifiedTokens ?? 0;
         current.costMicros += row.costMicros;
+        current.costBasis = mergeCostBasis(current.costBasis, row.costBasis);
         current.sessions += row.sessions;
         current.requests += row.requests;
         current.errors += row.errors;
@@ -62,7 +72,9 @@ export const daily = query({
         date: row.day,
         totalTokens: row.totalTokens,
         outputTokens: row.outputTokens,
+        unclassifiedTokens: row.unclassifiedTokens ?? 0,
         costMicros: row.costMicros,
+        costBasis: row.costBasis ?? "unknown",
         sessions: row.sessions,
         requests: row.requests,
         errors: row.errors,
@@ -95,17 +107,22 @@ export const dailyModels = query({
         .at(-1);
     }
     if (!cutoffDay) return [];
-    const rows = await ctx.db
+    const queriedRows = await ctx.db
       .query("dailyUsage")
       .withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id).gte("day", cutoffDay))
       .order("desc")
       .take(2500);
+    const hasAuthoritativeImport = queriedRows.some((row) => row.source === "tokenmaxxing-import");
+    const rows = hasAuthoritativeImport
+      ? queriedRows.filter((row) => row.source === "tokenmaxxing-import")
+      : queriedRows;
     const grouped = new Map<string, {
       date: string;
       model: string;
       provider: string;
       totalTokens: number;
       costMicros: number;
+      costBasis?: CostBasis;
     }>();
     for (const row of rows) {
       const key = `${row.day}\u0000${row.provider}\u0000${row.model}`;
@@ -115,9 +132,11 @@ export const dailyModels = query({
         provider: row.provider,
         totalTokens: 0,
         costMicros: 0,
+        costBasis: undefined,
       };
       current.totalTokens += row.totalTokens;
       current.costMicros += row.costMicros;
+      current.costBasis = mergeCostBasis(current.costBasis, row.costBasis);
       grouped.set(key, current);
     }
     return [...grouped.values()].sort((a, b) =>

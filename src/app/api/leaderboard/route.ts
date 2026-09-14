@@ -25,6 +25,7 @@ export async function GET(request: Request) {
       score: row.score,
       totalTokens: row.totalTokens,
       totalSpendUsd: row.totalCostMicros / 1_000_000,
+      costBasis: row.costBasis ?? "unknown",
       verification: row.verification,
       updatedAt: row.updatedAt,
     })),

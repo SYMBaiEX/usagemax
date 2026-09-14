@@ -8,7 +8,14 @@ export function dayFromTimestamp(value: number) {
 export function isValidHistoricalDay(day: string, now = Date.now()) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
   const timestamp = Date.parse(`${day}T00:00:00.000Z`);
-  return Number.isFinite(timestamp) && timestamp >= MIN_EVENT_TIME && timestamp <= now + DAY_MS;
+  return Number.isFinite(timestamp)
+    && new Date(timestamp).toISOString().slice(0, 10) === day
+    && timestamp >= MIN_EVENT_TIME
+    && timestamp <= now + DAY_MS;
+}
+
+export function trailingDayCutoff(now: number, dayCount: number) {
+  return dayFromTimestamp(now - (Math.max(1, Math.floor(dayCount)) - 1) * DAY_MS);
 }
 
 export function clampNonNegative(value: unknown, maximum = Number.MAX_SAFE_INTEGER) {

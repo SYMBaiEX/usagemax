@@ -34,8 +34,10 @@ function nativeEvent(value: unknown, now: number): Omit<NormalizedEvent, "eventH
   const inputTokens = clampNonNegative(event.inputTokens, 1_000_000_000_000);
   const outputTokens = clampNonNegative(event.outputTokens, 1_000_000_000_000);
   const cacheReadTokens = clampNonNegative(event.cacheReadTokens, 1_000_000_000_000);
+  const cacheWriteTokens = clampNonNegative(event.cacheWriteTokens, 1_000_000_000_000);
   const reasoningTokens = clampNonNegative(event.reasoningTokens, 1_000_000_000_000);
   const reportedTotal = clampNonNegative(event.totalTokens, 1_000_000_000_000);
+  const costMicros = clampNonNegative(event.costMicros, 1_000_000_000_000_000);
   const eventType = ["model_request", "tool_call", "agent_state", "outcome"].includes(String(event.eventType))
     ? (event.eventType as NormalizedEvent["eventType"])
     : "model_request";
@@ -44,7 +46,13 @@ function nativeEvent(value: unknown, now: number): Omit<NormalizedEvent, "eventH
     : "ok";
   const completeness = ["reported", "estimated", "unknown"].includes(String(event.completeness))
     ? (event.completeness as NormalizedEvent["completeness"])
-    : "reported";
+    : "unknown";
+  const costBasis = ["reported", "estimated", "unknown"].includes(String(event.costBasis))
+    ? (event.costBasis as NormalizedEvent["costBasis"])
+    : typeof event.costMicros === "number" && Number.isFinite(event.costMicros)
+      ? "reported"
+      : "unknown";
+  const accountingMode = event.accountingMode === "observability" ? "observability" : "usage";
   return {
     eventKey,
     logicalRequestId: optionalText(event.logicalRequestId),
@@ -60,9 +68,12 @@ function nativeEvent(value: unknown, now: number): Omit<NormalizedEvent, "eventH
     inputTokens,
     outputTokens,
     cacheReadTokens,
+    cacheWriteTokens,
     reasoningTokens,
     totalTokens: reportedTotal || inputTokens + outputTokens,
-    costMicros: clampNonNegative(event.costMicros, 1_000_000_000_000_000),
+    costMicros,
+    costBasis,
+    accountingMode,
     latencyMs: event.latencyMs === undefined ? undefined : clampNonNegative(event.latencyMs, 86_400_000),
     timeToFirstTokenMs: event.timeToFirstTokenMs === undefined ? undefined : clampNonNegative(event.timeToFirstTokenMs, 86_400_000),
     status,
@@ -103,6 +114,16 @@ function attributeNumber(attrs: JsonObject, ...keys: string[]) {
   return 0;
 }
 
+function optionalAttributeNumber(attrs: JsonObject, ...keys: string[]) {
+  for (const key of keys) {
+    if (!(key in attrs)) continue;
+    const raw = attrs[key];
+    const value = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
+    if (Number.isFinite(value)) return value;
+  }
+  return undefined;
+}
+
 function nanosToMillis(value: unknown) {
   if (typeof value !== "string" && typeof value !== "number") return NaN;
   const parsed = Number(value);
@@ -129,12 +150,29 @@ function otelEvents(body: JsonObject, now: number): Omit<NormalizedEvent, "event
         const end = nanosToMillis(span.endTimeUnixNano);
         const inputTokens = clampNonNegative(attributeNumber(attrs, "gen_ai.usage.input_tokens", "gen_ai.usage.prompt_tokens"), 1_000_000_000_000);
         const outputTokens = clampNonNegative(attributeNumber(attrs, "gen_ai.usage.output_tokens", "gen_ai.usage.completion_tokens"), 1_000_000_000_000);
-        const cacheReadTokens = clampNonNegative(attributeNumber(attrs, "gen_ai.usage.cache_read_tokens"), 1_000_000_000_000);
-        const reasoningTokens = clampNonNegative(attributeNumber(attrs, "gen_ai.usage.reasoning_tokens"), 1_000_000_000_000);
+        const cacheReadTokens = clampNonNegative(attributeNumber(
+          attrs,
+          "gen_ai.usage.cache_read.input_tokens",
+          "gen_ai.usage.cache_read_tokens",
+        ), 1_000_000_000_000);
+        const cacheWriteTokens = clampNonNegative(attributeNumber(
+          attrs,
+          "gen_ai.usage.cache_creation.input_tokens",
+          "gen_ai.usage.cache_write_tokens",
+        ), 1_000_000_000_000);
+        const reasoningTokens = clampNonNegative(attributeNumber(
+          attrs,
+          "gen_ai.usage.reasoning.output_tokens",
+          "gen_ai.usage.reasoning_tokens",
+        ), 1_000_000_000_000);
         const name = cleanText(span.name, "model.request", 120);
         const state = optionalText(attrs["gen_ai.agent.state"], 40);
         const statusObject = object(span.status);
         const isError = statusObject?.code === 2 || Boolean(attrs["error.type"]);
+        const costMicrosAttribute = optionalAttributeNumber(attrs, "gen_ai.usage.cost_micros");
+        const costUsdAttribute = optionalAttributeNumber(attrs, "gen_ai.usage.cost");
+        const reportedCost = costMicrosAttribute ?? (costUsdAttribute === undefined ? 0 : costUsdAttribute * 1_000_000);
+        const hasReportedCost = costMicrosAttribute !== undefined || costUsdAttribute !== undefined;
         normalized.push({
           eventKey: `${traceId}:${spanId}`,
           logicalRequestId: optionalText(attrs["gen_ai.request.id"] ?? attrs["logical_request_id"]),
@@ -150,12 +188,12 @@ function otelEvents(body: JsonObject, now: number): Omit<NormalizedEvent, "event
           inputTokens,
           outputTokens,
           cacheReadTokens,
+          cacheWriteTokens,
           reasoningTokens,
           totalTokens: inputTokens + outputTokens,
-          costMicros: clampNonNegative(
-            attributeNumber(attrs, "gen_ai.usage.cost_micros") || attributeNumber(attrs, "gen_ai.usage.cost") * 1_000_000,
-            1_000_000_000_000_000,
-          ),
+          costMicros: clampNonNegative(reportedCost, 1_000_000_000_000_000),
+          costBasis: hasReportedCost ? "reported" : "unknown",
+          accountingMode: "usage",
           latencyMs: Number.isFinite(start) && Number.isFinite(end) ? clampNonNegative(end - start, 86_400_000) : undefined,
           timeToFirstTokenMs: attributeNumber(attrs, "gen_ai.server.time_to_first_token") || undefined,
           status: isError ? "error" : "ok",

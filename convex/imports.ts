@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { action, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { DAY_MS, cleanText, isValidHistoricalDay, sha256 } from "./lib";
+import { DAY_MS, cleanText, isValidHistoricalDay, sha256, trailingDayCutoff } from "./lib";
 
 const importedDayValidator = v.object({
   day: v.string(),
@@ -20,6 +20,13 @@ const importedModelValidator = v.object({
   lastUsedAt: v.number(),
 });
 
+const importedDailyTotalValidator = v.object({
+  day: v.string(),
+  outputTokens: v.number(),
+  totalTokens: v.number(),
+  costMicros: v.number(),
+});
+
 function record(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
@@ -33,7 +40,8 @@ function providerFor(model: string) {
   if (value.includes("claude")) return "anthropic";
   if (value.includes("gpt") || value.includes("codex")) return "openai";
   if (value.includes("gemini")) return "google";
-  if (value.includes("muse")) return "openrouter";
+  if (value.includes("deepseek")) return "deepseek";
+  if (value.includes("qwen")) return "alibaba";
   return "unknown";
 }
 
@@ -130,7 +138,6 @@ export const applyDays = internalMutation({
     now: v.number(),
   },
   handler: async (ctx, args) => {
-    const deltas = new Map<string, { totalTokens: number; outputTokens: number; costMicros: number; requests: number; errors: number }>();
     for (const row of args.rows) {
       const source = "tokenmaxxing-import";
       const prior = await ctx.db
@@ -146,12 +153,15 @@ export const applyDays = internalMutation({
         source,
         provider: providerFor(row.model),
         model: row.model,
-        inputTokens: Math.max(0, row.totalTokens - row.outputTokens),
+        inputTokens: 0,
         outputTokens: row.outputTokens,
         cacheReadTokens: 0,
+        cacheWriteTokens: 0,
         reasoningTokens: 0,
+        unclassifiedTokens: Math.max(0, row.totalTokens - row.outputTokens),
         totalTokens: row.totalTokens,
         costMicros: row.costMicros,
+        costBasis: "api-equivalent" as const,
         sessions: 0,
         requests: 0,
         errors: 0,
@@ -159,49 +169,22 @@ export const applyDays = internalMutation({
       };
       if (prior) await ctx.db.replace(prior._id, value);
       else await ctx.db.insert("dailyUsage", value);
-      const delta = deltas.get(row.day) ?? { totalTokens: 0, outputTokens: 0, costMicros: 0, requests: 0, errors: 0 };
-      delta.totalTokens += value.totalTokens - (prior?.totalTokens ?? 0);
-      delta.outputTokens += value.outputTokens - (prior?.outputTokens ?? 0);
-      delta.costMicros += value.costMicros - (prior?.costMicros ?? 0);
-      delta.requests += value.requests - (prior?.requests ?? 0);
-      delta.errors += value.errors - (prior?.errors ?? 0);
-      deltas.set(row.day, delta);
-    }
-
-    for (const [day, delta] of deltas) {
-      const total = await ctx.db
-        .query("profileDailyTotals")
-        .withIndex("by_profileId_and_day", (q) => q.eq("profileId", args.profileId).eq("day", day))
-        .unique();
-      if (total) {
-        await ctx.db.patch(total._id, {
-          totalTokens: total.totalTokens + delta.totalTokens,
-          outputTokens: total.outputTokens + delta.outputTokens,
-          costMicros: total.costMicros + delta.costMicros,
-          requests: total.requests + delta.requests,
-          errors: total.errors + delta.errors,
-          updatedAt: args.now,
-        });
-      } else {
-        const rows = await ctx.db
-          .query("dailyUsage")
-          .withIndex("by_profileId_and_day", (q) => q.eq("profileId", args.profileId).eq("day", day))
-          .collect();
-        await ctx.db.insert("profileDailyTotals", {
-          workspaceId: args.workspaceId,
-          profileId: args.profileId,
-          day,
-          totalTokens: rows.reduce((sum, row) => sum + row.totalTokens, 0),
-          outputTokens: rows.reduce((sum, row) => sum + row.outputTokens, 0),
-          costMicros: rows.reduce((sum, row) => sum + row.costMicros, 0),
-          sessions: rows.reduce((sum, row) => sum + row.sessions, 0),
-          requests: rows.reduce((sum, row) => sum + row.requests, 0),
-          errors: rows.reduce((sum, row) => sum + row.errors, 0),
-          updatedAt: args.now,
-        });
-      }
     }
     return args.rows.length;
+  },
+});
+
+export const pruneStaleImportedDays = internalMutation({
+  args: { profileId: v.id("profiles"), now: v.number() },
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("dailyUsage")
+      .withIndex("by_profileId_and_source_and_updatedAt", (q) =>
+        q.eq("profileId", args.profileId).eq("source", "tokenmaxxing-import").lt("updatedAt", args.now),
+      )
+      .take(200);
+    for (const row of rows) await ctx.db.delete(row._id);
+    return rows.length;
   },
 });
 
@@ -210,6 +193,7 @@ export const finish = internalMutation({
     workspaceId: v.id("workspaces"),
     profileId: v.id("profiles"),
     models: v.array(importedModelValidator),
+    dailyTotals: v.array(importedDailyTotalValidator),
     totalTokens: v.number(),
     totalCostMicros: v.number(),
     outputTokens: v.number(),
@@ -218,6 +202,7 @@ export const finish = internalMutation({
     currentStreakDays: v.number(),
     longestStreakDays: v.number(),
     deviceCount: v.number(),
+    sources: v.array(v.string()),
     topModel: v.string(),
     firstDay: v.optional(v.string()),
     lastDay: v.optional(v.string()),
@@ -230,23 +215,53 @@ export const finish = internalMutation({
     now: v.number(),
   },
   handler: async (ctx, args) => {
+    const existingModels = await ctx.db
+      .query("modelTotals")
+      .withIndex("by_profileId_and_totalTokens", (q) => q.eq("profileId", args.profileId))
+      .collect();
+    for (const model of existingModels) await ctx.db.delete(model._id);
     for (const model of args.models) {
-      const prior = await ctx.db.query("modelTotals").withIndex("by_profileId_and_model", (q) => q.eq("profileId", args.profileId).eq("model", model.model)).unique();
       const value = {
         workspaceId: args.workspaceId,
         profileId: args.profileId,
         provider: providerFor(model.model),
         model: model.model,
         totalTokens: model.totalTokens,
-        inputTokens: Math.max(0, model.totalTokens - model.outputTokens),
+        inputTokens: 0,
         outputTokens: model.outputTokens,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        reasoningTokens: 0,
+        unclassifiedTokens: Math.max(0, model.totalTokens - model.outputTokens),
         costMicros: model.costMicros,
+        costBasis: "api-equivalent" as const,
         requests: 0,
         errors: 0,
         lastUsedAt: model.lastUsedAt,
       };
-      if (prior) await ctx.db.replace(prior._id, value);
-      else await ctx.db.insert("modelTotals", value);
+      await ctx.db.insert("modelTotals", value);
+    }
+
+    const existingDailyTotals = await ctx.db
+      .query("profileDailyTotals")
+      .withIndex("by_profileId_and_day", (q) => q.eq("profileId", args.profileId))
+      .collect();
+    for (const row of existingDailyTotals) await ctx.db.delete(row._id);
+    for (const row of args.dailyTotals) {
+      await ctx.db.insert("profileDailyTotals", {
+        workspaceId: args.workspaceId,
+        profileId: args.profileId,
+        day: row.day,
+        totalTokens: row.totalTokens,
+        outputTokens: row.outputTokens,
+        unclassifiedTokens: Math.max(0, row.totalTokens - row.outputTokens),
+        costMicros: row.costMicros,
+        costBasis: "api-equivalent",
+        sessions: 0,
+        requests: 0,
+        errors: 0,
+        updatedAt: args.now,
+      });
     }
 
     const priorStats = await ctx.db.query("profileStats").withIndex("by_profileId", (q) => q.eq("profileId", args.profileId)).unique();
@@ -255,10 +270,15 @@ export const finish = internalMutation({
       profileId: args.profileId,
       totalTokens: args.totalTokens,
       totalCostMicros: args.totalCostMicros,
-      inputTokens: Math.max(0, args.totalTokens - args.outputTokens),
+      inputTokens: 0,
       outputTokens: args.outputTokens,
       cacheReadTokens: 0,
+      cacheWriteTokens: 0,
       reasoningTokens: 0,
+      unclassifiedTokens: Math.max(0, args.totalTokens - args.outputTokens),
+      costBasis: "api-equivalent" as const,
+      costSource: "tokenmaxxing-api/ccusage-derived",
+      sources: args.sources,
       sessions: args.sessions,
       activeDays: args.activeDays,
       currentStreakDays: args.currentStreakDays,
@@ -267,6 +287,7 @@ export const finish = internalMutation({
       topModel: args.topModel,
       firstDay: args.firstDay,
       lastDay: args.lastDay,
+      lastEventAt: args.lastDay ? Date.parse(`${args.lastDay}T23:59:59.999Z`) : undefined,
       updatedAt: args.now,
     };
     if (priorStats) await ctx.db.replace(priorStats._id, stats);
@@ -297,6 +318,7 @@ export const finish = internalMutation({
           score: metric === "tokens" ? period.tokens : period.spend,
           totalTokens: args.totalTokens,
           totalCostMicros: args.totalCostMicros,
+          costBasis: "api-equivalent" as const,
           sessions: args.sessions,
           activeDays: args.activeDays,
           lastEventAt: args.lastDay ? Date.parse(`${args.lastDay}T23:59:59.999Z`) : undefined,
@@ -336,7 +358,7 @@ export const importTokenMaxxing = action({
     if (!/^[a-z0-9-]+$/.test(handle)) throw new ConvexError("INVALID_HANDLE");
     const [profileResponse, dailyResponse] = await Promise.all([
       fetch(`https://api.tokenmaxxing.sh/profiles/${encodeURIComponent(handle)}`),
-      fetch(`https://api.tokenmaxxing.sh/profiles/${encodeURIComponent(handle)}/daily`),
+      fetch(`https://api.tokenmaxxing.sh/profiles/${encodeURIComponent(handle)}/daily?since=2024-01-01`),
     ]);
     if (!profileResponse.ok || !dailyResponse.ok) throw new ConvexError("IMPORT_SOURCE_UNAVAILABLE");
     const profileRoot = record(await profileResponse.json());
@@ -352,14 +374,18 @@ export const importTokenMaxxing = action({
       const day = typeof row?.date === "string" ? row.date : "";
       const model = cleanText(row?.key, "unknown", 120);
       if (!isValidHistoricalDay(day, now)) return [];
+      const totalTokens = Math.max(0, Math.round(number(row?.totalTokens)));
       return [{
         day,
         model,
-        outputTokens: Math.max(0, Math.round(number(row?.outputTokens))),
-        totalTokens: Math.max(0, Math.round(number(row?.totalTokens))),
+        outputTokens: Math.min(totalTokens, Math.max(0, Math.round(number(row?.outputTokens)))),
+        totalTokens,
         costMicros: Math.max(0, Math.round(number(row?.costUsd) * 1_000_000)),
       }];
     });
+    if (number(sourceStats.totalTokens) > 0 && rows.length === 0) {
+      throw new ConvexError("IMPORT_SOURCE_DAILY_EMPTY");
+    }
     const collectorKeyHash = await sha256(args.collectorToken);
     const ids: { workspaceId: Id<"workspaces">; profileId: Id<"profiles"> } = await ctx.runMutation(internal.imports.begin, {
       handle,
@@ -377,8 +403,13 @@ export const importTokenMaxxing = action({
         now,
       });
     }
+    while (await ctx.runMutation(internal.imports.pruneStaleImportedDays, { profileId: ids.profileId, now })) {
+      // TokenMaxxing daily reports are authoritative. Remove model rows that
+      // disappeared from a corrected backfill before rebuilding projections.
+    }
 
     const modelMap = new Map<string, { model: string; totalTokens: number; outputTokens: number; costMicros: number; lastUsedAt: number }>();
+    const dayMap = new Map<string, { day: string; totalTokens: number; outputTokens: number; costMicros: number }>();
     for (const row of rows) {
       const model = modelMap.get(row.model) ?? { model: row.model, totalTokens: 0, outputTokens: 0, costMicros: 0, lastUsedAt: 0 };
       model.totalTokens += row.totalTokens;
@@ -386,29 +417,54 @@ export const importTokenMaxxing = action({
       model.costMicros += row.costMicros;
       model.lastUsedAt = Math.max(model.lastUsedAt, Date.parse(`${row.day}T12:00:00.000Z`));
       modelMap.set(row.model, model);
+      const day = dayMap.get(row.day) ?? { day: row.day, totalTokens: 0, outputTokens: 0, costMicros: 0 };
+      day.totalTokens += row.totalTokens;
+      day.outputTokens += row.outputTokens;
+      day.costMicros += row.costMicros;
+      dayMap.set(row.day, day);
     }
-    const totalTokens = rows.reduce((sum, row) => sum + row.totalTokens, 0);
-    const totalCostMicros = rows.reduce((sum, row) => sum + row.costMicros, 0);
+    const summedTokens = rows.reduce((sum, row) => sum + row.totalTokens, 0);
+    const summedCostMicros = rows.reduce((sum, row) => sum + row.costMicros, 0);
+    const reportedTotalTokens = Math.max(0, Math.round(number(sourceStats.totalTokens)));
+    const reportedTotalCostMicros = Math.max(0, Math.round(number(sourceStats.totalSpendUsd) * 1_000_000));
+    const totalTokens = reportedTotalTokens || summedTokens;
+    const totalCostMicros = reportedTotalCostMicros || summedCostMicros;
     const outputTokens = rows.reduce((sum, row) => sum + row.outputTokens, 0);
     const validDays = [...new Set(rows.map((row) => row.day))].sort();
     const streak = streaks(validDays);
-    const sevenCutoff = new Date(now - 7 * DAY_MS).toISOString().slice(0, 10);
-    const thirtyCutoff = new Date(now - 30 * DAY_MS).toISOString().slice(0, 10);
-    const topModel = [...modelMap.values()].sort((a, b) => b.costMicros - a.costMicros)[0]?.model ?? "unknown";
+    const sevenCutoff = trailingDayCutoff(now, 7);
+    const thirtyCutoff = trailingDayCutoff(now, 30);
+    const sourceTopModel = record(sourceStats.topModel);
+    const topModel = cleanText(
+      sourceTopModel?.model,
+      [...modelMap.values()].sort((a, b) => b.costMicros - a.costMicros)[0]?.model ?? "unknown",
+      120,
+    );
+    const sourceFirstDay = typeof sourceStats.firstDate === "string" && isValidHistoricalDay(sourceStats.firstDate, now)
+      ? sourceStats.firstDate
+      : validDays[0];
+    const sourceLastDay = typeof sourceStats.lastDate === "string" && isValidHistoricalDay(sourceStats.lastDate, now)
+      ? sourceStats.lastDate
+      : validDays.at(-1);
+    const importedSources = Array.isArray(sourceStats.sources)
+      ? sourceStats.sources.flatMap((source) => typeof source === "string" ? [cleanText(source, "", 60)] : []).filter(Boolean)
+      : [];
     await ctx.runMutation(internal.imports.finish, {
       ...ids,
       models: [...modelMap.values()],
+      dailyTotals: [...dayMap.values()].sort((a, b) => a.day.localeCompare(b.day)),
       totalTokens,
       totalCostMicros,
       outputTokens,
       sessions: Math.max(0, Math.round(number(sourceStats.sessionCount))),
-      activeDays: validDays.length,
-      currentStreakDays: streak.current,
-      longestStreakDays: streak.longest,
+      activeDays: Math.max(0, Math.round(number(sourceStats.activeDays))) || validDays.length,
+      currentStreakDays: Math.max(0, Math.round(number(sourceStats.currentStreakDays))) || streak.current,
+      longestStreakDays: Math.max(0, Math.round(number(sourceStats.longestStreakDays))) || streak.longest,
       deviceCount: Math.max(1, Math.round(number(sourceStats.deviceCount))),
+      sources: [...new Set(importedSources)].sort(),
       topModel,
-      firstDay: validDays[0],
-      lastDay: validDays.at(-1),
+      firstDay: sourceFirstDay,
+      lastDay: sourceLastDay,
       windows: {
         sevenTokens: rows.filter((row) => row.day >= sevenCutoff).reduce((sum, row) => sum + row.totalTokens, 0),
         sevenCostMicros: rows.filter((row) => row.day >= sevenCutoff).reduce((sum, row) => sum + row.costMicros, 0),

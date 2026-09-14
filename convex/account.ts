@@ -143,6 +143,7 @@ export const ensureProfile = mutation({
       inputTokens: 0,
       outputTokens: 0,
       cacheReadTokens: 0,
+      cacheWriteTokens: 0,
       reasoningTokens: 0,
       sessions: 0,
       activeDays: 0,

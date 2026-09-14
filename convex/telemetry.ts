@@ -18,9 +18,12 @@ export const telemetryEventValidator = v.object({
   inputTokens: v.number(),
   outputTokens: v.number(),
   cacheReadTokens: v.number(),
+  cacheWriteTokens: v.number(),
   reasoningTokens: v.number(),
   totalTokens: v.number(),
   costMicros: v.number(),
+  costBasis: v.union(v.literal("reported"), v.literal("estimated"), v.literal("unknown")),
+  accountingMode: v.union(v.literal("usage"), v.literal("observability")),
   latencyMs: v.optional(v.number()),
   timeToFirstTokenMs: v.optional(v.number()),
   status: v.union(v.literal("ok"), v.literal("error"), v.literal("cancelled")),
@@ -38,35 +41,60 @@ type Rollup = {
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
+  cacheWriteTokens: number;
   reasoningTokens: number;
   totalTokens: number;
   costMicros: number;
   requests: number;
   errors: number;
   sessions: number;
+  costBasisMask: number;
 };
+
+type AggregateCostBasis = "reported" | "estimated" | "api-equivalent" | "mixed" | "unknown";
 
 const emptyRollup = (): Rollup => ({
   inputTokens: 0,
   outputTokens: 0,
   cacheReadTokens: 0,
+  cacheWriteTokens: 0,
   reasoningTokens: 0,
   totalTokens: 0,
   costMicros: 0,
   requests: 0,
   errors: 0,
   sessions: 0,
+  costBasisMask: 0,
 });
 
 function addEvent(target: Rollup, event: Event) {
   target.inputTokens += event.inputTokens;
   target.outputTokens += event.outputTokens;
   target.cacheReadTokens += event.cacheReadTokens;
+  target.cacheWriteTokens += event.cacheWriteTokens;
   target.reasoningTokens += event.reasoningTokens;
   target.totalTokens += event.totalTokens;
   target.costMicros += event.costMicros;
   target.requests += event.eventType === "model_request" ? 1 : 0;
   target.errors += event.status === "error" ? 1 : 0;
+  target.costBasisMask |= event.costBasis === "reported" ? 1 : event.costBasis === "estimated" ? 2 : 4;
+}
+
+function aggregateCostBasis(mask: number): AggregateCostBasis | undefined {
+  if (mask === 0) return undefined;
+  if (mask === 1) return "reported";
+  if (mask === 2) return "estimated";
+  if (mask === 4) return "unknown";
+  return "mixed";
+}
+
+function mergeCostBasis(
+  prior: AggregateCostBasis | undefined,
+  next: AggregateCostBasis | undefined,
+): AggregateCostBasis | undefined {
+  if (!next) return prior;
+  if (!prior || prior === next) return next;
+  return "mixed";
 }
 
 export const commitBatch = internalMutation({
@@ -138,20 +166,22 @@ export const commitBatch = internalMutation({
     const liveAgents = new Map<string, Event>();
     const total = emptyRollup();
     for (const event of acceptedEvents) {
-      addEvent(total, event);
       const day = dayFromTimestamp(event.occurredAt);
-      const dayTotal = dayRollups.get(day) ?? emptyRollup();
-      addEvent(dayTotal, event);
-      dayRollups.set(day, dayTotal);
-      const dailyKey = `${day}\u001f${event.source}\u001f${event.model}`;
-      const daily = dailyRollups.get(dailyKey) ?? emptyRollup();
-      addEvent(daily, event);
-      dailyRollups.set(dailyKey, daily);
-      const model = modelRollups.get(event.model) ?? { ...emptyRollup(), provider: event.provider, lastUsedAt: event.occurredAt };
-      addEvent(model, event);
-      model.lastUsedAt = Math.max(model.lastUsedAt, event.occurredAt);
-      modelRollups.set(event.model, model);
-      if (event.sessionId) uniqueSessions.set(event.sessionId, day);
+      if (event.accountingMode === "usage") {
+        addEvent(total, event);
+        const dayTotal = dayRollups.get(day) ?? emptyRollup();
+        addEvent(dayTotal, event);
+        dayRollups.set(day, dayTotal);
+        const dailyKey = `${day}\u001f${event.source}\u001f${event.model}`;
+        const daily = dailyRollups.get(dailyKey) ?? emptyRollup();
+        addEvent(daily, event);
+        dailyRollups.set(dailyKey, daily);
+        const model = modelRollups.get(event.model) ?? { ...emptyRollup(), provider: event.provider, lastUsedAt: event.occurredAt };
+        addEvent(model, event);
+        model.lastUsedAt = Math.max(model.lastUsedAt, event.occurredAt);
+        modelRollups.set(event.model, model);
+        if (event.sessionId) uniqueSessions.set(event.sessionId, day);
+      }
       if (event.agentExternalId) {
         const previous = liveAgents.get(event.agentExternalId);
         if (!previous || previous.occurredAt <= event.occurredAt) liveAgents.set(event.agentExternalId, event);
@@ -217,9 +247,12 @@ export const commitBatch = internalMutation({
         inputTokens: (prior?.inputTokens ?? 0) + rollup.inputTokens,
         outputTokens: (prior?.outputTokens ?? 0) + rollup.outputTokens,
         cacheReadTokens: (prior?.cacheReadTokens ?? 0) + rollup.cacheReadTokens,
+        cacheWriteTokens: (prior?.cacheWriteTokens ?? 0) + rollup.cacheWriteTokens,
         reasoningTokens: (prior?.reasoningTokens ?? 0) + rollup.reasoningTokens,
+        unclassifiedTokens: (prior?.unclassifiedTokens ?? 0),
         totalTokens: (prior?.totalTokens ?? 0) + rollup.totalTokens,
         costMicros: (prior?.costMicros ?? 0) + rollup.costMicros,
+        costBasis: mergeCostBasis(prior?.costBasis, aggregateCostBasis(rollup.costBasisMask)),
         sessions: (prior?.sessions ?? 0) + (sessionsByDay.get(day) ?? 0),
         requests: (prior?.requests ?? 0) + rollup.requests,
         errors: (prior?.errors ?? 0) + rollup.errors,
@@ -237,7 +270,9 @@ export const commitBatch = internalMutation({
       const update = {
         totalTokens: (prior?.totalTokens ?? 0) + rollup.totalTokens,
         outputTokens: (prior?.outputTokens ?? 0) + rollup.outputTokens,
+        unclassifiedTokens: (prior?.unclassifiedTokens ?? 0),
         costMicros: (prior?.costMicros ?? 0) + rollup.costMicros,
+        costBasis: mergeCostBasis(prior?.costBasis, aggregateCostBasis(rollup.costBasisMask)),
         sessions: (prior?.sessions ?? 0) + (sessionsByDay.get(day) ?? 0),
         requests: (prior?.requests ?? 0) + rollup.requests,
         errors: (prior?.errors ?? 0) + rollup.errors,
@@ -264,7 +299,12 @@ export const commitBatch = internalMutation({
         totalTokens: (prior?.totalTokens ?? 0) + rollup.totalTokens,
         inputTokens: (prior?.inputTokens ?? 0) + rollup.inputTokens,
         outputTokens: (prior?.outputTokens ?? 0) + rollup.outputTokens,
+        cacheReadTokens: (prior?.cacheReadTokens ?? 0) + rollup.cacheReadTokens,
+        cacheWriteTokens: (prior?.cacheWriteTokens ?? 0) + rollup.cacheWriteTokens,
+        reasoningTokens: (prior?.reasoningTokens ?? 0) + rollup.reasoningTokens,
+        unclassifiedTokens: (prior?.unclassifiedTokens ?? 0),
         costMicros: (prior?.costMicros ?? 0) + rollup.costMicros,
+        costBasis: mergeCostBasis(prior?.costBasis, aggregateCostBasis(rollup.costBasisMask)),
         requests: (prior?.requests ?? 0) + rollup.requests,
         errors: (prior?.errors ?? 0) + rollup.errors,
         lastUsedAt: Math.max(prior?.lastUsedAt ?? 0, rollup.lastUsedAt),
@@ -309,13 +349,25 @@ export const commitBatch = internalMutation({
     const lastEventAt = acceptedEvents.reduce((max, event) => Math.max(max, event.occurredAt), stats?.lastEventAt ?? 0);
     const firstDay = [stats?.firstDay, eventDays[0]].filter((value): value is string => Boolean(value)).sort()[0];
     const lastDay = [stats?.lastDay, eventDays.at(-1)].filter((value): value is string => Boolean(value)).sort().at(-1);
+    const acceptedUsageSources = acceptedEvents
+      .filter((event) => event.accountingMode === "usage")
+      .map((event) => event.source);
     const nextStats = {
       totalTokens: (stats?.totalTokens ?? 0) + total.totalTokens,
       totalCostMicros: (stats?.totalCostMicros ?? 0) + total.costMicros,
       inputTokens: (stats?.inputTokens ?? 0) + total.inputTokens,
       outputTokens: (stats?.outputTokens ?? 0) + total.outputTokens,
       cacheReadTokens: (stats?.cacheReadTokens ?? 0) + total.cacheReadTokens,
+      cacheWriteTokens: (stats?.cacheWriteTokens ?? 0) + total.cacheWriteTokens,
       reasoningTokens: (stats?.reasoningTokens ?? 0) + total.reasoningTokens,
+      unclassifiedTokens: stats?.unclassifiedTokens ?? 0,
+      costBasis: mergeCostBasis(stats?.costBasis, aggregateCostBasis(total.costBasisMask)),
+      costSource: total.costBasisMask === 0
+        ? stats?.costSource
+        : stats?.totalTokens
+          ? "multiple-sources"
+          : "collector",
+      sources: [...new Set([...(stats?.sources ?? []), ...acceptedUsageSources])].sort(),
       sessions: (stats?.sessions ?? 0) + newSessions,
       activeDays: (stats?.activeDays ?? 0) + uniqueNewDays,
       currentStreakDays: stats?.currentStreakDays ?? 0,
@@ -368,6 +420,7 @@ export const commitBatch = internalMutation({
             score: metric === "tokens" ? periodScore.tokens : periodScore.spend,
             totalTokens: nextStats.totalTokens,
             totalCostMicros: nextStats.totalCostMicros,
+            costBasis: nextStats.costBasis,
             sessions: nextStats.sessions,
             activeDays: nextStats.activeDays,
             lastEventAt: nextStats.lastEventAt,

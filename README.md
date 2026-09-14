@@ -44,11 +44,15 @@ curl https://usagemax.com/api/v1/telemetry/llm \
   -H "Authorization: Bearer $USAGEMAX_COLLECTOR_TOKEN" \
   -H "Idempotency-Key: example-batch-1" \
   -H "Content-Type: application/json" \
-  --data '{"schemaVersion":1,"events":[{"eventKey":"request-1","eventType":"model_request","provider":"openai","model":"gpt-5.6-sol","inputTokens":1200,"outputTokens":240,"totalTokens":1440,"costMicros":8200,"status":"ok","occurredAt":"2026-09-13T12:00:00Z"}]}'
+  --data '{"schemaVersion":1,"events":[{"eventKey":"request-1","eventType":"model_request","provider":"openai","model":"gpt-5.6-sol","inputTokens":1200,"outputTokens":240,"totalTokens":1440,"costMicros":8200,"costBasis":"reported","accountingMode":"usage","status":"ok","occurredAt":"2026-09-13T12:00:00Z"}]}'
 ```
 
 OTLP/HTTP JSON traces are accepted at `/api/v1/traces`. Prompts, completions,
 source code, file paths, and arbitrary span attributes are not retained.
+Live display heartbeats use `accountingMode: "observability"`, so they animate
+the realtime agent feed without duplicating authoritative usage totals.
 
 See [the research and roadmap](docs/research-and-roadmap.md) and
-[the telemetry contract](docs/telemetry-contract.md).
+[the telemetry contract](docs/telemetry-contract.md). Pricing provenance and the
+TokenMaxxing parity audit are documented in
+[the pricing and data audit](docs/tokenmaxxing-gap-and-pricing-audit.md).
