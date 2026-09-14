@@ -21,6 +21,9 @@ const RESERVED_HANDLES = new Set([
   "terms",
 ]);
 
+const LINK_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const LINK_CODE_TTL_MS = 10 * 60_000;
+
 async function identityOrThrow(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) throw new ConvexError("AUTH_REQUIRED");
@@ -67,6 +70,21 @@ function newCollectorToken() {
   return `umx_${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 }
 
+function newDeviceLinkCode() {
+  const characters: string[] = [];
+  while (characters.length < 16) {
+    const bytes = new Uint8Array(24);
+    crypto.getRandomValues(bytes);
+    for (const byte of bytes) {
+      const unbiasedLimit = Math.floor(256 / LINK_CODE_ALPHABET.length) * LINK_CODE_ALPHABET.length;
+      if (byte >= unbiasedLimit) continue;
+      characters.push(LINK_CODE_ALPHABET[byte % LINK_CODE_ALPHABET.length]);
+      if (characters.length === 16) break;
+    }
+  }
+  return `UMX-${characters.join("").match(/.{4}/g)!.join("-")}`;
+}
+
 export const current = query({
   args: {},
   handler: async (ctx) => {
@@ -79,6 +97,9 @@ export const current = query({
     const collectors = profile
       ? await ctx.db.query("collectors").withIndex("by_workspaceId", (q) => q.eq("workspaceId", profile.workspaceId)).take(20)
       : [];
+    const stats = profile
+      ? await ctx.db.query("profileStats").withIndex("by_profileId", (q) => q.eq("profileId", profile._id)).unique()
+      : null;
     return {
       user: {
         workosUserId: identity.subject,
@@ -102,12 +123,108 @@ export const current = query({
           name: collector.name,
           keyPrefix: collector.keyPrefix,
           scopes: collector.scopes,
+          platform: collector.platform,
+          cliVersion: collector.cliVersion,
           createdAt: collector.createdAt,
           lastSeenAt: collector.lastSeenAt,
           rotatedAt: collector.rotatedAt,
           revokedAt: collector.revokedAt,
         })),
+      connectedSources: stats?.sources ?? [],
+      lastSyncAt: stats?.lastSyncAt ?? stats?.lastEventAt,
     };
+  },
+});
+
+export const writeDeviceLink = internalMutation({
+  args: {
+    workosUserId: v.string(),
+    codeHash: v.string(),
+    codePrefix: v.string(),
+    deviceName: v.string(),
+    now: v.number(),
+    expiresAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const user = await userForIdentity(ctx, args.workosUserId);
+    if (!user) throw new ConvexError("PROFILE_REQUIRED");
+    const profile = await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", user._id)).unique();
+    if (!profile) throw new ConvexError("PROFILE_REQUIRED");
+    const links = await ctx.db
+      .query("deviceLinkCodes")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", profile.workspaceId))
+      .take(20);
+    if (links.filter((link) => !link.usedAt && link.expiresAt > args.now).length >= 3) {
+      throw new ConvexError("LINK_CODE_LIMIT_REACHED");
+    }
+    return await ctx.db.insert("deviceLinkCodes", {
+      workspaceId: profile.workspaceId,
+      profileId: profile._id,
+      userId: user._id,
+      codeHash: args.codeHash,
+      codePrefix: args.codePrefix,
+      deviceName: cleanText(args.deviceName, "My computer", 80),
+      createdAt: args.now,
+      expiresAt: args.expiresAt,
+    });
+  },
+});
+
+export const createDeviceLink = action({
+  args: { name: v.string() },
+  handler: async (ctx, args): Promise<{ code: string; expiresAt: number }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new ConvexError("AUTH_REQUIRED");
+    const code = newDeviceLinkCode();
+    const now = Date.now();
+    await ctx.runMutation(internal.account.writeDeviceLink, {
+      workosUserId: identity.subject,
+      codeHash: await sha256(code),
+      codePrefix: code.slice(0, 8),
+      deviceName: args.name,
+      now,
+      expiresAt: now + LINK_CODE_TTL_MS,
+    });
+    return { code, expiresAt: now + LINK_CODE_TTL_MS };
+  },
+});
+
+export const redeemDeviceLink = internalMutation({
+  args: {
+    codeHash: v.string(),
+    keyHash: v.string(),
+    keyPrefix: v.string(),
+    name: v.string(),
+    platform: v.optional(v.string()),
+    cliVersion: v.optional(v.string()),
+    now: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const link = await ctx.db.query("deviceLinkCodes").withIndex("by_codeHash", (q) => q.eq("codeHash", args.codeHash)).unique();
+    if (!link || link.usedAt || link.expiresAt <= args.now) throw new ConvexError("INVALID_LINK_CODE");
+    const profile = await ctx.db.get(link.profileId);
+    const workspace = await ctx.db.get(link.workspaceId);
+    if (!profile || !workspace || profile.workspaceId !== workspace._id) throw new ConvexError("INVALID_LINK_CODE");
+    const collectors = await ctx.db
+      .query("collectors")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", link.workspaceId))
+      .take(20);
+    if (collectors.filter((collector) => !collector.revokedAt).length >= 8) {
+      throw new ConvexError("COLLECTOR_LIMIT_REACHED");
+    }
+    const collectorId = await ctx.db.insert("collectors", {
+      workspaceId: link.workspaceId,
+      profileId: link.profileId,
+      name: cleanText(args.name, link.deviceName, 80),
+      keyHash: args.keyHash,
+      keyPrefix: args.keyPrefix,
+      scopes: ["telemetry:write", "outcomes:write"],
+      platform: args.platform ? cleanText(args.platform, "unknown", 24) : undefined,
+      cliVersion: args.cliVersion ? cleanText(args.cliVersion, "unknown", 24) : undefined,
+      createdAt: args.now,
+    });
+    await ctx.db.patch(link._id, { usedAt: args.now, collectorId });
+    return { collectorId, handle: profile.handle };
   },
 });
 

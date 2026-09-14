@@ -7,6 +7,12 @@ import type { telemetryEventValidator } from "./telemetry";
 type NormalizedEvent = typeof telemetryEventValidator.type;
 type JsonObject = Record<string, unknown>;
 
+function newCollectorToken() {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return `umx_${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+}
+
 function object(value: unknown): JsonObject | null {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? (value as JsonObject) : null;
 }
@@ -276,6 +282,50 @@ async function ingest(ctx: Parameters<Parameters<typeof httpAction>[0]>[0], requ
   }
 }
 
+const linkDevice = httpAction(async (ctx, request) => {
+  if (!request.headers.get("content-type")?.toLowerCase().includes("application/json")) {
+    return jsonResponse({ error: "content_type_must_be_application_json" }, 415);
+  }
+  const declaredLength = Number(request.headers.get("content-length") ?? 0);
+  if (declaredLength > 16_384) return jsonResponse({ error: "payload_too_large" }, 413);
+  const rawBody = await request.text();
+  if (rawBody.length > 16_384) return jsonResponse({ error: "payload_too_large" }, 413);
+  let body: JsonObject | null = null;
+  try {
+    body = object(JSON.parse(rawBody));
+  } catch {
+    return jsonResponse({ error: "invalid_json" }, 400);
+  }
+  const code = cleanText(body?.code, "", 64).toUpperCase();
+  if (!/^UMX-[A-HJ-NP-Z2-9]{4}(?:-[A-HJ-NP-Z2-9]{4}){3}$/.test(code)) {
+    return jsonResponse({ error: "invalid_or_expired_link_code" }, 400);
+  }
+  const token = newCollectorToken();
+  try {
+    const result = await ctx.runMutation(internal.account.redeemDeviceLink, {
+      codeHash: await sha256(code),
+      keyHash: await sha256(token),
+      keyPrefix: token.slice(0, 12),
+      name: cleanText(body?.name, "My computer", 80),
+      platform: optionalText(body?.platform, 24),
+      cliVersion: optionalText(body?.cliVersion, 24),
+      now: Date.now(),
+    });
+    return jsonResponse({
+      ok: true,
+      token,
+      ingestUrl: new URL("/v1/telemetry/llm", request.url).toString(),
+      profileHandle: result.handle,
+      profileUrl: `https://usagemax.com/${encodeURIComponent(result.handle)}`,
+    });
+  } catch (error) {
+    const message = String(error);
+    if (message.includes("COLLECTOR_LIMIT_REACHED")) return jsonResponse({ error: "collector_limit_reached" }, 409);
+    if (message.includes("INVALID_LINK_CODE")) return jsonResponse({ error: "invalid_or_expired_link_code" }, 400);
+    return jsonResponse({ error: "link_failed" }, 500);
+  }
+});
+
 const http = httpRouter();
 const cors = httpAction(async () => new Response(null, {
   status: 204,
@@ -287,6 +337,7 @@ const cors = httpAction(async () => new Response(null, {
 }));
 
 http.route({ path: "/health", method: "GET", handler: httpAction(async () => jsonResponse({ ok: true, service: "usagemax-ingest", storage: "convex" })) });
+http.route({ path: "/v1/devices/link", method: "POST", handler: linkDevice });
 http.route({ path: "/v1/telemetry/llm", method: "POST", handler: httpAction((ctx, request) => ingest(ctx, request, "native")) });
 http.route({ path: "/v1/telemetry/llm", method: "OPTIONS", handler: cors });
 http.route({ path: "/v1/traces", method: "POST", handler: httpAction((ctx, request) => ingest(ctx, request, "otlp")) });

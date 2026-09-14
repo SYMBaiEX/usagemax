@@ -494,10 +494,10 @@ export const commitBatch = internalMutation({
 
 export const deleteExpired = internalMutation({
   args: {},
-  handler: async (ctx): Promise<{ events: number; receipts: number; rateBuckets: number; liveAgents: number; quarantine: number }> => {
+  handler: async (ctx): Promise<{ events: number; receipts: number; rateBuckets: number; liveAgents: number; quarantine: number; deviceLinks: number }> => {
     const now = Date.now();
     const batchSize = 250;
-    const [events, receipts, rateBuckets, liveAgents, quarantine] = await Promise.all([
+    const [events, receipts, rateBuckets, liveAgents, quarantine, deviceLinks] = await Promise.all([
       ctx.db
         .query("telemetryEvents")
         .withIndex("by_receivedAt", (q) => q.lt("receivedAt", now - 30 * DAY_MS))
@@ -518,13 +518,18 @@ export const deleteExpired = internalMutation({
         .query("quarantine")
         .withIndex("by_receivedAt", (q) => q.lt("receivedAt", now - 30 * DAY_MS))
         .take(batchSize),
+      ctx.db
+        .query("deviceLinkCodes")
+        .withIndex("by_expiresAt", (q) => q.lt("expiresAt", now - DAY_MS))
+        .take(batchSize),
     ]);
     for (const event of events) await ctx.db.delete(event._id);
     for (const receipt of receipts) await ctx.db.delete(receipt._id);
     for (const bucket of rateBuckets) await ctx.db.delete(bucket._id);
     for (const agent of liveAgents) await ctx.db.delete(agent._id);
     for (const row of quarantine) await ctx.db.delete(row._id);
-    if ([events, receipts, rateBuckets, liveAgents, quarantine].some((rows) => rows.length === batchSize)) {
+    for (const link of deviceLinks) await ctx.db.delete(link._id);
+    if ([events, receipts, rateBuckets, liveAgents, quarantine, deviceLinks].some((rows) => rows.length === batchSize)) {
       await ctx.scheduler.runAfter(0, internal.telemetry.deleteExpired, {});
     }
     return {
@@ -533,6 +538,7 @@ export const deleteExpired = internalMutation({
       rateBuckets: rateBuckets.length,
       liveAgents: liveAgents.length,
       quarantine: quarantine.length,
+      deviceLinks: deviceLinks.length,
     };
   },
 });

@@ -1,0 +1,40 @@
+{
+  "name": "usagemax",
+  "version": "0.1.0",
+  "description": "Link local coding-agent usage to your UsageMax profile",
+  "license": "MIT",
+  "author": "UsageMax",
+  "homepage": "https://usagemax.com",
+  "bugs": {
+    "url": "https://github.com/SYMBaiEX/usagemax/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SYMBaiEX/usagemax.git",
+    "directory": "packages/cli"
+  },
+  "type": "module",
+  "bin": {
+    "usagemax": "./src/cli.js"
+  },
+  "files": [
+    "src/cli.js",
+    "src/core.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test src/*.test.js",
+    "pack:check": "npm pack --dry-run",
+    "prepublishOnly": "npm test"
+  },
+  "dependencies": {
+    "ccusage": "20.0.20"
+  }
+}

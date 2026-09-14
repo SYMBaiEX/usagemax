@@ -66,6 +66,8 @@ export default defineSchema({
     keyHash: v.string(),
     keyPrefix: v.string(),
     scopes: v.array(v.string()),
+    platform: v.optional(v.string()),
+    cliVersion: v.optional(v.string()),
     createdAt: v.number(),
     lastSeenAt: v.optional(v.number()),
     lastSuccessAt: v.optional(v.number()),
@@ -76,6 +78,22 @@ export default defineSchema({
   })
     .index("by_keyHash", ["keyHash"])
     .index("by_workspaceId", ["workspaceId"]),
+
+  deviceLinkCodes: defineTable({
+    workspaceId: v.id("workspaces"),
+    profileId: v.id("profiles"),
+    userId: v.id("users"),
+    codeHash: v.string(),
+    codePrefix: v.string(),
+    deviceName: v.string(),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+    usedAt: v.optional(v.number()),
+    collectorId: v.optional(v.id("collectors")),
+  })
+    .index("by_codeHash", ["codeHash"])
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_expiresAt", ["expiresAt"]),
 
   profileStats: defineTable({
     workspaceId: v.id("workspaces"),

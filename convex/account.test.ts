@@ -3,6 +3,7 @@ import { convexTest } from "convex-test";
 
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
+import { sha256 } from "./lib";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -79,5 +80,41 @@ describe("WorkOS-backed accounts", () => {
     await session.mutation(api.account.revokeCollector, { collectorId: created.collectorId });
     account = await session.query(api.account.current, {});
     expect(account?.collectors[0]?.revokedAt).toBeTypeOf("number");
+  });
+
+  test("exchanges a short-lived device code once without storing either plaintext secret", async () => {
+    const session = t.withIdentity({
+      subject: "user_01PAIRING",
+      issuer: "https://api.workos.com/",
+      tokenIdentifier: "https://api.workos.com/|user_01PAIRING",
+      name: "Pairing Owner",
+      email: "pairing@example.com",
+    });
+    await session.mutation(api.account.ensureProfile, { handle: "pairing-owner" });
+    const link = await session.action(api.account.createDeviceLink, { name: "Studio PC" });
+    expect(link.code).toMatch(/^UMX-[A-HJ-NP-Z2-9]{4}(?:-[A-HJ-NP-Z2-9]{4}){3}$/);
+    expect(link.expiresAt).toBeGreaterThan(Date.now());
+
+    const token = `umx_${"a".repeat(64)}`;
+    const redeemed = await t.mutation(internal.account.redeemDeviceLink, {
+      codeHash: await sha256(link.code),
+      keyHash: await sha256(token),
+      keyPrefix: token.slice(0, 12),
+      name: "Studio PC",
+      platform: "win32",
+      cliVersion: "0.1.0",
+      now: Date.now(),
+    });
+    expect(redeemed.handle).toBe("pairing-owner");
+    const account = await session.query(api.account.current, {});
+    expect(account?.collectors[0]).toMatchObject({ name: "Studio PC", platform: "win32", cliVersion: "0.1.0" });
+    expect(JSON.stringify(account)).not.toContain(token);
+    await expect(t.mutation(internal.account.redeemDeviceLink, {
+      codeHash: await sha256(link.code),
+      keyHash: "replacement-hash",
+      keyPrefix: "umx_replace",
+      name: "Replay",
+      now: Date.now(),
+    })).rejects.toThrow("INVALID_LINK_CODE");
   });
 });

@@ -25,7 +25,7 @@ export function HeaderAuthControls() {
   }
   return (
     <Link className="header-login header-github" href="/sign-in">
-      <GitHubMark /> Sign in with GitHub
+      <GitHubMark /> Sign in
     </Link>
   );
 }
@@ -36,7 +36,7 @@ export function MobileAuthLink() {
   return user ? (
     <Link href="/account">Account <ArrowUpRight size={14} /></Link>
   ) : (
-    <Link href="/sign-in">Sign in with GitHub <GitHubMark size={14} /></Link>
+    <Link href="/sign-in">Sign in <GitHubMark size={14} /></Link>
   );
 }
 

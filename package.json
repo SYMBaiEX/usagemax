@@ -1,14 +1,18 @@
 {
-  "name": "usagemax",
+  "name": "@usagemax/web",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run && bun run --cwd packages/cli test",
+    "cli:pack": "bun run --cwd packages/cli pack:check",
     "convex:dev": "convex dev",
     "convex:deploy": "convex deploy",
     "data:import": "bun run scripts/import-tokenmaxxing.ts",
