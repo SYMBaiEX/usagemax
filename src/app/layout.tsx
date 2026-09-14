@@ -45,7 +45,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${instrumentSans.variable} ${geistMono.variable}`}>
+    <html lang="en" className={`${instrumentSans.variable} ${geistMono.variable}`} data-scroll-behavior="smooth">
       <body className="site-body">
         <Providers>
           <a className="skip-link" href="#main-content">Skip to main content</a>
