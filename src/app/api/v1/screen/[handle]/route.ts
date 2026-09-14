@@ -25,20 +25,21 @@ export async function GET(_request: Request, context: { params: Promise<{ handle
     models: profile.models,
     daily,
     agents: live.agents,
-    events: live.events.map((event) => ({
-      eventKey: event.eventKey,
+    events: live.events.map((event, index) => ({
+      eventKey: `${event.occurredAt}-${event.eventType}-${index}`,
       occurredAt: event.occurredAt,
       type: event.eventType,
-      agent: event.agentName ?? event.agentExternalId ?? "agent",
+      agent: event.agentName ?? "agent",
       model: event.model,
-      provider: event.provider,
+      source: event.source,
+      provider: "unknown",
       status: event.status,
-      state: event.state ?? null,
-      task: event.task ?? null,
+      state: null,
+      task: null,
       totalTokens: event.totalTokens,
       costMicros: event.costMicros,
       latencyMs: event.latencyMs ?? null,
-      traceId: event.traceId ?? null,
+      traceId: null,
     })),
   });
 }

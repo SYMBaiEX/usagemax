@@ -130,6 +130,7 @@ export const applyDays = internalMutation({
     now: v.number(),
   },
   handler: async (ctx, args) => {
+    const deltas = new Map<string, { totalTokens: number; outputTokens: number; costMicros: number; requests: number; errors: number }>();
     for (const row of args.rows) {
       const source = "tokenmaxxing-import";
       const prior = await ctx.db
@@ -158,6 +159,47 @@ export const applyDays = internalMutation({
       };
       if (prior) await ctx.db.replace(prior._id, value);
       else await ctx.db.insert("dailyUsage", value);
+      const delta = deltas.get(row.day) ?? { totalTokens: 0, outputTokens: 0, costMicros: 0, requests: 0, errors: 0 };
+      delta.totalTokens += value.totalTokens - (prior?.totalTokens ?? 0);
+      delta.outputTokens += value.outputTokens - (prior?.outputTokens ?? 0);
+      delta.costMicros += value.costMicros - (prior?.costMicros ?? 0);
+      delta.requests += value.requests - (prior?.requests ?? 0);
+      delta.errors += value.errors - (prior?.errors ?? 0);
+      deltas.set(row.day, delta);
+    }
+
+    for (const [day, delta] of deltas) {
+      const total = await ctx.db
+        .query("profileDailyTotals")
+        .withIndex("by_profileId_and_day", (q) => q.eq("profileId", args.profileId).eq("day", day))
+        .unique();
+      if (total) {
+        await ctx.db.patch(total._id, {
+          totalTokens: total.totalTokens + delta.totalTokens,
+          outputTokens: total.outputTokens + delta.outputTokens,
+          costMicros: total.costMicros + delta.costMicros,
+          requests: total.requests + delta.requests,
+          errors: total.errors + delta.errors,
+          updatedAt: args.now,
+        });
+      } else {
+        const rows = await ctx.db
+          .query("dailyUsage")
+          .withIndex("by_profileId_and_day", (q) => q.eq("profileId", args.profileId).eq("day", day))
+          .collect();
+        await ctx.db.insert("profileDailyTotals", {
+          workspaceId: args.workspaceId,
+          profileId: args.profileId,
+          day,
+          totalTokens: rows.reduce((sum, row) => sum + row.totalTokens, 0),
+          outputTokens: rows.reduce((sum, row) => sum + row.outputTokens, 0),
+          costMicros: rows.reduce((sum, row) => sum + row.costMicros, 0),
+          sessions: rows.reduce((sum, row) => sum + row.sessions, 0),
+          requests: rows.reduce((sum, row) => sum + row.requests, 0),
+          errors: rows.reduce((sum, row) => sum + row.errors, 0),
+          updatedAt: args.now,
+        });
+      }
     }
     return args.rows.length;
   },
@@ -255,6 +297,10 @@ export const finish = internalMutation({
           score: metric === "tokens" ? period.tokens : period.spend,
           totalTokens: args.totalTokens,
           totalCostMicros: args.totalCostMicros,
+          sessions: args.sessions,
+          activeDays: args.activeDays,
+          lastEventAt: args.lastDay ? Date.parse(`${args.lastDay}T23:59:59.999Z`) : undefined,
+          isPublic: profile.isPublic,
           updatedAt: args.now,
         };
         if (prior) await ctx.db.replace(prior._id, value);
@@ -265,12 +311,12 @@ export const finish = internalMutation({
     const network = await ctx.db.query("networkStats").withIndex("by_key", (q) => q.eq("key", "global")).unique();
     const networkValue = {
       key: "global",
-      totalTokens: args.totalTokens,
-      totalCostMicros: args.totalCostMicros,
-      totalSessions: args.sessions,
-      profiles: 1,
-      activeAgents: 0,
-      eventsToday: 0,
+      totalTokens: (network?.totalTokens ?? 0) + args.totalTokens - (priorStats?.totalTokens ?? 0),
+      totalCostMicros: (network?.totalCostMicros ?? 0) + args.totalCostMicros - (priorStats?.totalCostMicros ?? 0),
+      totalSessions: (network?.totalSessions ?? 0) + args.sessions - (priorStats?.sessions ?? 0),
+      profiles: (network?.profiles ?? 0) + (priorStats ? 0 : 1),
+      activeAgents: network?.activeAgents ?? 0,
+      eventsToday: network?.eventsToday ?? 0,
       updatedAt: args.now,
     };
     if (network) await ctx.db.replace(network._id, networkValue);

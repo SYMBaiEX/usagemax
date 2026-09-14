@@ -3,9 +3,9 @@
 UsageMax is a privacy-first AI usage network: public work profiles and leaderboards
 for individuals, plus realtime cost, agent, outcome, and governance telemetry for teams.
 
-The application uses Next.js 16 on Vercel and Convex for the database, functions,
-HTTP ingestion, materialized rollups, leaderboards, and realtime subscriptions.
-There is no Postgres dependency.
+The application uses Next.js 16 on Vercel, WorkOS AuthKit for identity, and Convex
+for the database, functions, HTTP ingestion, materialized rollups, leaderboards,
+and realtime subscriptions. There is no Postgres dependency.
 
 ## Local development
 
@@ -17,6 +17,17 @@ bun run dev
 
 The Vercel Marketplace Convex integration supplies `CONVEX_DEPLOY_KEY`,
 `NEXT_PUBLIC_CONVEX_URL`, and `NEXT_PUBLIC_CONVEX_SITE_URL`.
+
+WorkOS supplies GitHub sign-in and the enterprise identity plane. A configured
+environment needs `WORKOS_CLIENT_ID`, `WORKOS_API_KEY`,
+`WORKOS_COOKIE_PASSWORD`, and `NEXT_PUBLIC_WORKOS_REDIRECT_URI`. Keep the API
+key and cookie password server-only. For production, the redirect URI is
+`https://usagemax.com/callback`.
+
+The auth flow is GitHub → WorkOS AuthKit → encrypted UsageMax session → WorkOS
+JWT → Convex verification. WorkOS organizations map to UsageMax workspaces so
+SSO, SCIM, MFA, roles, and organization policy can be added without replacing
+the application data model.
 
 ## Verification
 

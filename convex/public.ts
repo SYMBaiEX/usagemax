@@ -34,22 +34,21 @@ export const daily = query({
     if (!profile?.isPublic) return [];
     const limit = Math.min(730, Math.max(1, Math.round(args.days ?? 365)));
     const rows = await ctx.db
-      .query("dailyUsage")
+      .query("profileDailyTotals")
       .withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id))
       .order("desc")
-      .take(4000);
-    const days = new Map<string, { date: string; totalTokens: number; outputTokens: number; costMicros: number; sessions: number; requests: number; errors: number }>();
-    for (const row of rows) {
-      const current = days.get(row.day) ?? { date: row.day, totalTokens: 0, outputTokens: 0, costMicros: 0, sessions: 0, requests: 0, errors: 0 };
-      current.totalTokens += row.totalTokens;
-      current.outputTokens += row.outputTokens;
-      current.costMicros += row.costMicros;
-      current.sessions += row.sessions;
-      current.requests += row.requests;
-      current.errors += row.errors;
-      days.set(row.day, current);
-    }
-    return [...days.values()].sort((a, b) => a.date.localeCompare(b.date)).slice(-limit);
+      .take(limit);
+    return rows
+      .map((row) => ({
+        date: row.day,
+        totalTokens: row.totalTokens,
+        outputTokens: row.outputTokens,
+        costMicros: row.costMicros,
+        sessions: row.sessions,
+        requests: row.requests,
+        errors: row.errors,
+      }))
+      .reverse();
   },
 });
 
@@ -59,15 +58,18 @@ export const dailyModels = query({
     const profile = await profileByHandle(ctx, args.handle);
     if (!profile?.isPublic) return [];
     const limit = Math.min(90, Math.max(1, Math.round(args.days ?? 30)));
-    const rows = await ctx.db
-      .query("dailyUsage")
+    const recentDays = await ctx.db
+      .query("profileDailyTotals")
       .withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id))
       .order("desc")
-      .take(4000);
-    const cutoffDays = [...new Set(rows.map((row) => row.day))]
-      .sort((a, b) => b.localeCompare(a))
-      .slice(0, limit);
-    const cutoff = new Set(cutoffDays);
+      .take(limit);
+    const cutoffDay = recentDays.at(-1)?.day;
+    if (!cutoffDay) return [];
+    const rows = await ctx.db
+      .query("dailyUsage")
+      .withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id).gte("day", cutoffDay))
+      .order("desc")
+      .take(2500);
     const grouped = new Map<string, {
       date: string;
       model: string;
@@ -76,7 +78,6 @@ export const dailyModels = query({
       costMicros: number;
     }>();
     for (const row of rows) {
-      if (!cutoff.has(row.day)) continue;
       const key = `${row.day}\u0000${row.provider}\u0000${row.model}`;
       const current = grouped.get(key) ?? {
         date: row.day,
@@ -108,28 +109,39 @@ export const leaderboard = query({
       .withIndex("by_period_and_metric_and_score", (q) => q.eq("period", args.period).eq("metric", args.metric))
       .order("desc")
       .take(limit);
-    const visibleRows = await Promise.all(rows.map(async (row) => {
-      const profile = await ctx.db.get(row.profileId);
-      if (!profile?.isPublic) return null;
-      const stats = await ctx.db
-        .query("profileStats")
-        .withIndex("by_profileId", (q) => q.eq("profileId", row.profileId))
-        .unique();
-      return {
+    return rows
+      .filter((row) => row.isPublic !== false)
+      .map((row) => ({
         ...row,
-        sessions: stats?.sessions ?? 0,
-        activeDays: stats?.activeDays ?? 0,
-        lastEventAt: stats?.lastEventAt ?? row.updatedAt,
-      };
-    }));
-    return visibleRows.filter((row) => row !== null);
+        sessions: row.sessions ?? 0,
+        activeDays: row.activeDays ?? 0,
+        lastEventAt: row.lastEventAt ?? row.updatedAt,
+      }));
   },
 });
 
 export const network = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("networkStats").withIndex("by_key", (q) => q.eq("key", "global")).unique();
+    const [baseline, shards] = await Promise.all([
+      ctx.db.query("networkStats").withIndex("by_key", (q) => q.eq("key", "global")).unique(),
+      ctx.db.query("networkCounterShards").collect(),
+    ]);
+    const latestDay = [
+      baseline ? new Date(baseline.updatedAt).toISOString().slice(0, 10) : "",
+      ...shards.map((shard) => shard.eventsDay),
+    ].sort().at(-1) ?? "";
+    return {
+      totalTokens: (baseline?.totalTokens ?? 0) + shards.reduce((sum, shard) => sum + shard.totalTokens, 0),
+      totalCostMicros: (baseline?.totalCostMicros ?? 0) + shards.reduce((sum, shard) => sum + shard.totalCostMicros, 0),
+      totalSessions: (baseline?.totalSessions ?? 0) + shards.reduce((sum, shard) => sum + shard.totalSessions, 0),
+      profiles: (baseline?.profiles ?? 0) + shards.reduce((sum, shard) => sum + shard.profiles, 0),
+      activeAgents: baseline?.activeAgents ?? 0,
+      eventsToday:
+        (baseline && new Date(baseline.updatedAt).toISOString().slice(0, 10) === latestDay ? baseline.eventsToday : 0) +
+        shards.filter((shard) => shard.eventsDay === latestDay).reduce((sum, shard) => sum + shard.eventsToday, 0),
+      updatedAt: Math.max(baseline?.updatedAt ?? 0, ...shards.map((shard) => shard.updatedAt), 0),
+    };
   },
 });
 
@@ -149,8 +161,33 @@ export const live = query({
       .order("desc")
       .take(Math.min(100, Math.max(1, Math.round(args.eventLimit ?? 30))));
     return {
-      agents: agents.map((agent) => ({ ...agent, online: agent.expiresAt > args.now })),
-      events,
+      agents: agents.map((agent) => ({
+        externalId: agent.externalId,
+        parentExternalId: agent.parentExternalId,
+        name: agent.name,
+        model: agent.model,
+        state: agent.state,
+        task: agent.task,
+        tokensPerSecond: agent.tokensPerSecond,
+        totalTokens: agent.totalTokens,
+        toolCalls: agent.toolCalls,
+        errorCount: agent.errorCount,
+        sessionStartedAt: agent.sessionStartedAt,
+        updatedAt: agent.updatedAt,
+        expiresAt: agent.expiresAt,
+        online: agent.expiresAt > args.now,
+      })),
+      events: events.map((event) => ({
+        agentName: event.agentName,
+        eventType: event.eventType,
+        source: event.source,
+        model: event.model,
+        totalTokens: event.totalTokens,
+        costMicros: event.costMicros,
+        latencyMs: event.latencyMs,
+        status: event.status,
+        occurredAt: event.occurredAt,
+      })),
     };
   },
 });

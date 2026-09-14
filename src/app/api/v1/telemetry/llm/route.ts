@@ -4,7 +4,10 @@ export const dynamic = "force-dynamic";
 
 async function forward(request: Request) {
   if (!siteUrl) return Response.json({ error: "ingest_not_configured" }, { status: 503 });
+  const declaredLength = Number(request.headers.get("content-length") ?? 0);
+  if (declaredLength > 1_000_000) return Response.json({ error: "payload_too_large" }, { status: 413 });
   const body = await request.arrayBuffer();
+  if (body.byteLength > 1_000_000) return Response.json({ error: "payload_too_large" }, { status: 413 });
   const response = await fetch(`${siteUrl}/v1/telemetry/llm`, {
     method: "POST",
     headers: {

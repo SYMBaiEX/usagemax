@@ -2,16 +2,47 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
+  users: defineTable({
+    workosUserId: v.string(),
+    name: v.optional(v.string()),
+    email: v.optional(v.string()),
+    avatarUrl: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    lastSeenAt: v.number(),
+  })
+    .index("by_workosUserId", ["workosUserId"])
+    .index("by_email", ["email"]),
+
   workspaces: defineTable({
+    ownerId: v.optional(v.id("users")),
+    workosOrganizationId: v.optional(v.string()),
     slug: v.string(),
     name: v.string(),
     plan: v.union(v.literal("free"), v.literal("pro"), v.literal("team"), v.literal("enterprise")),
     isPublic: v.boolean(),
     retentionDays: v.number(),
     createdAt: v.number(),
-  }).index("by_slug", ["slug"]),
+  })
+    .index("by_slug", ["slug"])
+    .index("by_ownerId", ["ownerId"])
+    .index("by_workosOrganizationId", ["workosOrganizationId"]),
+
+  workspaceMemberships: defineTable({
+    workspaceId: v.id("workspaces"),
+    userId: v.id("users"),
+    workosOrganizationId: v.optional(v.string()),
+    role: v.string(),
+    status: v.union(v.literal("active"), v.literal("invited"), v.literal("deactivated")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_workspaceId_and_userId", ["workspaceId", "userId"])
+    .index("by_userId_and_workspaceId", ["userId", "workspaceId"])
+    .index("by_workosOrganizationId", ["workosOrganizationId"]),
 
   profiles: defineTable({
+    ownerId: v.optional(v.id("users")),
     workspaceId: v.id("workspaces"),
     handle: v.string(),
     displayName: v.string(),
@@ -19,13 +50,14 @@ export default defineSchema({
     avatarUrl: v.optional(v.string()),
     isPublic: v.boolean(),
     isVerified: v.boolean(),
-    verification: v.union(v.literal("imported"), v.literal("collector"), v.literal("verified")),
+    verification: v.union(v.literal("account"), v.literal("imported"), v.literal("collector"), v.literal("verified")),
     sourceUrl: v.optional(v.string()),
     importedAt: v.optional(v.number()),
     createdAt: v.number(),
   })
     .index("by_handle", ["handle"])
-    .index("by_workspaceId", ["workspaceId"]),
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_ownerId", ["ownerId"]),
 
   collectors: defineTable({
     workspaceId: v.id("workspaces"),
@@ -84,6 +116,20 @@ export default defineSchema({
   })
     .index("by_profileId_and_day", ["profileId", "day"])
     .index("by_profileId_and_day_and_source_and_model", ["profileId", "day", "source", "model"]),
+
+  profileDailyTotals: defineTable({
+    workspaceId: v.id("workspaces"),
+    profileId: v.id("profiles"),
+    day: v.string(),
+    totalTokens: v.number(),
+    outputTokens: v.number(),
+    costMicros: v.number(),
+    sessions: v.number(),
+    requests: v.number(),
+    errors: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_profileId_and_day", ["profileId", "day"]),
 
   modelTotals: defineTable({
     workspaceId: v.id("workspaces"),
@@ -202,6 +248,10 @@ export default defineSchema({
     score: v.number(),
     totalTokens: v.number(),
     totalCostMicros: v.number(),
+    sessions: v.optional(v.number()),
+    activeDays: v.optional(v.number()),
+    lastEventAt: v.optional(v.number()),
+    isPublic: v.optional(v.boolean()),
     updatedAt: v.number(),
   })
     .index("by_profileId_and_period_and_metric", ["profileId", "period", "metric"])
@@ -217,6 +267,17 @@ export default defineSchema({
     eventsToday: v.number(),
     updatedAt: v.number(),
   }).index("by_key", ["key"]),
+
+  networkCounterShards: defineTable({
+    shard: v.number(),
+    totalTokens: v.number(),
+    totalCostMicros: v.number(),
+    totalSessions: v.number(),
+    profiles: v.number(),
+    eventsDay: v.string(),
+    eventsToday: v.number(),
+    updatedAt: v.number(),
+  }).index("by_shard", ["shard"]),
 
   outcomes: defineTable({
     workspaceId: v.id("workspaces"),

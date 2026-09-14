@@ -132,6 +132,7 @@ export const commitBatch = internalMutation({
     }
 
     const dailyRollups = new Map<string, Rollup>();
+    const dayRollups = new Map<string, Rollup>();
     const modelRollups = new Map<string, Rollup & { provider: string; lastUsedAt: number }>();
     const uniqueSessions = new Map<string, string>();
     const liveAgents = new Map<string, Event>();
@@ -139,6 +140,9 @@ export const commitBatch = internalMutation({
     for (const event of acceptedEvents) {
       addEvent(total, event);
       const day = dayFromTimestamp(event.occurredAt);
+      const dayTotal = dayRollups.get(day) ?? emptyRollup();
+      addEvent(dayTotal, event);
+      dayRollups.set(day, dayTotal);
       const dailyKey = `${day}\u001f${event.source}\u001f${event.model}`;
       const daily = dailyRollups.get(dailyKey) ?? emptyRollup();
       addEvent(daily, event);
@@ -225,6 +229,31 @@ export const commitBatch = internalMutation({
       else await ctx.db.insert("dailyUsage", { workspaceId: collector.workspaceId, profileId: collector.profileId, day, source, provider, model, ...update });
     }
 
+    for (const [day, rollup] of dayRollups) {
+      const prior = await ctx.db
+        .query("profileDailyTotals")
+        .withIndex("by_profileId_and_day", (q) => q.eq("profileId", collector.profileId).eq("day", day))
+        .unique();
+      const update = {
+        totalTokens: (prior?.totalTokens ?? 0) + rollup.totalTokens,
+        outputTokens: (prior?.outputTokens ?? 0) + rollup.outputTokens,
+        costMicros: (prior?.costMicros ?? 0) + rollup.costMicros,
+        sessions: (prior?.sessions ?? 0) + (sessionsByDay.get(day) ?? 0),
+        requests: (prior?.requests ?? 0) + rollup.requests,
+        errors: (prior?.errors ?? 0) + rollup.errors,
+        updatedAt: args.receivedAt,
+      };
+      if (prior) await ctx.db.patch(prior._id, update);
+      else {
+        await ctx.db.insert("profileDailyTotals", {
+          workspaceId: collector.workspaceId,
+          profileId: collector.profileId,
+          day,
+          ...update,
+        });
+      }
+    }
+
     for (const [modelName, rollup] of modelRollups) {
       const prior = await ctx.db
         .query("modelTotals")
@@ -303,39 +332,53 @@ export const commitBatch = internalMutation({
 
     const profile = await ctx.db.get(collector.profileId);
     if (profile) {
-      const periodDeltas = [
-        { period: "all" as const, events: acceptedEvents },
-        { period: "30d" as const, events: acceptedEvents.filter((event) => event.occurredAt >= args.receivedAt - 30 * DAY_MS) },
-        { period: "7d" as const, events: acceptedEvents.filter((event) => event.occurredAt >= args.receivedAt - 7 * DAY_MS) },
+      const thirtyCutoff = dayFromTimestamp(args.receivedAt - 29 * DAY_MS);
+      const sevenCutoff = dayFromTimestamp(args.receivedAt - 6 * DAY_MS);
+      const recentDays = await ctx.db
+        .query("profileDailyTotals")
+        .withIndex("by_profileId_and_day", (q) => q.eq("profileId", collector.profileId).gte("day", thirtyCutoff))
+        .collect();
+      const periodScores = [
+        { period: "all" as const, tokens: nextStats.totalTokens, spend: nextStats.totalCostMicros },
+        {
+          period: "30d" as const,
+          tokens: recentDays.reduce((sum, row) => sum + row.totalTokens, 0),
+          spend: recentDays.reduce((sum, row) => sum + row.costMicros, 0),
+        },
+        {
+          period: "7d" as const,
+          tokens: recentDays.filter((row) => row.day >= sevenCutoff).reduce((sum, row) => sum + row.totalTokens, 0),
+          spend: recentDays.filter((row) => row.day >= sevenCutoff).reduce((sum, row) => sum + row.costMicros, 0),
+        },
       ];
-      for (const periodDelta of periodDeltas) {
-        const deltaTokens = periodDelta.events.reduce((sum, event) => sum + event.totalTokens, 0);
-        const deltaSpend = periodDelta.events.reduce((sum, event) => sum + event.costMicros, 0);
+      for (const periodScore of periodScores) {
         for (const metric of ["tokens", "spend"] as const) {
           const prior = await ctx.db
             .query("leaderboardEntries")
             .withIndex("by_profileId_and_period_and_metric", (q) =>
-              q.eq("profileId", collector.profileId).eq("period", periodDelta.period).eq("metric", metric),
+              q.eq("profileId", collector.profileId).eq("period", periodScore.period).eq("metric", metric),
             )
             .unique();
-          const delta = metric === "tokens" ? deltaTokens : deltaSpend;
+          if (prior && args.receivedAt - prior.updatedAt < 60_000) continue;
           const update = {
             handle: profile.handle,
             displayName: profile.displayName,
             avatarUrl: profile.avatarUrl,
             verification: profile.verification,
-            score: periodDelta.period === "all"
-              ? (metric === "tokens" ? nextStats.totalTokens : nextStats.totalCostMicros)
-              : (prior?.score ?? 0) + delta,
+            score: metric === "tokens" ? periodScore.tokens : periodScore.spend,
             totalTokens: nextStats.totalTokens,
             totalCostMicros: nextStats.totalCostMicros,
+            sessions: nextStats.sessions,
+            activeDays: nextStats.activeDays,
+            lastEventAt: nextStats.lastEventAt,
+            isPublic: profile.isPublic,
             updatedAt: args.receivedAt,
           };
           if (prior) await ctx.db.patch(prior._id, update);
           else await ctx.db.insert("leaderboardEntries", {
             workspaceId: collector.workspaceId,
             profileId: collector.profileId,
-            period: periodDelta.period,
+            period: periodScore.period,
             metric,
             ...update,
           });
@@ -343,22 +386,33 @@ export const commitBatch = internalMutation({
       }
     }
 
-    const network = await ctx.db.query("networkStats").withIndex("by_key", (q) => q.eq("key", "global")).unique();
-    const onlineAgents = await ctx.db
-      .query("agentLiveStats")
-      .withIndex("by_profileId_and_updatedAt", (q) => q.eq("profileId", collector.profileId).gte("updatedAt", args.receivedAt - 45_000))
-      .take(100);
-    const networkUpdate = {
-      totalTokens: (network?.totalTokens ?? 0) + total.totalTokens,
-      totalCostMicros: (network?.totalCostMicros ?? 0) + total.costMicros,
-      totalSessions: (network?.totalSessions ?? 0) + newSessions,
-      profiles: network?.profiles ?? 1,
-      activeAgents: onlineAgents.length,
-      eventsToday: (network?.eventsToday ?? 0) + acceptedEvents.length,
-      updatedAt: args.receivedAt,
-    };
-    if (network) await ctx.db.patch(network._id, networkUpdate);
-    else await ctx.db.insert("networkStats", { key: "global", ...networkUpdate });
+    const shard = [...String(collector._id)].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 128;
+    const eventsDay = dayFromTimestamp(args.receivedAt);
+    const network = await ctx.db
+      .query("networkCounterShards")
+      .withIndex("by_shard", (q) => q.eq("shard", shard))
+      .unique();
+    if (network) {
+      await ctx.db.patch(network._id, {
+        totalTokens: network.totalTokens + total.totalTokens,
+        totalCostMicros: network.totalCostMicros + total.costMicros,
+        totalSessions: network.totalSessions + newSessions,
+        eventsDay,
+        eventsToday: network.eventsDay === eventsDay ? network.eventsToday + acceptedEvents.length : acceptedEvents.length,
+        updatedAt: args.receivedAt,
+      });
+    } else {
+      await ctx.db.insert("networkCounterShards", {
+        shard,
+        totalTokens: total.totalTokens,
+        totalCostMicros: total.costMicros,
+        totalSessions: newSessions,
+        profiles: 0,
+        eventsDay,
+        eventsToday: acceptedEvents.length,
+        updatedAt: args.receivedAt,
+      });
+    }
 
     await ctx.db.patch(collector._id, { lastSeenAt: args.receivedAt });
     await ctx.db.insert("ingestReceipts", {

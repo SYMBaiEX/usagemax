@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { HeaderAuthControls, MobileAuthLink } from "./auth-controls";
 import { ArrowRight, ArrowUpRight, ChevronDown, UsageMark } from "./icons";
 
 const navigation = [
@@ -11,18 +12,7 @@ const navigation = [
 
 export function SiteHeader() {
   return (
-    <>
-      <div className="announcement-bar">
-        <div className="announcement-track">
-          <span>AI work deserves a public record</span><i />
-          <span>Realtime usage profiles</span><i />
-          <span>Built on Convex</span><i />
-          <span>AI work deserves a public record</span><i />
-          <span>Realtime usage profiles</span><i />
-          <span>Built on Convex</span><i />
-        </div>
-      </div>
-      <header className="site-header">
+    <header className="site-header">
         <div className="shell header-inner">
         <Link aria-label="UsageMax home" className="brand" href="/">
           <span className="brand-mark">
@@ -42,11 +32,9 @@ export function SiteHeader() {
         </nav>
 
         <div className="header-actions">
-          <Link className="header-login" href="/symbaiex">
-            View profile
-          </Link>
+          <HeaderAuthControls />
           <Link className="header-cta" href="/docs">
-            Start tracking <ArrowUpRight size={15} />
+            Connect data <ArrowUpRight size={15} />
           </Link>
         </div>
 
@@ -61,14 +49,14 @@ export function SiteHeader() {
                 {item.label} <ArrowRight size={14} />
               </Link>
             ))}
+            <MobileAuthLink />
             <Link href="/docs">
-              Start tracking <ArrowUpRight size={14} />
+              Connect data <ArrowUpRight size={14} />
             </Link>
           </nav>
         </details>
         </div>
-      </header>
-    </>
+    </header>
   );
 }
 
