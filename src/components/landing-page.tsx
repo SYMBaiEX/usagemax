@@ -17,6 +17,8 @@ type Ranking = FunctionReturnType<typeof api.public.leaderboard>;
 type Period = "7d" | "30d" | "all";
 type Metric = "tokens" | "spend";
 
+import { rankingValues } from "@/lib/chart-data";
+
 const sources = ["Claude Code", "Codex", "Gemini CLI", "OpenCode", "Copilot CLI", "Hermes"];
 
 function NetworkRecord({ network, connected }: { network?: Network; connected: boolean }) {
@@ -81,7 +83,7 @@ function PublicLedger({ rows, period, metric, setPeriod, setMetric, connected }:
         </div>
         <div className={styles.tableViewport}>
           <table className={styles.table} aria-label="Public UsageMax rankings" aria-busy={connected && rows === undefined}>
-            <thead><tr><th scope="col">Rank</th><th scope="col">Builder</th><th scope="col" aria-sort={metric === "tokens" ? "descending" : "none"}>Tokens</th><th scope="col" aria-sort={metric === "spend" ? "descending" : "none"}>Cost¹</th><th scope="col" className={styles.sessions}>Sessions</th></tr></thead>
+            <thead><tr><th scope="col">Rank</th><th scope="col">Builder</th><th scope="col" aria-sort={metric === "tokens" ? "descending" : "none"}>Tokens<small>{metric === "tokens" && period !== "all" ? period : "All time"}</small></th><th scope="col" aria-sort={metric === "spend" ? "descending" : "none"}>Cost¹<small>{metric === "spend" && period !== "all" ? period : "All time"}</small></th><th scope="col" className={styles.sessions}>Sessions<small>All time</small></th></tr></thead>
             <tbody>
               {rows?.length ? rows.map((row, index) => (
                 <tr key={row.handle}>
@@ -91,8 +93,8 @@ function PublicLedger({ rows, period, metric, setPeriod, setMetric, connected }:
                     <span><strong>{row.displayName || row.handle}{row.verification === "verified" ? <span className={styles.verified} aria-label="Verified account">✓</span> : null}</strong><small>@{row.handle}</small></span>
                     <ArrowUpRight size={13} />
                   </Link></td>
-                  <td className={metric === "tokens" ? styles.sorted : undefined}>{compactNumber(row.totalTokens, 2)}</td>
-                  <td className={metric === "spend" ? styles.sorted : undefined}>{currencyFromMicros(row.totalCostMicros)}</td>
+                  <td className={metric === "tokens" ? styles.sorted : undefined}>{compactNumber(rankingValues(row).tokens, 2)}</td>
+                  <td className={metric === "spend" ? styles.sorted : undefined}>{currencyFromMicros(rankingValues(row).costMicros)}</td>
                   <td className={styles.sessions}>{compactNumber(row.sessions)}</td>
                 </tr>
               )) : <tr><td colSpan={5} className={styles.empty} role="status">{!connected ? "Public rankings are temporarily unavailable." : rows === undefined ? "Loading the public ledger…" : "No public profiles in this period yet."}</td></tr>}

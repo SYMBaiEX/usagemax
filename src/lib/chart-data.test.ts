@@ -1,11 +1,16 @@
 // @vitest-environment node
 import { describe, expect, test } from "vitest";
-import { calendarWindow, modelColors, modelSeries, monthlySeries, usageSeries, type UsageDay } from "./chart-data";
+import { calendarWindow, modelColors, modelSeries, monthlySeries, rankingValues, usageSeries, type UsageDay } from "./chart-data";
 
 const end = Date.parse("2026-09-15T23:59:00-05:00"); // September 16 in UTC
 const day = (date: string, totalTokens = 12, costMicros = 1_500_000, costBasis = "reported"): UsageDay => ({ date, totalTokens, costMicros, costBasis, sessions: 1 });
 
 describe("chart data semantics", () => {
+  test("ranked metrics use the period score; the other column remains all-time", () => {
+    const row = { score: 25, totalTokens: 1000, totalCostMicros: 500_000 };
+    expect(rankingValues({ ...row, metric: "tokens" })).toEqual({ tokens: 25, costMicros: 500_000 });
+    expect(rankingValues({ ...row, metric: "spend" })).toEqual({ tokens: 1000, costMicros: 25 });
+  });
   test("calendar windows use UTC, include today, and exclude old/future reports", () => {
     const window = calendarWindow([day("2026-09-13"), day("2026-09-15"), day("2026-09-17")], 3, end);
     expect(window.map(row => row.date)).toEqual(["2026-09-14", "2026-09-15", "2026-09-16"]);

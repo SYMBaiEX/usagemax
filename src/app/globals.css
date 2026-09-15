@@ -198,6 +198,7 @@ pre, code { font-family: var(--font-mono); }
 .model-table b, .dimension-list b { display: block; height: 100%; background: var(--orange); border-radius: 3px; }
 .model-table, .dimension-list { margin-top: 18px; }
 .model-expand { border: 0; background: transparent; color: var(--orange-dark); padding: 12px 0; margin-top: 8px; font-size: 12px; }
+.ranking-table th small { display: block; font-size: 9px; font-weight: 400; margin-top: 3px; }
 .model-table > div:nth-child(even), .dimension-list > div:nth-child(even) { background: #eeede580; border-radius: 8px; }
 .model-table > div { display: grid; grid-template-columns: 24px minmax(0,1.7fr) minmax(80px,1fr) 100px; gap: 20px; align-items: center; padding-block: 12px; }
 .model-index { color: var(--ink-faint); font: 10px var(--font-mono); }

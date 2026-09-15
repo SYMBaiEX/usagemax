@@ -11,7 +11,7 @@ vi.mock("next/link", () => ({
 }));
 
 const network = { totalTokens: 123_450_000, totalCostMicros: 1_250_000_000, totalSessions: 765, profiles: 1, activeAgents: 0, eventsToday: 0, updatedAt: 1 };
-const profile = { handle: "test-builder", displayName: "Test Builder", verification: "collector", totalTokens: 123_450_000, totalCostMicros: 1_250_000_000, sessions: 765 };
+const profile = { metric: "tokens", period: "all", score: 123_450_000, handle: "test-builder", displayName: "Test Builder", verification: "collector", totalTokens: 123_450_000, totalCostMicros: 1_250_000_000, sessions: 765 };
 
 describe("landing page", () => {
   beforeEach(() => {

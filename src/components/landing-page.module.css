@@ -72,6 +72,7 @@
 .tableViewport { max-width: 100%; overflow-x: auto; }
 .table { width: 100%; border-collapse: collapse; text-align: left; white-space: nowrap; }
 .table th { height: 34px; font-size: 9px; font-weight: 450; color: var(--landing-muted); }
+.table th small { display: block; font-size: 8px; font-weight: 400; margin-top: 3px; }
 .table td { height: 68px; font: 11px var(--font-geist-mono), monospace; }
 .table th, .table td { padding: 8px 12px; }
 .table th:first-child, .table td:first-child { padding-left: 0; }

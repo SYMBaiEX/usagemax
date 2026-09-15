@@ -3,6 +3,13 @@ export type ModelDay = { date: string; provider: string; model: string; totalTok
 export const chartPalette = ["#ca512b", "#397d86", "#79669b", "#9d7c2e"];
 export const otherColor = "#a6a599";
 
+export function rankingValues(row: { metric: "tokens" | "spend"; score: number; totalTokens: number; totalCostMicros: number }) {
+  return {
+    tokens: row.metric === "tokens" ? row.score : row.totalTokens,
+    costMicros: row.metric === "spend" ? row.score : row.totalCostMicros,
+  };
+}
+
 export function modelColor(identity: string) {
   let hash = 0;
   for (const character of identity) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
