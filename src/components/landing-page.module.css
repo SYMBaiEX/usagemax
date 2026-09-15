@@ -39,11 +39,11 @@
 .recordTotal > span { font-size: 11px; }
 .recordTotal strong { font-family: var(--font-geist-mono), monospace; font-size: clamp(40px, 4.4vw, 61px); font-weight: 450; line-height: 1.25; letter-spacing: -.07em; font-variant-numeric: tabular-nums; }
 .recordTotal small { margin-top: 2px; color: var(--landing-muted); font-size: 10px; }
-.recordDetails { border-top: 1px dashed #c9cbbf; padding-block: 13px; display: flex; flex-direction: column; gap: 10px; font-size: 10px; }
+.recordDetails { padding-block: 13px; display: flex; flex-direction: column; gap: 10px; font-size: 10px; }
 .recordDetails > div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
 .recordDetails dt { color: var(--landing-muted); }
 .recordDetails dd { margin: 0; font-family: var(--font-geist-mono), monospace; font-weight: 500; font-variant-numeric: tabular-nums; }
-.recordFoot { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding-top: 14px; border-top: 1px dashed #c9cbbf; }
+.recordFoot { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding-top: 14px; }
 .status { display: flex; align-items: center; gap: 6px; font: 9px var(--font-geist-mono), monospace; }
 .status i { width: 5px; height: 5px; border-radius: 50%; background: #929489; }
 .status i[data-ready="true"] { background: #55743a; }
@@ -51,7 +51,7 @@
 .recordPaper .costNote { margin-top: 15px; color: var(--landing-muted); font-size: 10px; line-height: 1.7; }
 .costNote a { display: inline-flex; align-items: center; gap: 3px; text-decoration: underline; text-underline-offset: 2px; }
 
-.sources { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-block: 22px; border-top: 1px solid var(--landing-line); border-bottom: 1px solid var(--landing-line); }
+.sources { background: #eeeee4; border-radius: 16px; padding-inline: 24px; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-block: 22px; }
 .sources > span { color: var(--landing-muted); font-size: 10px; white-space: nowrap; }
 .sources ul { display: flex; flex: 1; justify-content: center; align-items: center; gap: clamp(16px, 2.2vw, 28px); list-style: none; margin: 0; padding: 0; }
 .sources li { font-size: 12px; font-weight: 600; letter-spacing: -.02em; white-space: nowrap; }
@@ -63,21 +63,22 @@
 .ledgerIntro p { color: var(--landing-muted); font-size: 12px; line-height: 1.7; }
 .ledgerIntro .textLink { margin-top: 16px; }
 .board { min-width: 0; }
-.boardControls { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 42px; border-bottom: 1px solid var(--landing-line); }
-.metricTabs { align-self: stretch; display: flex; gap: 24px; }
-.metricTabs button { position: relative; border: 0; border-radius: 0; padding: 8px 0 12px; min-height: 40px; cursor: pointer; background: transparent; color: var(--landing-muted); font-size: 11px; font-weight: 500; }
+.boardControls { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 42px; }
+.metricTabs { align-self: stretch; display: flex; gap: 4px; }
+.metricTabs button { position: relative; border: 0; border-radius: 0; padding: 8px 14px; min-height: 40px; cursor: pointer; background: transparent; color: var(--landing-muted); font-size: 11px; font-weight: 500; }
 .metricTabs button[aria-pressed="true"] { color: var(--landing-ink); }
-.metricTabs button[aria-pressed="true"]::after { content: ""; position: absolute; inset: auto 0 -1px; height: 2px; background: var(--landing-orange); }
+.metricTabs button[aria-pressed="true"] { background: #e8e9dc; border-radius: 24px; }
 .period select { color: var(--landing-muted); background: transparent; border: 0; padding: 8px 0 8px 8px; cursor: pointer; font: 10px var(--font-geist-mono), monospace; min-height: 40px; }
 .tableViewport { max-width: 100%; overflow-x: auto; }
 .table { width: 100%; border-collapse: collapse; text-align: left; white-space: nowrap; }
 .table th { height: 34px; font-size: 9px; font-weight: 450; color: var(--landing-muted); }
-.table td { height: 68px; border-bottom: 1px solid var(--landing-line); font: 11px var(--font-geist-mono), monospace; }
+.table td { height: 68px; font: 11px var(--font-geist-mono), monospace; }
 .table th, .table td { padding: 8px 12px; }
 .table th:first-child, .table td:first-child { padding-left: 0; }
 .table th:last-child, .table td:last-child { padding-right: 0; }
 .table th:nth-child(n+3), .table td:nth-child(n+3) { text-align: right; }
 .table tbody tr { transition: background 160ms; }
+.table tbody tr:nth-child(odd) { background: #eeeee4; }
 .table tbody tr:hover { background: #eceee3; }
 .rank { width: 28px; color: var(--landing-muted); }
 .person { display: flex; align-items: center; gap: 9px; font-family: var(--font-instrument-sans), sans-serif; min-height: 44px; }
@@ -96,7 +97,7 @@
 .boardFooter > a:hover { color: var(--landing-orange); }
 .board .boardNote { color: var(--landing-muted); font-size: 10px; }
 
-.connectBand { background: #edeee5; }
+.connectBand { background: #edeee5; border-radius: 32px; margin-inline: 16px; }
 .connect { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 120px; padding-block: 56px; }
 .connectCopy h2 { margin-block: 17px; font-size: 42px; line-height: 1.08; letter-spacing: -.055em; font-weight: 550; }
 .connectCopy > p { max-width: 320px; color: var(--landing-muted); font-size: 13px; line-height: 1.7; text-wrap: pretty; }
@@ -106,7 +107,7 @@
 .steps li > span { padding-top: 3px; color: var(--landing-orange); font: 10px var(--font-geist-mono), monospace; }
 .steps h3 { font-size: 13px; font-weight: 600; letter-spacing: -.015em; }
 .steps p { margin-top: 4px; color: var(--landing-muted); font-size: 12px; line-height: 1.65; max-width: 380px; }
-.command { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 24px; padding: 17px 20px; background: #282b23; border-radius: 4px; color: #f7f8f2; }
+.command { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 24px; padding: 17px 20px; background: #282b23; border-radius: 12px; color: #f7f8f2; }
 .command > div { display: grid; gap: 7px; min-width: 0; }
 .command > div > span { font-size: 9px; color: #b8bcae; }
 .command code { font: 13px var(--font-geist-mono), monospace; }

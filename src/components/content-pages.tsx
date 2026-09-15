@@ -84,7 +84,7 @@ export function EnterpriseView() {
   );
 }
 
-const quickstart = `curl -X POST "$USAGEMAX_SITE_URL/api/v1/telemetry/llm" \
+const quickstart = String.raw`curl -X POST "$USAGEMAX_SITE_URL/api/v1/telemetry/llm" \
   -H "content-type: application/json" \
   -H "authorization: Bearer $USAGEMAX_COLLECTOR_TOKEN" \
   -H "x-usagemax-device-id: $USAGEMAX_INSTALLATION_ID" \

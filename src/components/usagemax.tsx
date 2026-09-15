@@ -1,6 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
+import { modelSeries, otherColor, type ModelDay } from "@/lib/chart-data";
+
+const UsageTrend = dynamic(() => import("./usage-charts").then(m => m.UsageTrend));
+const HeroSparkline = dynamic(() => import("./usage-charts").then(m => m.HeroSparkline));
+const ModelFlow = dynamic(() => import("./usage-charts").then(m => m.ModelFlow));
+const ActivityCalendar = dynamic(() => import("./usage-charts").then(m => m.ActivityCalendar));
+const RhythmCharts = dynamic(() => import("./usage-charts").then(m => m.RhythmCharts));
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { useQuery } from "convex/react";
@@ -27,7 +35,6 @@ type LiveData = { agents: AgentRow[]; events: EventRow[] };
 type ProfileSnapshotData = ProfileData & { daily: DailyRow[]; dailyModels: DailyModelRow[]; breakdowns: BreakdownData; live: LiveData };
 
 const convexConfigured = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
-const modelColors = ["#ff5a1f", "#171412", "#4976f2", "#a9d56e", "#f3b64e", "#b483ff"];
 
 function safeNumber(value: number | null | undefined) { return typeof value === "number" && Number.isFinite(value) ? value : 0; }
 function costBasisLabel(value: CostBasis | undefined) { return value === "reported" ? "provider reported" : value === "mixed" ? "mixed / partially unpriced" : value === "estimated" ? "source estimate" : value === "unknown" ? "unpriced usage excluded" : "API-equivalent estimate"; }
@@ -43,31 +50,6 @@ function VerifyBadge() { return <span aria-label="Verified profile" className="v
 function Skeleton({ className = "" }: { className?: string }) { return <span aria-hidden="true" className={`skeleton ${className}`} />; }
 function LivePill({ children = "Live" }: { children?: string }) { return <span className="live-pill"><i />{children}</span>; }
 
-
-function pathFor(values: number[]) {
-  if (values.length < 2) return "M0 220 L800 220";
-  const max = Math.max(...values, 1);
-  const min = Math.min(...values);
-  const range = Math.max(max - min, 1);
-  return values.map((value, index) => {
-    const x = (index / (values.length - 1)) * 800;
-    const y = 220 - ((value - min) / range) * 190;
-    return `${index ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
-  }).join(" ");
-}
-
-function movingAverage(values: number[], windowSize = 5) {
-  return values.map((_, index) => {
-    const start = Math.max(0, index - windowSize + 1);
-    const sample = values.slice(start, index + 1);
-    return sample.reduce((sum, value) => sum + value, 0) / sample.length;
-  });
-}
-
-function ProfileHeroChart({ rows }: { rows: DailyRow[] }) {
-  const recent = rows.slice(-90);
-  return <div className="profile-chart-line" aria-hidden="true"><svg viewBox="0 0 800 240" preserveAspectRatio="none"><path d={pathFor(movingAverage(recent.map((row) => row.totalTokens)))} /><path className="chart-ghost" d={pathFor(movingAverage(recent.map((row) => row.costMicros)))} /></svg></div>;
-}
 
 function LeaderboardTable({ rows, loading }: { rows?: LeaderboardRowData[]; loading?: boolean }) {
   return <div className="ranking-table-wrap" tabIndex={0} role="region" aria-label="Scrollable public leaderboard"><table className="ranking-table"><thead><tr><th>#</th><th>Builder</th><th>Spend</th><th>Tokens</th><th>Sessions</th><th>Active days</th><th>Last active</th><th /></tr></thead><tbody>{loading ? Array.from({ length: 7 }, (_, index) => <tr key={index}><td><Skeleton /></td><td><Skeleton className="skeleton-wide" /></td><td><Skeleton /></td><td><Skeleton /></td><td><Skeleton /></td><td><Skeleton /></td><td><Skeleton /></td><td /></tr>) : rows?.length ? rows.map((row, index) => <tr key={`${row.handle}-${row.period}-${row.metric}`}><td><span className={`table-rank ${index < 3 ? "is-top" : ""}`}>{index + 1}</span></td><td><Link className="table-person" href={`/${row.handle}`}><Avatar name={row.displayName || row.handle} /><span><strong>{row.displayName || row.handle}{row.verification === "verified" ? <VerifyBadge /> : null}</strong><small>@{row.handle}</small></span></Link></td><td><strong>{currencyFromMicros(row.totalCostMicros)}</strong></td><td><strong>{compactNumber(row.totalTokens, 2)}</strong></td><td>{compactNumber(row.sessions)}</td><td>{compactNumber(row.activeDays)}</td><td>{row.lastEventAt ? relativeTime(new Date(row.lastEventAt)) : "—"}</td><td><Link aria-label={`View ${row.handle}`} className="table-open" href={`/${row.handle}`}><ArrowUpRight size={15} /></Link></td></tr>) : <tr><td colSpan={8} className="table-empty">No public profiles in this window yet.</td></tr>}</tbody></table></div>;
@@ -97,68 +79,17 @@ function StatTile({ label, value, note, featured = false }: { label: string; val
   return <div className={`stat-tile ${featured ? "is-featured" : ""}`}><span>{label}</span><strong>{value}</strong><small>{note}</small></div>;
 }
 
-function recentCalendarRows(rows: DailyRow[], count: number) {
-  const byDate = new Map(rows.map((row) => [row.date, row]));
-  const end = new Date();
-  end.setUTCHours(0, 0, 0, 0);
-  return Array.from({ length: count }, (_, index) => {
-    const date = new Date(end);
-    date.setUTCDate(end.getUTCDate() - (count - index - 1));
-    const key = date.toISOString().slice(0, 10);
-    return { date: key, row: byDate.get(key) };
-  });
-}
-
-function DailyBars({ rows, metric }: { rows: DailyRow[]; metric: "tokens" | "spend" }) {
-  const data = recentCalendarRows(rows, 30);
-  const values = data.map(({ row }) => row ? metric === "tokens" ? row.totalTokens : row.costMicros : 0);
-  const max = Math.max(...values, 1);
-  const total = values.reduce((sum, value) => sum + value, 0);
-  const peakIndex = values.indexOf(Math.max(...values));
-  return <figure className={`data-chart chart-${metric}`}><figcaption className="data-chart-head"><div><span>Daily {metric}</span><strong>{metric === "tokens" ? compactNumber(total, 2) : currencyFromMicros(total)}</strong></div><small>Last 30 calendar days · peak {shortDate(data[peakIndex]?.date)}</small></figcaption><div className="bar-chart" aria-hidden="true">{data.map(({ date, row }, index) => <i className={row ? "" : "is-missing"} key={date} title={`${shortDate(date)} · ${row ? metric === "tokens" ? compactNumber(row.totalTokens, 2) : currencyFromMicros(row.costMicros) : "not reported"}`} style={{ "--height": `${values[index] === 0 ? 0 : (values[index] / max) * 100}%` } as CSSProperties} />)}</div><div className="chart-axis"><span>{shortDate(data[0].date)}</span><span>Today</span></div><details className="chart-data"><summary>View data</summary><table><thead><tr><th>Date</th><th>{metric === "tokens" ? "Tokens" : "Spend"}</th><th>Coverage</th></tr></thead><tbody>{data.map(({ date, row }) => <tr key={date}><td>{date}</td><td>{row ? metric === "tokens" ? row.totalTokens.toLocaleString() : currencyFromMicros(row.costMicros) : "—"}</td><td>{row ? costBasisLabel(row.costBasis) : "not reported"}</td></tr>)}</tbody></table></details></figure>;
-}
-
-function ModelDailyChart({ rows, metric }: { rows: DailyModelRow[]; metric: "tokens" | "spend" }) {
-  const topModels = useMemo(() => { const totals = new Map<string, number>(); for (const row of rows) { const key = `${row.provider}\u001f${row.model}`; totals.set(key, (totals.get(key) ?? 0) + (metric === "tokens" ? row.totalTokens : row.costMicros)); } return [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([model]) => model); }, [rows, metric]);
-  const days = useMemo(() => { const grouped = new Map<string, Map<string, number>>(); for (const row of rows) { const day = grouped.get(row.date) ?? new Map<string, number>(); const key = `${row.provider}\u001f${row.model}`; day.set(key, (day.get(key) ?? 0) + (metric === "tokens" ? row.totalTokens : row.costMicros)); grouped.set(row.date, day); } return [...grouped.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-30); }, [rows, metric]);
-  const max = Math.max(...days.map(([, values]) => [...values.values()].reduce((sum, value) => sum + value, 0)), 1);
-  return <div className="model-daily-chart"><div className="stacked-bars" aria-label={`Daily ${metric} split by model`}>{days.map(([date, values]) => { const total = [...values.values()].reduce((sum, value) => sum + value, 0); const visible = topModels.reduce((sum, model) => sum + (values.get(model) ?? 0), 0); const other = total - visible; return <div className="stack-column" key={date} title={`${shortDate(date)} · ${metric === "tokens" ? compactNumber(total, 2) : currencyFromMicros(total)}`} style={{ height: `${total === 0 ? 0 : (total / max) * 100}%` }}>{topModels.map((model, index) => { const amount = values.get(model) ?? 0; return amount > 0 ? <i key={model} style={{ background: modelColors[index], height: `${(amount / total) * 100}%` }} /> : null; })}{other > 0 ? <i className="is-other" style={{ height: `${other / total * 100}%` }} /> : null}</div>; })}</div><div className="model-legend">{topModels.map((model, index) => { const [provider, name] = model.split("\u001f"); return <span key={model}><i style={{ background: modelColors[index] }} />{formatModel(name)} <small>{provider}</small></span>; })}<span><i className="is-other" />Other</span></div></div>;
-}
-
-function ActivityHeatmap({ rows }: { rows: DailyRow[] }) {
-  const values = new Map(rows.map((row) => [row.date, row.totalTokens]));
-  const max = Math.max(...rows.map((row) => row.totalTokens), 1);
-  const end = new Date(); end.setUTCHours(0, 0, 0, 0);
-  const start = new Date(end); start.setUTCDate(start.getUTCDate() - 364);
-  const cells: Array<{ date?: string; value?: number }> = Array.from({ length: start.getUTCDay() }, () => ({}));
-  for (let cursor = new Date(start); cursor <= end; cursor.setUTCDate(cursor.getUTCDate() + 1)) { const date = cursor.toISOString().slice(0, 10); cells.push({ date, value: values.get(date) ?? 0 }); }
-  const displayed = cells.filter((cell) => cell.date && (cell.value ?? 0) > 0).length;
-  return <figure className="heatmap-panel"><figcaption className="panel-title"><div><span>Activity</span><h3>{displayed} active days</h3></div><small>Last 12 calendar months</small></figcaption><div className="calendar-wrap"><div className="calendar-labels"><span>M</span><span>W</span><span>F</span></div><div aria-label={`${displayed} active days in the last 12 calendar months`} className="calendar-grid" role="img">{cells.map((cell, index) => { const level = cell.value ? Math.min(4, Math.ceil((cell.value / max) * 4)) : 0; return <i aria-hidden="true" className={cell.date ? `level-${level}` : "is-spacer"} key={cell.date ?? `spacer-${index}`} title={cell.date ? `${cell.date} · ${compactNumber(cell.value ?? 0, 2)} tokens` : undefined} />; })}</div></div><div className="heatmap-key" aria-hidden="true"><span>Less</span><i className="level-0" /><i className="level-1" /><i className="level-2" /><i className="level-3" /><i className="level-4" /><span>More</span></div></figure>;
-}
-
-function WeekdayActivity({ rows }: { rows: DailyRow[] }) {
-  const labels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const totals = Array(7).fill(0) as number[];
-  rows.forEach((row) => { totals[new Date(`${row.date}T00:00:00Z`).getUTCDay()] += row.totalTokens; });
-  const max = Math.max(...totals, 1);
-  return <div className="weekday-panel"><div className="panel-title"><div><span>Most active time</span><h3>When the work happens</h3></div></div><div className="weekday-bars">{totals.map((total, index) => <div key={labels[index]}><i style={{ height: `${total === 0 ? 0 : (total / max) * 100}%` }} /><span>{labels[index]}</span></div>)}</div></div>;
-}
-
-function MonthlySpend({ rows }: { rows: DailyRow[] }) {
-  const totals = new Map<string, number>();
-  rows.forEach((row) => totals.set(row.date.slice(0, 7), (totals.get(row.date.slice(0, 7)) ?? 0) + row.costMicros));
-  const months = [...totals.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-6);
-  const max = Math.max(...months.map(([, value]) => value), 1);
-  return <div className="monthly-panel"><div className="panel-title"><div><span>Monthly spend</span><h3>Cost over time</h3></div><small>Last 6 months</small></div><div className="monthly-list">{months.map(([month, value]) => <div key={month}><span>{new Intl.DateTimeFormat("en", { month: "short", timeZone: "UTC" }).format(new Date(`${month}-01T00:00:00Z`))}</span><i><b style={{ width: `${(value / max) * 100}%` }} /></i><strong>{currencyFromMicros(value)}</strong></div>)}</div></div>;
-}
-
-function ModelTable({ models, totalTokens }: { models: ModelRow[]; totalTokens: number }) {
-  return <div className="model-panel" id="models"><div className="panel-title"><div><span>Model mix</span><h3>Where the tokens went</h3></div><small>Top {models.length} by spend</small></div><div className="model-table">{models.slice(0, 10).map((model, index) => { const share = totalTokens ? (model.totalTokens / totalTokens) * 100 : 0; return <div key={`${model.provider}-${model.model}`}><span className="model-index">{String(index + 1).padStart(2, "0")}</span><span><strong>{formatModel(model.model)}</strong><small>{model.provider} · {model.requests ? `${compactNumber(model.requests)} requests` : "request count unavailable"}</small></span><i><b style={{ background: modelColors[index % modelColors.length], width: `${share}%` }} /></i><span className="model-value"><strong>{compactNumber(model.totalTokens, 2)}</strong><small>{currencyFromMicros(model.costMicros)}</small></span></div>; })}</div></div>;
+function ModelTable({ models, totalTokens, dailyModels }: { models: ModelRow[]; totalTokens: number; dailyModels: ModelDay[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const sorted = [...models].sort((a, b) => b.costMicros - a.costMicros);
+  const shown = expanded ? sorted : sorted.slice(0, 6);
+  const colors = useMemo(() => new Map(modelSeries(dailyModels, 30).models.map(model => [model.id, model.color])), [dailyModels]);
+  return <div className="model-panel" id="models"><div className="panel-title"><div><span>All-time · leading models</span><h3>Where the tokens went</h3></div><small>Up to 12 models · selected by spend</small></div><div className="model-table">{shown.map((model, index) => { const share = totalTokens ? (model.totalTokens / totalTokens) * 100 : 0; return <div key={`${model.provider}-${model.model}`}><span className="model-index">{String(index + 1).padStart(2, "0")}</span><span><strong>{formatModel(model.model)}</strong><small>{model.provider} · {share.toFixed(1)}% of all-time tokens</small></span><i aria-hidden="true"><b style={{ background: colors.get(`${model.provider}\u001f${model.model}`) ?? otherColor, width: `${Math.min(100, share)}%` }} /></i><span className="model-value"><strong>{compactNumber(model.totalTokens, 2)}</strong><small>{currencyFromMicros(model.costMicros)}</small></span></div>; })}</div>{!models.length ? <p className="feed-empty">No model totals reported yet.</p> : null}{models.length > 6 ? <button type="button" className="model-expand" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{expanded ? "Show fewer models ↑" : `Show all ${models.length} listed models ↓`}</button> : null}</div>;
 }
 
 function DimensionPanel({ title, note, rows }: { title: string; note: string; rows: BreakdownRow[] }) {
   const total = rows.reduce((sum, row) => sum + row.totalTokens, 0);
-  return <div className="dimension-panel"><div className="panel-title"><div><span>{title}</span><h3>{note}</h3></div><small>Last 30 calendar days</small></div><div className="dimension-list">{rows.length ? rows.slice(0, 8).map((row) => { const share = total ? (row.totalTokens / total) * 100 : 0; return <div key={row.key}><span><strong>{row.key}</strong><small>{currencyFromMicros(row.costMicros)}</small></span><i><b style={{ width: `${share}%` }} /></i><strong>{compactNumber(row.totalTokens, 2)}</strong></div>; }) : <div className="feed-empty">No breakdown reported yet.</div>}</div></div>;
+  return <div className="dimension-panel"><div className="panel-title"><div><span>{title}</span><h3>{note}</h3></div><small>Latest 30 reported days</small></div><div className="dimension-list">{rows.length ? rows.slice(0, 8).map((row) => { const share = total ? (row.totalTokens / total) * 100 : 0; return <div key={row.key}><span><strong>{row.key}</strong><small>{currencyFromMicros(row.costMicros)}</small></span><i><b style={{ width: `${share}%` }} /></i><strong>{compactNumber(row.totalTokens, 2)}</strong></div>; }) : <div className="feed-empty">No breakdown reported yet.</div>}</div></div>;
 }
 
 function CoverageSummary({ stats }: { stats: ProfileStats | null }) {
@@ -191,10 +122,10 @@ function ProfileDataView({ handle }: { handle: string }) {
   async function share() { try { await navigator.clipboard.writeText(window.location.href); setCopyError(false); setCopied(true); window.setTimeout(() => setCopied(false), 1800); } catch { setCopyError(true); } }
 
   return <div className="page-surface profile-page">
-    <div className="profile-toolbar shell"><Link href="/leaderboard">← Public ledger</Link><span className="section-index">Personal usage record</span><nav aria-label="Profile sections"><a href="#usage">Usage</a><a href="#models">Models</a><a href="#activity">Activity</a></nav></div><section className="profile-cover shell"><div className="profile-chart-hero"><ProfileHeroChart rows={daily} /><div className="profile-chart-total"><span>All-time tokens</span><strong>{compactNumber(safeNumber(stats?.totalTokens), 2)}</strong><small>{currencyFromMicros(safeNumber(stats?.totalCostMicros))} {costBasisLabel(stats?.costBasis)}</small></div><div className="profile-chart-meta"><LivePill>{live.agents.some((agent) => agent.expiresAt > now) ? "Working now" : "No active heartbeat"}</LivePill><span>Since {stats?.firstDay ? shortDate(stats.firstDay) : "first upload"}</span></div></div><aside className="profile-identity-card"><div className="profile-avatar-row"><Avatar name={profile.displayName || profile.handle} size="large" /><button onClick={share} type="button">{copied ? "Copied" : "Share"} <ArrowUpRight size={14} /></button></div><div><h1>{profile.displayName || profile.handle}{profile.isVerified ? <VerifyBadge /> : null}</h1><p className="profile-handle">@{profile.handle}</p></div><p className="profile-bio">{profile.bio || "Building in public, one token at a time."}</p>{copyError ? <p className="copy-fallback">Copy failed. Select this URL: <span>{typeof window === "undefined" ? `https://usagemax.com/${profile.handle}` : window.location.href}</span></p> : null}<div className="identity-facts"><span><small>Rank</small><strong>{rank}</strong></span><span><small>Top model by {stats?.topModelMetric === "tokens" ? "tokens" : "spend"}</small><strong>{formatModel(stats?.topModel || "—")}</strong></span></div><div className="identity-update"><i /> Last upload {stats?.lastSyncAt ? relativeTime(new Date(stats.lastSyncAt)) : stats?.lastEventAt ? relativeTime(new Date(stats.lastEventAt)) : "not received"}</div></aside></section>
+    <div className="profile-toolbar shell"><Link href="/leaderboard">← Public ledger</Link><span className="section-index">Personal usage record</span><nav aria-label="Profile sections"><a href="#usage">Usage</a><a href="#models">Models</a><a href="#activity">Activity</a></nav></div><section className="profile-cover shell"><div className="profile-chart-hero"><div className="profile-chart-total"><span>All-time tokens</span><strong>{compactNumber(safeNumber(stats?.totalTokens), 2)}</strong><small>{currencyFromMicros(safeNumber(stats?.totalCostMicros))} {costBasisLabel(stats?.costBasis)}</small><HeroSparkline rows={daily} /></div><div className="profile-chart-meta"><LivePill>{live.agents.some((agent) => agent.expiresAt > now) ? "Working now" : "No active heartbeat"}</LivePill><span>Since {stats?.firstDay ? shortDate(stats.firstDay) : "first upload"}</span></div></div><aside className="profile-identity-card"><div className="profile-avatar-row"><Avatar name={profile.displayName || profile.handle} size="large" /><button onClick={share} type="button">{copied ? "Copied" : "Share"} <ArrowUpRight size={14} /></button></div><div><h1>{profile.displayName || profile.handle}{profile.isVerified ? <VerifyBadge /> : null}</h1><p className="profile-handle">@{profile.handle}</p></div><p className="profile-bio">{profile.bio || "Building in public, one token at a time."}</p>{copyError ? <p className="copy-fallback">Copy failed. Select this URL: <span>{typeof window === "undefined" ? `https://usagemax.com/${profile.handle}` : window.location.href}</span></p> : null}<div className="identity-facts"><span><small>Rank</small><strong>{rank}</strong></span><span><small>Top model by {stats?.topModelMetric === "tokens" ? "tokens" : "spend"}</small><strong>{formatModel(stats?.topModel || "—")}</strong></span></div><div className="identity-update"><i /> Last upload {stats?.lastSyncAt ? relativeTime(new Date(stats.lastSyncAt)) : stats?.lastEventAt ? relativeTime(new Date(stats.lastEventAt)) : "not received"}</div></aside></section>
     <CoverageSummary stats={stats} />
     <section className="profile-stats shell"><StatTile label="Total spend" note={costBasisLabel(stats?.costBasis)} value={currencyFromMicros(safeNumber(stats?.totalCostMicros))} /><StatTile label="Sessions" note={`${compactNumber(safeNumber(stats?.deviceCount))} privacy-safe devices`} value={compactNumber(safeNumber(stats?.sessions))} /><StatTile label="Active days" note={stats?.firstDay ? `since ${shortDate(stats.firstDay)}` : "since first upload"} value={compactNumber(safeNumber(stats?.activeDays))} /><StatTile label="Current streak" note={`best ${safeNumber(stats?.longestStreakDays)} days`} value={`${safeNumber(stats?.currentStreakDays)} days`} /></section>
-    <section className="profile-data shell" id="usage"><div className="profile-section-title"><span className="section-index">USAGE / LAST 30 CALENDAR DAYS</span><h2>The shape of the work.</h2></div><div className="daily-chart-grid"><div><DailyBars metric="spend" rows={daily} />{dailyModels.length ? <ModelDailyChart metric="spend" rows={dailyModels} /> : null}</div><div><DailyBars metric="tokens" rows={daily} />{dailyModels.length ? <ModelDailyChart metric="tokens" rows={dailyModels} /> : null}</div></div><ActivityHeatmap rows={daily} /><div className="behavior-grid"><WeekdayActivity rows={daily} /><MonthlySpend rows={daily} /></div><ModelTable models={models} totalTokens={safeNumber(stats?.totalTokens)} /><div className="dimension-grid"><DimensionPanel note="By connected runtime" rows={breakdowns.sources} title="Sources" /><DimensionPanel note="Privacy-safe identities" rows={breakdowns.devices} title="Devices" /></div><LiveActivity live={live} loading={false} now={now} /></section>
+    <section className="profile-data shell" id="usage"><UsageTrend rows={daily} /><ModelFlow rows={dailyModels} /><ActivityCalendar rows={daily} /><RhythmCharts rows={daily} /><ModelTable models={models} totalTokens={safeNumber(stats?.totalTokens)} dailyModels={dailyModels} /><div className="dimension-grid"><DimensionPanel note="By connected runtime" rows={breakdowns.sources} title="Sources" /><DimensionPanel note="Privacy-safe identities" rows={breakdowns.devices} title="Devices" /></div><LiveActivity live={live} loading={false} now={now} /></section>
   </div>;
 }
 

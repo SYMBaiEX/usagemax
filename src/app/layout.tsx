@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Instrument_Sans } from "next/font/google";
+import { Geist_Mono, Instrument_Sans, Instrument_Serif } from "next/font/google";
 
 import { Providers } from "@/components/providers";
 import { SiteFooter, SiteHeader } from "@/components/site-shell";
@@ -14,6 +14,8 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
+
+const instrumentSerif = Instrument_Serif({ variable: "--font-instrument-serif", subsets: ["latin"], weight: "400", style: ["normal", "italic"] });
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://usagemax.com"),
@@ -45,7 +47,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${instrumentSans.variable} ${geistMono.variable}`} data-scroll-behavior="smooth">
+    <html lang="en" className={`${instrumentSans.variable} ${geistMono.variable} ${instrumentSerif.variable}`} data-scroll-behavior="smooth">
       <body className="site-body">
         <Providers>
           <a className="skip-link" href="#main-content">Skip to main content</a>
