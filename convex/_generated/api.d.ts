@@ -19,6 +19,7 @@ import type * as public_ from "../public.js";
 import type * as rateLimits from "../rateLimits.js";
 import type * as snapshots from "../snapshots.js";
 import type * as telemetry from "../telemetry.js";
+import type * as workos from "../workos.js";
 
 import type {
   ApiFromModules,
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   rateLimits: typeof rateLimits;
   snapshots: typeof snapshots;
   telemetry: typeof telemetry;
+  workos: typeof workos;
 }>;
 
 /**

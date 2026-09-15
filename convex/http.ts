@@ -1,4 +1,5 @@
 import { httpRouter } from "convex/server";
+import { WorkOS } from "@workos-inc/node";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { MIN_EVENT_TIME, clampNonNegative, cleanText, jsonResponse, sha256 } from "./lib";
@@ -544,6 +545,77 @@ const revokeDevice = httpAction(async (ctx, request) => {
   }
 });
 
+const workosLifecycle = httpAction(async (ctx, request) => {
+  const secret = process.env.WORKOS_WEBHOOK_SECRET;
+  const clientId = process.env.WORKOS_CLIENT_ID;
+  if (!secret || !clientId) return jsonResponse({ error: "webhook_not_configured" }, 503);
+  const declaredLength = Number(request.headers.get("content-length") ?? 0);
+  if (!Number.isFinite(declaredLength) || declaredLength < 0 || declaredLength > 262_144) {
+    return jsonResponse({ error: "payload_too_large" }, 413);
+  }
+  const payload = await request.text();
+  if (payload.length > 262_144) return jsonResponse({ error: "payload_too_large" }, 413);
+  const sigHeader = request.headers.get("workos-signature");
+  if (!sigHeader) return jsonResponse({ error: "signature_required" }, 401);
+
+  try {
+    const workos = new WorkOS({ clientId });
+    const verified = await workos.webhooks.constructEvent({ payload, sigHeader, secret });
+    const envelope = object(verified);
+    const data = object(envelope?.data);
+    const eventId = optionalText(envelope?.id, 120);
+    const eventName = optionalText(envelope?.event, 120);
+    if (!envelope || !eventId || !eventName || !data) return jsonResponse({ error: "invalid_event" }, 400);
+    const supported = eventName === "organization.updated"
+      || eventName === "organization.deleted"
+      || eventName === "organization_membership.created"
+      || eventName === "organization_membership.updated"
+      || eventName === "organization_membership.deleted";
+    if (!supported) return jsonResponse({ ok: true, ignored: true });
+
+    const organizationId = optionalText(
+      eventName.startsWith("organization_membership.") ? data.organizationId ?? data.organization_id : data.id,
+      120,
+    );
+    if (!organizationId) return jsonResponse({ error: "organization_id_required" }, 400);
+    const role = object(data.role);
+    const roleSlugs = array(data.roles)
+      .map((entry) => optionalText(object(entry)?.slug, 80))
+      .filter((entry): entry is string => Boolean(entry));
+    const singleRole = optionalText(role?.slug, 80);
+    if (singleRole && !roleSlugs.includes(singleRole)) roleSlugs.unshift(singleRole);
+    const sourceTimestamp = typeof data.updatedAt === "string"
+      ? data.updatedAt
+      : typeof data.updated_at === "string"
+        ? data.updated_at
+        : envelope.createdAt ?? envelope.created_at;
+    const parsedOccurredAt = typeof sourceTimestamp === "string" ? Date.parse(sourceTimestamp) : NaN;
+    const result = await ctx.runMutation(internal.workos.applyLifecycleEvent, {
+      eventId,
+      eventName,
+      organizationId,
+      userId: optionalText(data.userId ?? data.user_id, 120),
+      status: optionalText(data.status, 30),
+      roleSlugs,
+      directoryManaged: typeof data.directoryManaged === "boolean"
+        ? data.directoryManaged
+        : typeof data.directory_managed === "boolean"
+          ? data.directory_managed
+          : undefined,
+      organizationName: optionalText(data.name, 120),
+      occurredAt: Number.isFinite(parsedOccurredAt) ? Math.round(parsedOccurredAt) : Date.now(),
+      now: Date.now(),
+    });
+    return jsonResponse({ ok: true, replay: result.replay, outcome: result.outcome });
+  } catch (error) {
+    const message = String(error).toLowerCase();
+    if (message.includes("signature") || message.includes("timestamp")) {
+      return jsonResponse({ error: "invalid_signature" }, 401);
+    }
+    return jsonResponse({ error: "webhook_processing_failed" }, 500);
+  }
+});
+
 const http = httpRouter();
 const cors = httpAction(async (_ctx, request) => {
   const origin = request.headers.get("origin");
@@ -569,5 +641,6 @@ http.route({ path: "/v1/telemetry/llm", method: "POST", handler: httpAction((ctx
 http.route({ path: "/v1/telemetry/llm", method: "OPTIONS", handler: cors });
 http.route({ path: "/v1/traces", method: "POST", handler: httpAction((ctx, request) => ingest(ctx, request, "otlp")) });
 http.route({ path: "/v1/traces", method: "OPTIONS", handler: cors });
+http.route({ path: "/v1/workos/events", method: "POST", handler: workosLifecycle });
 
 export default http;

@@ -1,9 +1,11 @@
 import { ConvexError, v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
+import type { UserIdentity } from "convex/server";
 
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import type { Id, TableNames } from "./_generated/dataModel";
+import type { Doc, Id, TableNames } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
-import { action, internalMutation, mutation, query } from "./_generated/server";
+import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { cleanText, sha256 } from "./lib";
 
 const RESERVED_HANDLES = new Set([
@@ -24,6 +26,73 @@ const RESERVED_HANDLES = new Set([
 const LINK_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const LINK_CODE_TTL_MS = 10 * 60_000;
 
+const WORKSPACE_PERMISSIONS = [
+  "workspace:manage",
+  "workspace:delete",
+  "profile:manage",
+  "collectors:manage",
+  "data:export",
+  "audit:read",
+] as const;
+type WorkspacePermission = (typeof WORKSPACE_PERMISSIONS)[number];
+
+const ROLE_PERMISSIONS: Record<string, ReadonlySet<WorkspacePermission>> = {
+  owner: new Set(WORKSPACE_PERMISSIONS),
+  admin: new Set(WORKSPACE_PERMISSIONS.filter((permission) => permission !== "workspace:delete")),
+  member: new Set(),
+  viewer: new Set(),
+};
+
+type AccessReference = {
+  identityKey: string;
+  subject: string;
+  organizationId?: string;
+  issuedAt?: number;
+  roles: string[];
+  permissions: string[];
+  permissionsAuthoritative: boolean;
+};
+
+const accessReferenceValidator = v.object({
+  identityKey: v.string(),
+  subject: v.string(),
+  organizationId: v.optional(v.string()),
+  issuedAt: v.optional(v.number()),
+  roles: v.array(v.string()),
+  permissions: v.array(v.string()),
+  permissionsAuthoritative: v.boolean(),
+});
+
+function stringClaim(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function stringArrayClaim(value: unknown) {
+  return Array.isArray(value)
+    ? [...new Set(value.filter((entry): entry is string => typeof entry === "string" && Boolean(entry.trim())).map((entry) => entry.trim()))]
+    : [];
+}
+
+function issuedAtClaim(value: unknown) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return undefined;
+  return value < 1_000_000_000_000 ? Math.round(value * 1000) : Math.round(value);
+}
+
+function accessReference(identity: UserIdentity): AccessReference {
+  const roles = stringArrayClaim(identity.roles);
+  const role = stringClaim(identity.role);
+  if (role && !roles.includes(role)) roles.unshift(role);
+  return {
+    identityKey: identityKey(identity),
+    subject: identity.subject,
+    organizationId: stringClaim(identity.org_id),
+    issuedAt: issuedAtClaim(identity.iat),
+    roles,
+    permissions: stringArrayClaim(identity.permissions),
+    permissionsAuthoritative: Array.isArray(identity.permissions),
+  };
+}
+
 async function identityOrThrow(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) throw new ConvexError("AUTH_REQUIRED");
@@ -42,19 +111,84 @@ async function userForIdentity(ctx: QueryCtx | MutationCtx, identityKey: string)
     .unique();
 }
 
-function identityKey(identity: Awaited<ReturnType<typeof identityOrThrow>>) {
+function identityKey(identity: UserIdentity) {
   return identity.tokenIdentifier || identity.subject;
 }
 
-async function profileForUser(ctx: QueryCtx | MutationCtx, userId: Id<"users">) {
-  const owned = await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", userId)).unique();
-  if (owned) return owned;
-  const membership = await ctx.db.query("workspaceMemberships").withIndex("by_userId_and_workspaceId", (q) =>
-    q.eq("userId", userId),
-  ).filter((q) => q.eq(q.field("status"), "active")).first();
-  return membership
-    ? ctx.db.query("profiles").withIndex("by_workspaceId", (q) => q.eq("workspaceId", membership.workspaceId)).first()
-    : null;
+async function workspaceAccessForUser(
+  ctx: QueryCtx | MutationCtx,
+  userId: Id<"users">,
+  reference: Pick<AccessReference, "organizationId" | "roles" | "permissions">,
+) {
+  let workspace: Doc<"workspaces"> | null = null;
+  let membership: Doc<"workspaceMemberships"> | null = null;
+  let profile: Doc<"profiles"> | null = null;
+  if (reference.organizationId) {
+    workspace = await ctx.db.query("workspaces").withIndex("by_workosOrganizationId", (q) =>
+      q.eq("workosOrganizationId", reference.organizationId),
+    ).unique();
+    if (!workspace || workspace.accessDisabledAt) return null;
+    membership = await ctx.db.query("workspaceMemberships").withIndex("by_userId_and_workspaceId", (q) =>
+      q.eq("userId", userId).eq("workspaceId", workspace!._id),
+    ).unique();
+    if (!membership || membership.status !== "active") return null;
+    profile = await ctx.db.query("profiles").withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspace!._id)).first();
+  } else {
+    const ownedProfiles = await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", userId)).take(20);
+    for (const candidate of ownedProfiles) {
+      const candidateWorkspace = await ctx.db.get(candidate.workspaceId);
+      if (!candidateWorkspace || candidateWorkspace.workosOrganizationId) continue;
+      const candidateMembership = await ctx.db.query("workspaceMemberships").withIndex("by_userId_and_workspaceId", (q) =>
+        q.eq("userId", userId).eq("workspaceId", candidateWorkspace._id),
+      ).unique();
+      if (candidateMembership?.status !== "active") continue;
+      workspace = candidateWorkspace;
+      membership = candidateMembership;
+      profile = candidate;
+      break;
+    }
+  }
+  return workspace && membership ? { workspace, membership, profile } : null;
+}
+
+function hasWorkspacePermission(
+  access: NonNullable<Awaited<ReturnType<typeof workspaceAccessForUser>>>,
+  reference: Pick<AccessReference, "organizationId" | "issuedAt" | "roles" | "permissions" | "permissionsAuthoritative">,
+  permission: WorkspacePermission,
+) {
+  if (access.workspace.workosOrganizationId && access.workspace.workosOrganizationId !== reference.organizationId) return false;
+  if (access.membership.authorizationChangedAt && (!reference.issuedAt || reference.issuedAt < access.membership.authorizationChangedAt)) {
+    return false;
+  }
+  if (reference.permissionsAuthoritative) return reference.permissions.includes(permission);
+  const roles = reference.roles.length ? reference.roles : [access.membership.role];
+  return roles.some((role) => ROLE_PERMISSIONS[role]?.has(permission));
+}
+
+async function requireWorkspaceMembership(ctx: QueryCtx | MutationCtx) {
+  const identity = await identityOrThrow(ctx);
+  const reference = accessReference(identity);
+  const user = await userForIdentity(ctx, reference.identityKey) ?? await userForIdentity(ctx, reference.subject);
+  if (!user) throw new ConvexError("PROFILE_REQUIRED");
+  const access = await workspaceAccessForUser(ctx, user._id, reference);
+  if (!access?.profile) throw new ConvexError("PROFILE_REQUIRED");
+  return { identity, reference, user, ...access, profile: access.profile };
+}
+
+async function requireWorkspaceAccess(ctx: QueryCtx | MutationCtx, permission: WorkspacePermission) {
+  const result = await requireWorkspaceMembership(ctx);
+  const { reference, ...access } = result;
+  if (!hasWorkspacePermission(access, reference, permission)) throw new ConvexError("FORBIDDEN");
+  return result;
+}
+
+async function requireWorkspaceAccessForReference(ctx: QueryCtx | MutationCtx, reference: AccessReference, permission: WorkspacePermission) {
+  const user = await userForIdentity(ctx, reference.identityKey) ?? await userForIdentity(ctx, reference.subject);
+  if (!user) throw new ConvexError("PROFILE_REQUIRED");
+  const access = await workspaceAccessForUser(ctx, user._id, reference);
+  if (!access?.profile) throw new ConvexError("PROFILE_REQUIRED");
+  if (!hasWorkspacePermission(access, reference, permission)) throw new ConvexError("FORBIDDEN");
+  return { user, ...access, profile: access.profile };
 }
 
 async function audit(ctx: MutationCtx, workspaceId: Id<"workspaces">, actorUserId: Id<"users"> | undefined, action: string, targetType: string, targetId: string | undefined, summary: string) {
@@ -111,17 +245,158 @@ function newDeviceLinkCode() {
   return `UMX-${characters.join("").match(/.{4}/g)!.join("-")}`;
 }
 
+function referenceHasPermission(
+  reference: Pick<AccessReference, "roles" | "permissions" | "permissionsAuthoritative">,
+  permission: WorkspacePermission,
+) {
+  if (reference.permissionsAuthoritative) return reference.permissions.includes(permission);
+  return reference.roles.some((role) => ROLE_PERMISSIONS[role]?.has(permission));
+}
+
+function collectorLimit(plan: Doc<"workspaces">["plan"]) {
+  return plan === "enterprise" ? 500 : plan === "team" ? 100 : plan === "pro" ? 25 : 8;
+}
+
+async function syncOrganizationMembership(
+  ctx: MutationCtx,
+  workspace: Doc<"workspaces">,
+  userId: Id<"users">,
+  reference: AccessReference,
+  now: number,
+) {
+  if (!reference.organizationId || workspace.workosOrganizationId !== reference.organizationId) {
+    throw new ConvexError("ORGANIZATION_MISMATCH");
+  }
+  const existing = await ctx.db.query("workspaceMemberships").withIndex("by_userId_and_workspaceId", (q) =>
+    q.eq("userId", userId).eq("workspaceId", workspace._id),
+  ).unique();
+  if (existing?.authorizationChangedAt && (!reference.issuedAt || reference.issuedAt < existing.authorizationChangedAt)) {
+    throw new ConvexError("SESSION_REFRESH_REQUIRED");
+  }
+  const roles = reference.roles.length ? reference.roles : ["member"];
+  const values = {
+    workosOrganizationId: reference.organizationId,
+    role: roles[0],
+    roles,
+    permissions: reference.permissions,
+    source: "workos" as const,
+    status: "active" as const,
+    lastSyncedAt: now,
+    updatedAt: now,
+  };
+  if (existing) {
+    await ctx.db.patch(existing._id, values);
+    return existing._id;
+  }
+  return await ctx.db.insert("workspaceMemberships", {
+    workspaceId: workspace._id,
+    userId,
+    createdAt: now,
+    ...values,
+  });
+}
+
+async function createProfileRecords(
+  ctx: MutationCtx,
+  workspace: Doc<"workspaces">,
+  ownerId: Id<"users">,
+  actorUserId: Id<"users">,
+  handle: string,
+  displayName: string,
+  avatarUrl: string | undefined,
+  now: number,
+) {
+  const profileId = await ctx.db.insert("profiles", {
+    ownerId,
+    workspaceId: workspace._id,
+    handle,
+    displayName,
+    bio: "",
+    avatarUrl,
+    isPublic: false,
+    isVerified: false,
+    verification: "account",
+    createdAt: now,
+    updatedAt: now,
+  });
+  await ctx.db.insert("profileStats", {
+    workspaceId: workspace._id,
+    profileId,
+    totalTokens: 0,
+    totalCostMicros: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    reasoningTokens: 0,
+    unclassifiedTokens: 0,
+    sessions: 0,
+    activeDays: 0,
+    currentStreakDays: 0,
+    longestStreakDays: 0,
+    deviceCount: 0,
+    topModel: "unknown",
+    updatedAt: now,
+  });
+  const shard = [...handle].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 128;
+  const counter = await ctx.db.query("networkCounterShards").withIndex("by_shard", (q) => q.eq("shard", shard)).unique();
+  if (counter) {
+    await ctx.db.patch(counter._id, { profiles: counter.profiles + 1, updatedAt: now });
+  } else {
+    await ctx.db.insert("networkCounterShards", {
+      shard,
+      totalTokens: 0,
+      totalCostMicros: 0,
+      totalSessions: 0,
+      profiles: 1,
+      eventsDay: new Date(now).toISOString().slice(0, 10),
+      eventsToday: 0,
+      updatedAt: now,
+    });
+  }
+  await audit(ctx, workspace._id, actorUserId, "profile.created", "profile", String(profileId), `Created @${handle}`);
+  return profileId;
+}
+
+function collectorView(collector: Doc<"collectors">) {
+  return {
+    id: collector._id,
+    name: collector.name,
+    keyPrefix: collector.keyPrefix,
+    scopes: collector.scopes,
+    platform: collector.platform,
+    cliVersion: collector.cliVersion,
+    createdAt: collector.createdAt,
+    lastSeenAt: collector.lastSeenAt,
+    lastSuccessAt: collector.lastSuccessAt,
+    lastFailureAt: collector.lastFailureAt,
+    lastFailureCode: collector.lastFailureCode,
+    lastSyncPhase: collector.lastSyncPhase,
+    lastFullSyncAt: collector.lastFullSyncAt,
+    coverageStatus: collector.coverageStatus ?? "not_assessed",
+    coverageStartDay: collector.coverageStartDay,
+    coverageEndDay: collector.coverageEndDay,
+    inventoryComplete: collector.inventoryComplete,
+    inventoryErrors: collector.inventoryErrors,
+    inventoryTruncated: collector.inventoryTruncated,
+    sourceCount: collector.sourceCount,
+    unresolvedCorrections: collector.unresolvedCorrections,
+    rotatedAt: collector.rotatedAt,
+    revokedAt: collector.revokedAt,
+  };
+}
+
 export const current = query({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
-    const user = await userForIdentity(ctx, identityKey(identity)) ?? await userForIdentity(ctx, identity.subject);
-    const profile = user
-      ? await profileForUser(ctx, user._id)
-      : null;
+    const reference = accessReference(identity);
+    const user = await userForIdentity(ctx, reference.identityKey) ?? await userForIdentity(ctx, reference.subject);
+    const access = user ? await workspaceAccessForUser(ctx, user._id, reference) : null;
+    const profile = access?.profile ?? null;
     const collectors = profile
-      ? await ctx.db.query("collectors").withIndex("by_workspaceId", (q) => q.eq("workspaceId", profile.workspaceId)).take(20)
+      ? await ctx.db.query("collectors").withIndex("by_workspaceId", (q) => q.eq("workspaceId", profile.workspaceId)).order("desc").take(20)
       : [];
     const stats = profile
       ? await ctx.db.query("profileStats").withIndex("by_profileId", (q) => q.eq("profileId", profile._id)).unique()
@@ -141,6 +416,17 @@ export const current = query({
         email: identity.email,
         avatarUrl: identity.pictureUrl,
       },
+      workspace: access ? {
+        name: access.workspace.name,
+        slug: access.workspace.slug,
+        plan: access.workspace.plan,
+        kind: access.workspace.workosOrganizationId ? "organization" as const : "personal" as const,
+        role: access.membership.role,
+      } : null,
+      capabilities: access ? Object.fromEntries(WORKSPACE_PERMISSIONS.map((permission) => [
+        permission,
+        hasWorkspacePermission(access, reference, permission),
+      ])) : {},
       profile: profile
         ? {
             handle: profile.handle,
@@ -153,31 +439,7 @@ export const current = query({
         : null,
       collectors: collectors
         .sort((left, right) => right.createdAt - left.createdAt)
-        .map((collector) => ({
-          id: collector._id,
-          name: collector.name,
-          keyPrefix: collector.keyPrefix,
-          scopes: collector.scopes,
-          platform: collector.platform,
-          cliVersion: collector.cliVersion,
-          createdAt: collector.createdAt,
-          lastSeenAt: collector.lastSeenAt,
-          lastSuccessAt: collector.lastSuccessAt,
-          lastFailureAt: collector.lastFailureAt,
-          lastFailureCode: collector.lastFailureCode,
-          lastSyncPhase: collector.lastSyncPhase,
-          lastFullSyncAt: collector.lastFullSyncAt,
-          coverageStatus: collector.coverageStatus ?? "not_assessed",
-          coverageStartDay: collector.coverageStartDay,
-          coverageEndDay: collector.coverageEndDay,
-          inventoryComplete: collector.inventoryComplete,
-          inventoryErrors: collector.inventoryErrors,
-          inventoryTruncated: collector.inventoryTruncated,
-          sourceCount: collector.sourceCount,
-          unresolvedCorrections: collector.unresolvedCorrections,
-          rotatedAt: collector.rotatedAt,
-          revokedAt: collector.revokedAt,
-        })),
+        .map(collectorView),
       connectedSources: stats?.sources ?? [],
       lastSyncAt: stats?.lastSyncAt ?? stats?.lastEventAt,
       coverage: latestRun ? {
@@ -195,16 +457,27 @@ export const current = query({
         to: latestRun.coverageEndDay,
         completedAt: latestRun.completedAt,
       } : null,
-      deletionRequest: latestDeletion && !latestDeletion.cancelledAt && !latestDeletion.completedAt
+      deletionRequest: latestDeletion && latestDeletion.workspaceId === access?.workspace._id && !latestDeletion.cancelledAt && !latestDeletion.completedAt
         ? { requestedAt: latestDeletion.requestedAt, scheduledFor: latestDeletion.scheduledFor }
         : null,
     };
   },
 });
 
+export const listCollectors = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const { workspace } = await requireWorkspaceMembership(ctx);
+    const result = await ctx.db.query("collectors").withIndex("by_workspaceId", (q) =>
+      q.eq("workspaceId", workspace._id),
+    ).order("desc").paginate(args.paginationOpts);
+    return { ...result, page: result.page.map(collectorView) };
+  },
+});
+
 export const writeDeviceLink = internalMutation({
   args: {
-    workosUserId: v.string(),
+    access: accessReferenceValidator,
     codeHash: v.string(),
     codePrefix: v.string(),
     deviceName: v.string(),
@@ -212,10 +485,7 @@ export const writeDeviceLink = internalMutation({
     expiresAt: v.number(),
   },
   handler: async (ctx, args) => {
-    const user = await userForIdentity(ctx, args.workosUserId);
-    if (!user) throw new ConvexError("PROFILE_REQUIRED");
-    const profile = await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", user._id)).unique();
-    if (!profile) throw new ConvexError("PROFILE_REQUIRED");
+    const { user, profile } = await requireWorkspaceAccessForReference(ctx, args.access, "collectors:manage");
     const links = await ctx.db
       .query("deviceLinkCodes")
       .withIndex("by_workspaceId", (q) => q.eq("workspaceId", profile.workspaceId))
@@ -223,7 +493,7 @@ export const writeDeviceLink = internalMutation({
     if (links.filter((link) => !link.usedAt && link.expiresAt > args.now).length >= 3) {
       throw new ConvexError("LINK_CODE_LIMIT_REACHED");
     }
-    return await ctx.db.insert("deviceLinkCodes", {
+    const linkId = await ctx.db.insert("deviceLinkCodes", {
       workspaceId: profile.workspaceId,
       profileId: profile._id,
       userId: user._id,
@@ -233,6 +503,8 @@ export const writeDeviceLink = internalMutation({
       createdAt: args.now,
       expiresAt: args.expiresAt,
     });
+    await audit(ctx, profile.workspaceId, user._id, "collector.link_issued", "device_link", String(linkId), "Issued a short-lived device link");
+    return linkId;
   },
 });
 
@@ -244,7 +516,7 @@ export const createDeviceLink = action({
     const code = newDeviceLinkCode();
     const now = Date.now();
     const linkId = await ctx.runMutation(internal.account.writeDeviceLink, {
-      workosUserId: identityKey(identity),
+      access: accessReference(identity),
       codeHash: await sha256(code),
       codePrefix: code.slice(0, 8),
       deviceName: args.name,
@@ -273,10 +545,11 @@ export const redeemDeviceLink = internalMutation({
     const profile = await ctx.db.get(link.profileId);
     const workspace = await ctx.db.get(link.workspaceId);
     if (!profile || !workspace || profile.workspaceId !== workspace._id) throw new ConvexError("INVALID_LINK_CODE");
+    const limit = collectorLimit(workspace.plan);
     const collectors = await ctx.db
       .query("collectors")
       .withIndex("by_workspaceId", (q) => q.eq("workspaceId", link.workspaceId))
-      .take(20);
+      .take(limit + 1);
     let existing = args.installationIdHash
       ? await ctx.db
           .query("collectors")
@@ -289,7 +562,7 @@ export const redeemDeviceLink = internalMutation({
       const prior = await ctx.db.query("collectors").withIndex("by_keyHash", (q) => q.eq("keyHash", args.priorKeyHash!)).unique();
       if (prior?.workspaceId === link.workspaceId) existing = prior;
     }
-    if (!existing && collectors.filter((collector) => !collector.revokedAt).length >= 8) {
+    if (!existing && collectors.filter((collector) => !collector.revokedAt).length >= limit) {
       throw new ConvexError("COLLECTOR_LIMIT_REACHED");
     }
     const update = {
@@ -316,13 +589,14 @@ export const redeemDeviceLink = internalMutation({
           ...update,
         });
     await ctx.db.patch(link._id, { usedAt: args.now, collectorId });
+    await audit(ctx, link.workspaceId, link.userId, existing ? "collector.relinked" : "collector.linked", "collector", String(collectorId), existing ? "Relinked an existing installation" : "Linked a new installation");
     return { collectorId, handle: profile.handle };
   },
 });
 
 export const writeCollector = internalMutation({
   args: {
-    workosUserId: v.string(),
+    access: accessReferenceValidator,
     name: v.optional(v.string()),
     keyHash: v.string(),
     keyPrefix: v.string(),
@@ -330,10 +604,7 @@ export const writeCollector = internalMutation({
     now: v.number(),
   },
   handler: async (ctx, args) => {
-    const user = await userForIdentity(ctx, args.workosUserId);
-    if (!user) throw new ConvexError("PROFILE_REQUIRED");
-    const profile = await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", user._id)).unique();
-    if (!profile) throw new ConvexError("PROFILE_REQUIRED");
+    const { user, profile, workspace } = await requireWorkspaceAccessForReference(ctx, args.access, "collectors:manage");
 
     if (args.collectorId) {
       const collector = await ctx.db.get(args.collectorId);
@@ -350,17 +621,19 @@ export const writeCollector = internalMutation({
         lastFailureCode: undefined,
         rotatedAt: args.now,
       });
+      await audit(ctx, profile.workspaceId, user._id, "collector.rotated", "collector", String(collector._id), `Rotated ${collector.name}`);
       return collector._id;
     }
 
+    const limit = collectorLimit(workspace.plan);
     const existing = await ctx.db
       .query("collectors")
       .withIndex("by_workspaceId", (q) => q.eq("workspaceId", profile.workspaceId))
-      .take(20);
-    if (existing.filter((collector) => !collector.revokedAt).length >= 8) {
+      .take(limit + 1);
+    if (existing.filter((collector) => !collector.revokedAt).length >= limit) {
       throw new ConvexError("COLLECTOR_LIMIT_REACHED");
     }
-    return await ctx.db.insert("collectors", {
+    const collectorId = await ctx.db.insert("collectors", {
       workspaceId: profile.workspaceId,
       profileId: profile._id,
       name: args.name ?? "My computer",
@@ -369,6 +642,8 @@ export const writeCollector = internalMutation({
       scopes: ["telemetry:write", "outcomes:write"],
       createdAt: args.now,
     });
+    await audit(ctx, profile.workspaceId, user._id, "collector.created", "collector", String(collectorId), `Created ${args.name ?? "My computer"}`);
+    return collectorId;
   },
 });
 
@@ -380,7 +655,7 @@ export const createCollector = action({
     const token = newCollectorToken();
     const keyPrefix = token.slice(0, 12);
     const collectorId: Id<"collectors"> = await ctx.runMutation(internal.account.writeCollector, {
-      workosUserId: identityKey(identity),
+      access: accessReference(identity),
       name: cleanText(args.name, "My computer", 80),
       keyHash: await sha256(token),
       keyPrefix,
@@ -398,7 +673,7 @@ export const rotateCollector = action({
     const token = newCollectorToken();
     const keyPrefix = token.slice(0, 12);
     const collectorId: Id<"collectors"> = await ctx.runMutation(internal.account.writeCollector, {
-      workosUserId: identityKey(identity),
+      access: accessReference(identity),
       keyHash: await sha256(token),
       keyPrefix,
       collectorId: args.collectorId,
@@ -411,10 +686,7 @@ export const rotateCollector = action({
 export const revokeCollector = mutation({
   args: { collectorId: v.id("collectors") },
   handler: async (ctx, args) => {
-    const identity = await identityOrThrow(ctx);
-    const user = await userForIdentity(ctx, identityKey(identity)) ?? await userForIdentity(ctx, identity.subject);
-    if (!user) throw new ConvexError("PROFILE_REQUIRED");
-    const profile = await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", user._id)).unique();
+    const { user, profile } = await requireWorkspaceAccess(ctx, "collectors:manage");
     const collector = await ctx.db.get(args.collectorId);
     if (!profile || !collector || collector.workspaceId !== profile.workspaceId) {
       throw new ConvexError("COLLECTOR_NOT_FOUND");
@@ -436,81 +708,71 @@ export const ensureProfile = mutation({
     }
 
     const { identity, userId } = await upsertUser(ctx);
-    const owned = await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", userId)).unique();
-    if (owned) return { handle: owned.handle, created: false };
+    const reference = accessReference(identity);
+    const now = Date.now();
+    let workspace: Doc<"workspaces"> | null = null;
+
+    if (reference.organizationId) {
+      workspace = await ctx.db.query("workspaces").withIndex("by_workosOrganizationId", (q) =>
+        q.eq("workosOrganizationId", reference.organizationId),
+      ).unique();
+      if (workspace) {
+        await syncOrganizationMembership(ctx, workspace, userId, reference, now);
+        const existing = await ctx.db.query("profiles").withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspace!._id)).first();
+        if (existing) return { handle: existing.handle, created: false };
+        if (!referenceHasPermission(reference, "profile:manage")) throw new ConvexError("FORBIDDEN");
+      } else {
+        if (!referenceHasPermission(reference, "workspace:manage")) throw new ConvexError("ORGANIZATION_NOT_PROVISIONED");
+        const workspaceId = await ctx.db.insert("workspaces", {
+          ownerId: userId,
+          workosOrganizationId: reference.organizationId,
+          slug: handle,
+          name: `${identity.name?.trim() || handle}'s organization`,
+          plan: "team",
+          isPublic: false,
+          retentionDays: 365,
+          createdAt: now,
+        });
+        workspace = await ctx.db.get(workspaceId);
+        if (!workspace) throw new ConvexError("WORKSPACE_CREATE_FAILED");
+        await syncOrganizationMembership(ctx, workspace, userId, reference, now);
+      }
+    } else {
+      const existingAccess = await workspaceAccessForUser(ctx, userId, reference);
+      if (existingAccess?.profile) return { handle: existingAccess.profile.handle, created: false };
+    }
 
     const existingProfile = await ctx.db.query("profiles").withIndex("by_handle", (q) => q.eq("handle", handle)).unique();
     if (existingProfile) throw new ConvexError("PROFILE_UNAVAILABLE");
     const existingWorkspace = await ctx.db.query("workspaces").withIndex("by_slug", (q) => q.eq("slug", handle)).unique();
-    if (existingWorkspace) throw new ConvexError("PROFILE_UNAVAILABLE");
+    if (existingWorkspace && existingWorkspace._id !== workspace?._id) throw new ConvexError("PROFILE_UNAVAILABLE");
 
-    const now = Date.now();
     const displayName = identity.name?.trim() || handle;
-    const workspaceId = await ctx.db.insert("workspaces", {
-      ownerId: userId,
-      slug: handle,
-      name: `${displayName}'s workspace`,
-      plan: "free",
-      isPublic: false,
-      retentionDays: 30,
-      createdAt: now,
-    });
-    await ctx.db.insert("workspaceMemberships", {
-      workspaceId,
-      userId,
-      role: "owner",
-      status: "active",
-      createdAt: now,
-      updatedAt: now,
-    });
-    const profileId = await ctx.db.insert("profiles", {
-      ownerId: userId,
-      workspaceId,
-      handle,
-      displayName,
-      bio: "",
-      avatarUrl: identity.pictureUrl,
-      isPublic: false,
-      isVerified: false,
-      verification: "account",
-      createdAt: now,
-      updatedAt: now,
-    });
-    await ctx.db.insert("profileStats", {
-      workspaceId,
-      profileId,
-      totalTokens: 0,
-      totalCostMicros: 0,
-      inputTokens: 0,
-      outputTokens: 0,
-      cacheReadTokens: 0,
-      cacheWriteTokens: 0,
-      reasoningTokens: 0,
-      sessions: 0,
-      activeDays: 0,
-      currentStreakDays: 0,
-      longestStreakDays: 0,
-      deviceCount: 0,
-      topModel: "unknown",
-      updatedAt: now,
-    });
-
-    const shard = [...handle].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 128;
-    const counter = await ctx.db.query("networkCounterShards").withIndex("by_shard", (q) => q.eq("shard", shard)).unique();
-    if (counter) {
-      await ctx.db.patch(counter._id, { profiles: counter.profiles + 1, updatedAt: now });
-    } else {
-      await ctx.db.insert("networkCounterShards", {
-        shard,
-        totalTokens: 0,
-        totalCostMicros: 0,
-        totalSessions: 0,
-        profiles: 1,
-        eventsDay: new Date(now).toISOString().slice(0, 10),
-        eventsToday: 0,
+    if (!workspace) {
+      const workspaceId = await ctx.db.insert("workspaces", {
+        ownerId: userId,
+        slug: handle,
+        name: `${displayName}'s workspace`,
+        plan: "free",
+        isPublic: false,
+        retentionDays: 30,
+        createdAt: now,
+      });
+      workspace = await ctx.db.get(workspaceId);
+      if (!workspace) throw new ConvexError("WORKSPACE_CREATE_FAILED");
+      await ctx.db.insert("workspaceMemberships", {
+        workspaceId,
+        userId,
+        role: "owner",
+        roles: ["owner"],
+        permissions: [...WORKSPACE_PERMISSIONS],
+        source: "personal",
+        status: "active",
+        createdAt: now,
         updatedAt: now,
       });
     }
+    await createProfileRecords(ctx, workspace, workspace.ownerId ?? userId, userId, handle, displayName, identity.pictureUrl, now);
     return { handle, created: true };
   },
 });
@@ -518,11 +780,7 @@ export const ensureProfile = mutation({
 export const setProfileVisibility = mutation({
   args: { isPublic: v.boolean() },
   handler: async (ctx, args) => {
-    const identity = await identityOrThrow(ctx);
-    const user = await userForIdentity(ctx, identityKey(identity)) ?? await userForIdentity(ctx, identity.subject);
-    if (!user) throw new ConvexError("PROFILE_REQUIRED");
-    const profile = await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", user._id)).unique();
-    if (!profile) throw new ConvexError("PROFILE_REQUIRED");
+    const { user, profile } = await requireWorkspaceAccess(ctx, "profile:manage");
     await ctx.db.patch(profile._id, { isPublic: args.isPublic, updatedAt: Date.now() });
     await ctx.db.patch(profile.workspaceId, { isPublic: args.isPublic });
     const entries = await ctx.db
@@ -540,9 +798,11 @@ export const deviceLinkStatus = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
-    const user = await userForIdentity(ctx, identityKey(identity)) ?? await userForIdentity(ctx, identity.subject);
+    const reference = accessReference(identity);
+    const user = await userForIdentity(ctx, reference.identityKey) ?? await userForIdentity(ctx, reference.subject);
+    const access = user ? await workspaceAccessForUser(ctx, user._id, reference) : null;
     const link = await ctx.db.get(args.linkId);
-    if (!user || !link || link.userId !== user._id) return null;
+    if (!user || !access || !link || link.userId !== user._id || link.workspaceId !== access.workspace._id) return null;
     const collector = link.collectorId ? await ctx.db.get(link.collectorId) : null;
     return {
       createdAt: link.createdAt,
@@ -560,11 +820,7 @@ export const deviceLinkStatus = query({
 export const updateProfile = mutation({
   args: { displayName: v.string(), bio: v.string() },
   handler: async (ctx, args) => {
-    const identity = await identityOrThrow(ctx);
-    const user = await userForIdentity(ctx, identityKey(identity)) ?? await userForIdentity(ctx, identity.subject);
-    if (!user) throw new ConvexError("PROFILE_REQUIRED");
-    const profile = await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", user._id)).unique();
-    if (!profile) throw new ConvexError("PROFILE_REQUIRED");
+    const { user, profile } = await requireWorkspaceAccess(ctx, "profile:manage");
     const displayName = cleanText(args.displayName, "", 80);
     const bio = cleanText(args.bio, "", 280);
     if (!displayName) throw new ConvexError("DISPLAY_NAME_REQUIRED");
@@ -580,10 +836,7 @@ export const updateProfile = mutation({
 export const renameCollector = mutation({
   args: { collectorId: v.id("collectors"), name: v.string() },
   handler: async (ctx, args) => {
-    const identity = await identityOrThrow(ctx);
-    const user = await userForIdentity(ctx, identityKey(identity)) ?? await userForIdentity(ctx, identity.subject);
-    if (!user) throw new ConvexError("PROFILE_REQUIRED");
-    const profile = await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", user._id)).unique();
+    const { user, profile } = await requireWorkspaceAccess(ctx, "collectors:manage");
     const collector = await ctx.db.get(args.collectorId);
     if (!profile || !collector || collector.workspaceId !== profile.workspaceId) throw new ConvexError("COLLECTOR_NOT_FOUND");
     const name = cleanText(args.name, "", 80);
@@ -594,47 +847,90 @@ export const renameCollector = mutation({
   },
 });
 
-export const exportAccount = query({
+async function buildAccountExport(ctx: QueryCtx, user: Doc<"users">, profile: Doc<"profiles">) {
+  const [workspace, stats, collectors, daily, models, auditLog] = await Promise.all([
+    ctx.db.get(profile.workspaceId),
+    ctx.db.query("profileStats").withIndex("by_profileId", (q) => q.eq("profileId", profile._id)).unique(),
+    ctx.db.query("collectors").withIndex("by_workspaceId", (q) => q.eq("workspaceId", profile.workspaceId)).collect(),
+    ctx.db.query("profileDailyTotals").withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id)).order("desc").take(730),
+    ctx.db.query("modelTotals").withIndex("by_profileId_and_totalTokens", (q) => q.eq("profileId", profile._id)).order("desc").take(500),
+    ctx.db.query("auditEvents").withIndex("by_workspaceId_and_createdAt", (q) => q.eq("workspaceId", profile.workspaceId)).order("desc").take(500),
+  ]);
+  return {
+    exportedAt: Date.now(),
+    formatVersion: 1,
+    user: { name: user.name, email: user.email, createdAt: user.createdAt },
+    workspace: workspace ? { slug: workspace.slug, name: workspace.name, plan: workspace.plan, retentionDays: workspace.retentionDays } : null,
+    profile: { handle: profile.handle, displayName: profile.displayName, bio: profile.bio, isPublic: profile.isPublic, createdAt: profile.createdAt },
+    stats,
+    collectors: collectors.map((collector) => ({
+      id: collector._id,
+      name: collector.name,
+      keyPrefix: collector.keyPrefix,
+      scopes: collector.scopes,
+      platform: collector.platform,
+      cliVersion: collector.cliVersion,
+      createdAt: collector.createdAt,
+      lastSeenAt: collector.lastSeenAt,
+      lastSuccessAt: collector.lastSuccessAt,
+      rotatedAt: collector.rotatedAt,
+      revokedAt: collector.revokedAt,
+    })),
+    daily,
+    models,
+    auditLog,
+    limits: { dailyDays: 730, models: 500, auditEvents: 500 },
+  };
+}
+
+type AccountExport = Awaited<ReturnType<typeof buildAccountExport>>;
+
+export const readAccountExport = internalQuery({
+  args: { access: accessReferenceValidator },
+  handler: async (ctx, args): Promise<AccountExport> => {
+    const { user, profile } = await requireWorkspaceAccessForReference(ctx, args.access, "data:export");
+    return await buildAccountExport(ctx, user, profile);
+  },
+});
+
+export const recordAccountExport = internalMutation({
+  args: { access: accessReferenceValidator },
+  handler: async (ctx, args) => {
+    const { user, profile } = await requireWorkspaceAccessForReference(ctx, args.access, "data:export");
+    await audit(ctx, profile.workspaceId, user._id, "workspace.exported", "workspace", String(profile.workspaceId), "Downloaded workspace data export");
+  },
+});
+
+export const exportAccount = action({
   args: {},
-  handler: async (ctx) => {
+  handler: async (ctx): Promise<AccountExport> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new ConvexError("AUTH_REQUIRED");
-    const user = await userForIdentity(ctx, identityKey(identity)) ?? await userForIdentity(ctx, identity.subject);
-    if (!user) throw new ConvexError("PROFILE_REQUIRED");
-    const profile = await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", user._id)).unique();
-    if (!profile) throw new ConvexError("PROFILE_REQUIRED");
-    const [workspace, stats, collectors, daily, models, auditLog] = await Promise.all([
-      ctx.db.get(profile.workspaceId),
-      ctx.db.query("profileStats").withIndex("by_profileId", (q) => q.eq("profileId", profile._id)).unique(),
-      ctx.db.query("collectors").withIndex("by_workspaceId", (q) => q.eq("workspaceId", profile.workspaceId)).collect(),
-      ctx.db.query("profileDailyTotals").withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id)).order("desc").take(730),
-      ctx.db.query("modelTotals").withIndex("by_profileId_and_totalTokens", (q) => q.eq("profileId", profile._id)).order("desc").take(500),
-      ctx.db.query("auditEvents").withIndex("by_workspaceId_and_createdAt", (q) => q.eq("workspaceId", profile.workspaceId)).order("desc").take(500),
-    ]);
+    const access = accessReference(identity);
+    const data: AccountExport = await ctx.runQuery(internal.account.readAccountExport, { access });
+    await ctx.runMutation(internal.account.recordAccountExport, { access });
+    return data;
+  },
+});
+
+export const auditLog = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const { workspace } = await requireWorkspaceAccess(ctx, "audit:read");
+    const result = await ctx.db.query("auditEvents").withIndex("by_workspaceId_and_createdAt", (q) =>
+      q.eq("workspaceId", workspace._id),
+    ).order("desc").paginate(args.paginationOpts);
     return {
-      exportedAt: Date.now(),
-      formatVersion: 1,
-      user: { name: user.name, email: user.email, createdAt: user.createdAt },
-      workspace: workspace ? { slug: workspace.slug, name: workspace.name, plan: workspace.plan, retentionDays: workspace.retentionDays } : null,
-      profile: { handle: profile.handle, displayName: profile.displayName, bio: profile.bio, isPublic: profile.isPublic, createdAt: profile.createdAt },
-      stats,
-      collectors: collectors.map((collector) => ({
-        id: collector._id,
-        name: collector.name,
-        keyPrefix: collector.keyPrefix,
-        scopes: collector.scopes,
-        platform: collector.platform,
-        cliVersion: collector.cliVersion,
-        createdAt: collector.createdAt,
-        lastSeenAt: collector.lastSeenAt,
-        lastSuccessAt: collector.lastSuccessAt,
-        rotatedAt: collector.rotatedAt,
-        revokedAt: collector.revokedAt,
+      ...result,
+      page: result.page.map((event) => ({
+        id: event._id,
+        actorUserId: event.actorUserId,
+        action: event.action,
+        targetType: event.targetType,
+        targetId: event.targetId,
+        summary: event.summary,
+        createdAt: event.createdAt,
       })),
-      daily,
-      models,
-      auditLog,
-      limits: { dailyDays: 730, models: 500, auditEvents: 500 },
     };
   },
 });
@@ -642,11 +938,9 @@ export const exportAccount = query({
 export const requestAccountDeletion = mutation({
   args: { confirmation: v.string() },
   handler: async (ctx, args) => {
-    const identity = await identityOrThrow(ctx);
-    const user = await userForIdentity(ctx, identityKey(identity)) ?? await userForIdentity(ctx, identity.subject);
-    if (!user || args.confirmation.trim().toLowerCase() !== "delete my account") throw new ConvexError("CONFIRMATION_REQUIRED");
-    const profile = await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", user._id)).unique();
-    if (!profile) throw new ConvexError("PROFILE_REQUIRED");
+    if (args.confirmation.trim().toLowerCase() !== "delete my account") throw new ConvexError("CONFIRMATION_REQUIRED");
+    const { user, profile, workspace } = await requireWorkspaceAccess(ctx, "workspace:delete");
+    if (workspace.workosOrganizationId) throw new ConvexError("PERSONAL_WORKSPACE_ONLY");
     const now = Date.now();
     const existing = await ctx.db.query("accountDeletionRequests").withIndex("by_userId_and_requestedAt", (q) => q.eq("userId", user._id)).order("desc").first();
     if (existing && !existing.cancelledAt && !existing.completedAt) return { scheduledFor: existing.scheduledFor, replay: true };
@@ -671,9 +965,8 @@ export const requestAccountDeletion = mutation({
 export const cancelAccountDeletion = mutation({
   args: {},
   handler: async (ctx) => {
-    const identity = await identityOrThrow(ctx);
-    const user = await userForIdentity(ctx, identityKey(identity)) ?? await userForIdentity(ctx, identity.subject);
-    if (!user) throw new ConvexError("PROFILE_REQUIRED");
+    const { user, workspace } = await requireWorkspaceAccess(ctx, "workspace:delete");
+    if (workspace.workosOrganizationId) throw new ConvexError("PERSONAL_WORKSPACE_ONLY");
     const request = await ctx.db.query("accountDeletionRequests").withIndex("by_userId_and_requestedAt", (q) => q.eq("userId", user._id)).order("desc").first();
     if (!request || request.cancelledAt || request.completedAt) return { cancelled: false };
     const now = Date.now();

@@ -42,6 +42,7 @@ export function jsonResponse(body: unknown, status = 200, extraHeaders?: Record<
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
       "access-control-allow-origin": "*",
+      "x-request-id": crypto.randomUUID(),
       ...extraHeaders,
     },
   });

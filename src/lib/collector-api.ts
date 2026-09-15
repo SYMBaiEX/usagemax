@@ -13,12 +13,12 @@ type ForwardOptions = {
 function error(message: string, status: number, headers?: HeadersInit) {
   return Response.json({ error: message }, {
     status,
-    headers: { "cache-control": "no-store", ...headers },
+    headers: { "cache-control": "no-store", "x-request-id": crypto.randomUUID(), ...headers },
   });
 }
 
 function safeResponseHeaders(source: Headers) {
-  const headers = new Headers({ "cache-control": "no-store" });
+  const headers = new Headers({ "cache-control": "no-store", "x-request-id": crypto.randomUUID() });
   for (const name of ["content-type", "retry-after", "x-request-id"]) {
     const value = source.get(name);
     if (value) headers.set(name, value);

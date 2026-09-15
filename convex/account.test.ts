@@ -69,6 +69,10 @@ describe("WorkOS-backed accounts", () => {
     expect(account?.collectors).toHaveLength(1);
     expect(account?.collectors[0]).toMatchObject({ name: "Quiet laptop", keyPrefix: created.keyPrefix });
     expect(account?.collectors[0]).not.toHaveProperty("keyHash");
+    const collectorPage = await session.query(api.account.listCollectors, { paginationOpts: { numItems: 20, cursor: null } });
+    expect(collectorPage.page).toHaveLength(1);
+    expect(collectorPage.page[0]).toMatchObject({ name: "Quiet laptop", keyPrefix: created.keyPrefix });
+    expect(collectorPage.page[0]).not.toHaveProperty("keyHash");
 
     const rotated = await session.action(api.account.rotateCollector, { collectorId: created.collectorId });
     expect(rotated.token).not.toBe(created.token);
@@ -163,5 +167,140 @@ describe("WorkOS-backed accounts", () => {
     const restored = (await session.query(api.account.current, {}))?.collectors[0];
     expect(restored).toMatchObject({ id: collector.collectorId });
     expect(restored).not.toHaveProperty("revokedAt");
+  });
+
+  test("isolates personal and WorkOS organization workspaces for the same user", async () => {
+    const baseIdentity = {
+      subject: "user_01MULTITENANT",
+      issuer: "https://api.workos.com/",
+      tokenIdentifier: "https://api.workos.com/|user_01MULTITENANT",
+      name: "Multi Tenant Admin",
+      email: "admin@example.com",
+    };
+    const personal = t.withIdentity(baseIdentity);
+    await personal.mutation(api.account.ensureProfile, { handle: "personal-usage" });
+
+    const organization = t.withIdentity({
+      ...baseIdentity,
+      org_id: "org_01ENTERPRISE",
+      role: "admin",
+      roles: ["admin"],
+      permissions: ["workspace:manage", "profile:manage", "collectors:manage", "data:export"],
+    });
+    await organization.mutation(api.account.ensureProfile, { handle: "acme-usage" });
+
+    expect((await personal.query(api.account.current, {}))?.profile?.handle).toBe("personal-usage");
+    const orgAccount = await organization.query(api.account.current, {});
+    expect(orgAccount?.profile?.handle).toBe("acme-usage");
+    expect(orgAccount?.workspace).toMatchObject({ kind: "organization", role: "admin", plan: "team" });
+    expect(orgAccount?.capabilities["collectors:manage"]).toBe(true);
+  });
+
+  test("uses current WorkOS role claims to enforce organization permissions", async () => {
+    const admin = t.withIdentity({
+      subject: "user_01ORGADMIN",
+      issuer: "https://api.workos.com/",
+      tokenIdentifier: "https://api.workos.com/|user_01ORGADMIN",
+      org_id: "org_01RBAC",
+      role: "admin",
+    });
+    await admin.mutation(api.account.ensureProfile, { handle: "rbac-workspace" });
+
+    const member = t.withIdentity({
+      subject: "user_01ORGMEMBER",
+      issuer: "https://api.workos.com/",
+      tokenIdentifier: "https://api.workos.com/|user_01ORGMEMBER",
+      org_id: "org_01RBAC",
+      role: "member",
+    });
+    await expect(member.mutation(api.account.ensureProfile, { handle: "ignored-handle" })).resolves.toEqual({
+      handle: "rbac-workspace",
+      created: false,
+    });
+    expect((await member.query(api.account.current, {}))?.capabilities["profile:manage"]).toBe(false);
+    await expect(member.mutation(api.account.updateProfile, { displayName: "Escalated", bio: "" })).rejects.toThrow("FORBIDDEN");
+    await expect(member.action(api.account.createCollector, { name: "Unauthorized" })).rejects.toThrow("FORBIDDEN");
+    await expect(member.query(api.account.auditLog, { paginationOpts: { numItems: 25, cursor: null } })).rejects.toThrow("FORBIDDEN");
+
+    const delegated = t.withIdentity({
+      subject: "user_01ORGMEMBER",
+      issuer: "https://api.workos.com/",
+      tokenIdentifier: "https://api.workos.com/|user_01ORGMEMBER",
+      org_id: "org_01RBAC",
+      role: "member",
+      permissions: ["collectors:manage"],
+    });
+    await expect(delegated.action(api.account.createCollector, { name: "Delegated collector" })).resolves.toMatchObject({
+      keyPrefix: expect.stringMatching(/^umx_/),
+    });
+    await expect(admin.action(api.account.exportAccount, {})).resolves.toMatchObject({
+      profile: { handle: "rbac-workspace" },
+    });
+    const audit = await admin.query(api.account.auditLog, { paginationOpts: { numItems: 25, cursor: null } });
+    expect(audit.page.map((event) => event.action)).toEqual(expect.arrayContaining([
+      "profile.created",
+      "collector.created",
+      "workspace.exported",
+    ]));
+  });
+
+  test("does not let an unprovisioned organization member claim a workspace", async () => {
+    const member = t.withIdentity({
+      subject: "user_01UNPROVISIONED",
+      issuer: "https://api.workos.com/",
+      tokenIdentifier: "https://api.workos.com/|user_01UNPROVISIONED",
+      org_id: "org_01UNKNOWN",
+      role: "member",
+    });
+    await expect(member.mutation(api.account.ensureProfile, { handle: "unclaimed-company" })).rejects.toThrow(
+      "ORGANIZATION_NOT_PROVISIONED",
+    );
+  });
+
+  test("treats explicit WorkOS permissions as authoritative", async () => {
+    const session = t.withIdentity({
+      subject: "user_01LIMITEDADMIN",
+      issuer: "https://api.workos.com/",
+      tokenIdentifier: "https://api.workos.com/|user_01LIMITEDADMIN",
+      org_id: "org_01LIMITED",
+      role: "admin",
+      permissions: ["workspace:manage", "profile:manage"],
+    });
+    await session.mutation(api.account.ensureProfile, { handle: "limited-admin" });
+    const account = await session.query(api.account.current, {});
+    expect(account?.capabilities["profile:manage"]).toBe(true);
+    expect(account?.capabilities["collectors:manage"]).toBe(false);
+    await expect(session.action(api.account.createCollector, { name: "Denied collector" })).rejects.toThrow("FORBIDDEN");
+  });
+
+  test("rejects collector controls across WorkOS organization boundaries", async () => {
+    const first = t.withIdentity({
+      subject: "user_01TENANTA",
+      issuer: "https://api.workos.com/",
+      tokenIdentifier: "https://api.workos.com/|user_01TENANTA",
+      org_id: "org_01TENANTA",
+      role: "admin",
+    });
+    const second = t.withIdentity({
+      subject: "user_01TENANTB",
+      issuer: "https://api.workos.com/",
+      tokenIdentifier: "https://api.workos.com/|user_01TENANTB",
+      org_id: "org_01TENANTB",
+      role: "admin",
+    });
+    await first.mutation(api.account.ensureProfile, { handle: "tenant-a" });
+    await second.mutation(api.account.ensureProfile, { handle: "tenant-b" });
+    const foreignCollector = await second.action(api.account.createCollector, { name: "Tenant B collector" });
+
+    await expect(first.action(api.account.rotateCollector, { collectorId: foreignCollector.collectorId })).rejects.toThrow(
+      "COLLECTOR_NOT_FOUND",
+    );
+    await expect(first.mutation(api.account.renameCollector, {
+      collectorId: foreignCollector.collectorId,
+      name: "Cross-tenant rename",
+    })).rejects.toThrow("COLLECTOR_NOT_FOUND");
+    await expect(first.mutation(api.account.revokeCollector, { collectorId: foreignCollector.collectorId })).rejects.toThrow(
+      "COLLECTOR_NOT_FOUND",
+    );
   });
 });

@@ -47,7 +47,7 @@ export function EnterpriseView() {
   return (
     <div className="page-surface content-page enterprise-page">
       <PageIntro
-        description="A calm operating picture for teams running models, tools, and autonomous systems in production. UsageMax gives everyone the same signal without asking anyone to give up the source data."
+        description="A governed operating picture for teams running models, tools, and autonomous systems in production. UsageMax keeps identity, access, ingestion, and public reporting inside explicit workspace boundaries."
         eyebrow="For teams / the control plane"
         title={<>Make the invisible workload <span className="text-accent">operational.</span></>}
       >
@@ -63,9 +63,9 @@ export function EnterpriseView() {
       <section className="shell content-section">
         <div className="section-heading"><div className="eyebrow"><span className="eyebrow-line" />Why UsageMax</div><h2>Clarity without <span className="text-accent">surveillance.</span></h2><p>Built for the tension between useful instrumentation and responsible boundaries.</p></div>
         <div className="detail-grid detail-grid-three">
-          <DetailCard accent="acid" icon={<PulseIcon size={21} />} index="01" title="One telemetry layer"><p>Normalize model requests, tool calls, state changes, and outcomes into a readable event surface.</p><p>Keep the provider sprawl and internal naming conventions behind the signal.</p></DetailCard>
-          <DetailCard accent="cyan" icon={<LayersIcon size={21} />} index="02" title="Every level of context"><p>Give an operator the current pulse, a team the weekly shape, and leadership a durable view of where effort lands.</p><p>Same source. Different resolution.</p></DetailCard>
-          <DetailCard accent="orange" icon={<LockClosed size={21} />} index="03" title="Bounded by design"><p>Public profiles expose aggregates and selected event context. Prompts, payloads, keys, and private traces stay out of the public surface.</p><p>Less data to guard is a useful control.</p></DetailCard>
+          <DetailCard accent="acid" icon={<PulseIcon size={21} />} index="01" title="One telemetry layer"><p>Normalize model requests, tool calls, state changes, and outcomes into a readable event surface.</p><p>Keep provider sprawl behind one versioned, idempotent contract.</p></DetailCard>
+          <DetailCard accent="cyan" icon={<LayersIcon size={21} />} index="02" title="Organization control"><p>WorkOS organizations select the workspace. Signed roles and granular permissions govern profiles, collectors, exports, deletion, and audit access.</p><p>Members can belong to multiple organizations without crossing data boundaries.</p></DetailCard>
+          <DetailCard accent="orange" icon={<LockClosed size={21} />} index="03" title="Bounded and accountable"><p>Collector keys are hashed, scoped, revocable, rate-limited, and replay-safe. Sensitive workspace actions create a private, paginated audit trail.</p><p>Prompts, completions, provider keys, and source code stay outside the contract.</p></DetailCard>
         </div>
       </section>
 
@@ -78,7 +78,7 @@ export function EnterpriseView() {
         </div>
       </section>
 
-      <section className="shell content-section final-band"><Callout>UsageMax is a read surface for telemetry—not an identity system, and not a replacement for your existing access controls.</Callout><TextLink href="/security">See the security posture</TextLink></section>
+      <section className="shell content-section final-band"><Callout>AuthKit provides the identity and organization boundary; UsageMax enforces that boundary again at every server-side data operation.</Callout><TextLink href="/security">See the security posture</TextLink></section>
     </div>
   );
 }
@@ -169,7 +169,7 @@ export function SecurityView() {
       </PageIntro>
 
       <section className="shell security-principles content-section"><div className="security-lockup"><span className="security-lock-icon"><ShieldCheck size={32} /></span><span><strong>Public by selection</strong><small>Aggregated facts make the page. Private context stays at the edge.</small></span></div><div className="security-rule" /></section>
-      <section className="shell content-section"><div className="detail-grid detail-grid-three"><DetailCard accent="acid" icon={<LockClosed size={21} />} index="01" title="No prompt content"><p>The public contract is about counts, models, states, costs, and timestamps. Prompt and completion bodies are not part of the public projection.</p></DetailCard><DetailCard accent="cyan" icon={<DatabaseIcon size={21} />} index="02" title="Bounded reads"><p>Every public query is limited by a fixed window or an explicit limit. The public UI reads compact projections rather than unbounded event history.</p></DetailCard><DetailCard accent="orange" icon={<ShieldCheck size={21} />} index="03" title="Scoped collector keys"><p>Each device receives a write-only, device-bound key. UsageMax stores only its hash and applies replay checks, payload caps, and per-device quotas.</p></DetailCard></div></section>
+      <section className="shell content-section"><div className="detail-grid detail-grid-three"><DetailCard accent="acid" icon={<LockClosed size={21} />} index="01" title="No prompt content"><p>The public contract is about counts, models, states, costs, and timestamps. Prompt and completion bodies are not part of the public projection.</p></DetailCard><DetailCard accent="cyan" icon={<DatabaseIcon size={21} />} index="02" title="Tenant-scoped reads"><p>WorkOS organization claims select one workspace per session. Server-side membership and permission checks run before private reads or writes; public UI reads only bounded projections.</p></DetailCard><DetailCard accent="orange" icon={<ShieldCheck size={21} />} index="03" title="Scoped collector keys"><p>Each device receives a write-only, device-bound key. UsageMax stores only its hash and applies replay checks, payload caps, per-device quotas, and auditable rotation.</p></DetailCard></div></section>
       <section className="shell content-section security-checklist"><div className="section-heading"><div className="eyebrow"><span className="eyebrow-line" />Operator checklist</div><h2>Keep the boundary <span className="text-accent">boring.</span></h2></div><div className="checklist"><div><span>✓</span><p><strong>Send metadata, not content.</strong><br />Use task labels and stable IDs; strip prompts and outputs before ingestion.</p></div><div><span>✓</span><p><strong>Use one collector per surface.</strong><br />Revoke or rotate at the edge when a runtime changes hands.</p></div><div><span>✓</span><p><strong>Publish only what you mean to publish.</strong><br />A public profile is a deliberate projection, not a raw trace viewer.</p></div></div></section>
       <section className="shell content-section final-band"><Callout tone="cyan">Security is a property of the data path and the data shape. UsageMax keeps both paths visible.</Callout><TextLink href="/docs">Read the ingestion docs</TextLink></section>
     </div>

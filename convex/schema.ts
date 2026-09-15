@@ -19,6 +19,8 @@ export default defineSchema({
   workspaces: defineTable({
     ownerId: v.optional(v.id("users")),
     workosOrganizationId: v.optional(v.string()),
+    workosUpdatedAt: v.optional(v.number()),
+    accessDisabledAt: v.optional(v.number()),
     slug: v.string(),
     name: v.string(),
     plan: v.union(v.literal("free"), v.literal("pro"), v.literal("team"), v.literal("enterprise")),
@@ -35,11 +37,17 @@ export default defineSchema({
     userId: v.id("users"),
     workosOrganizationId: v.optional(v.string()),
     role: v.string(),
+    roles: v.optional(v.array(v.string())),
+    permissions: v.optional(v.array(v.string())),
+    source: v.optional(v.union(v.literal("personal"), v.literal("workos"), v.literal("directory"))),
     status: v.union(v.literal("active"), v.literal("invited"), v.literal("deactivated")),
+    lastSyncedAt: v.optional(v.number()),
+    authorizationChangedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_workspaceId_and_userId", ["workspaceId", "userId"])
+    .index("by_workspaceId_and_status", ["workspaceId", "status"])
     .index("by_userId_and_workspaceId", ["userId", "workspaceId"])
     .index("by_workosOrganizationId", ["workosOrganizationId"]),
 
@@ -528,6 +536,15 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"])
+    .index("by_createdAt", ["createdAt"]),
+
+  workosEventReceipts: defineTable({
+    eventId: v.string(),
+    eventName: v.string(),
+    outcome: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_eventId", ["eventId"])
     .index("by_createdAt", ["createdAt"]),
 
   accountDeletionRequests: defineTable({

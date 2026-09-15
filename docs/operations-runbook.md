@@ -7,6 +7,28 @@
 - Vercel serves the Next.js product and the stable `usagemax.com/api` facade. Public clients never depend on a deployment-provider hostname.
 - The npm collector is one-shot. It is not a resident daemon and does not send a network request when its source fingerprint is unchanged.
 
+## WorkOS organization lifecycle
+
+Configure a WorkOS webhook at `https://usagemax.com/api/webhooks/workos` for:
+
+- `organization.updated`
+- `organization.deleted`
+- `organization_membership.created`
+- `organization_membership.updated`
+- `organization_membership.deleted`
+
+Set `WORKOS_CLIENT_ID` and the endpoint-specific `WORKOS_WEBHOOK_SECRET` on the
+production Convex deployment. Requests are signature- and timestamp-verified in
+Convex before any state change. Event IDs are deduplicated for 90 days and each
+membership keeps the latest authorization-change timestamp, so retries and
+out-of-order delivery cannot restore stale access. Privileged operations reject
+JWTs issued before a membership authorization change and require session refresh.
+
+After configuration, exercise active → inactive → active membership transitions,
+an organization deletion in a disposable tenant, a replayed event, an invalid
+signature, and an older event delivered after a newer event. Retain the event IDs
+and UsageMax audit rows as deployment evidence; never retain payload bodies.
+
 ## Release gates
 
 1. `bun install --frozen-lockfile`
@@ -14,7 +36,8 @@
 3. `bun run cli:pack`
 4. Deploy Convex additive schema/functions before the web app and CLI.
 5. Verify `/health`, `/api/health`, sign-in/callback, a private account, a public profile, and one new collector reconciliation.
-6. Publish the CLI only through npm trusted publishing with provenance.
+6. Verify the WorkOS webhook endpoint with a signed test event when lifecycle configuration changed.
+7. Publish the CLI only through npm trusted publishing with provenance.
 
 ## Alerts
 

@@ -118,10 +118,13 @@ but UsageMax versions its own contract because those conventions continue to evo
 | Realtime active agents and parent/child topology | Yes |  |  |
 | Idempotency, provenance, timestamp bounds, retention | Yes |  |  |
 | Outcome ledger: accepted/rejected/abandoned/retried | Foundation | Full UI | Policy |
-| Team workspaces, projects, budgets, alerts |  | Yes | Yes |
+| WorkOS organization workspaces and server-enforced RBAC | Yes |  |  |
+| Private paginated workspace audit trail | Yes | Audit export | Immutable archive |
+| Projects, budgets, alerts |  | Yes | Yes |
 | Retry waste, cache savings, cost per accepted outcome |  | Yes | Yes |
 | Provider invoice reconciliation and anomaly detection |  |  | Yes |
-| SSO/SAML, SCIM, RBAC, immutable audit export |  |  | Yes |
+| SSO/SAML and directory provisioning | AuthKit foundation | Customer onboarding | Yes |
+| SCIM lifecycle webhook mirror and immutable audit export |  | Yes | Yes |
 | Regional retention, BYOK, private networking |  |  | Yes |
 | Routing recommendations and policy simulation |  | Experiment | Yes |
 
@@ -159,7 +162,7 @@ Enterprise value comes from measurable waste reduction and governance evidence.
 
 ### 90–180 days — enterprise moat
 
-- SAML/OIDC SSO, SCIM, granular RBAC, audit export, and retention controls;
+- customer SAML/OIDC and Directory Sync onboarding, lifecycle webhooks, immutable audit export, and retention controls;
 - provider invoice reconciliation, chargeback/showback, anomaly detection;
 - policy simulation and routing recommendations with savings confidence;
 - collector gateway for protobuf, gzip, sampling, fan-in, and regional ingestion;

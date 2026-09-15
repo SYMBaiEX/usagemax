@@ -401,6 +401,7 @@ button { cursor: pointer; }
 .collector-actions { display: flex !important; grid-auto-flow: column; gap: 7px !important; }
 .collector-actions button { padding: 7px 9px; border: 1px solid var(--line); border-radius: 5px; background: transparent; color: var(--ink-soft); font-size: 9px; }
 .collector-empty { padding: 26px 0; color: var(--ink-faint); font-size: 11px; }
+.collector-load-more { justify-self: start; margin-top: 16px; }
 .collector-runtime-note { display: flex; justify-content: space-between; gap: 22px; padding-top: 24px; }
 .collector-runtime-note span { color: var(--ink-faint); font-family: var(--font-mono); font-size: 8px; text-transform: uppercase; }
 .collector-runtime-note p { max-width: 500px; margin: 0; color: var(--ink-soft); font-size: 11px; line-height: 1.55; }
@@ -671,6 +672,15 @@ input:focus, textarea:focus,
 .account-data-controls summary { cursor: pointer; color: var(--ink); font-weight: 650; }
 .account-data-controls > div { display: grid; gap: 18px; padding-top: 20px; }
 .account-data-controls form { display: flex; align-items: end; gap: 12px; }
+.account-audit { padding-block: 22px; border-top: 1px solid var(--line); }
+.account-audit summary { display: flex; cursor: pointer; align-items: center; justify-content: space-between; gap: 20px; color: var(--ink); font-weight: 650; }
+.account-audit summary small { color: var(--ink-faint); font-family: var(--font-mono); font-size: 8px; font-weight: 500; text-transform: uppercase; }
+.audit-event-list { display: grid; padding-top: 14px; }
+.audit-event-row { display: flex; min-height: 58px; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid var(--line); }
+.audit-event-row > span { display: grid; min-width: 0; gap: 4px; }
+.audit-event-row strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.audit-event-row small, .audit-event-row time { color: var(--ink-faint); font-family: var(--font-mono); font-size: 8px; text-transform: uppercase; }
+.audit-event-list > .button { justify-self: start; margin-top: 14px; }
 .button-danger { color: #fff; background: #8f2b19; }
 
 @media (max-width: 900px) {
@@ -696,6 +706,8 @@ input:focus, textarea:focus,
   .onboarding-rail > li::after { display: none; }
   .onboarding-rail small { display: block; }
   .account-data-controls form { align-items: stretch; flex-direction: column; }
+  .account-audit summary, .audit-event-row { align-items: flex-start; flex-direction: column; }
+  .audit-event-row { padding-block: 13px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

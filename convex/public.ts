@@ -122,9 +122,9 @@ export const profileSnapshot = query({
       ? await Promise.all([
           fallbackRows.length
             ? Promise.resolve(fallbackRows.filter((row) => row.day >= cutoffDay))
-            : ctx.db.query("dailyUsage").withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id).gte("day", cutoffDay)).collect(),
-          ctx.db.query("dailyDimensions").withIndex("by_profileId_and_dimension_and_day", (q) => q.eq("profileId", profile._id).eq("dimension", "source").gte("day", cutoffDay)).collect(),
-          ctx.db.query("dailyDimensions").withIndex("by_profileId_and_dimension_and_day", (q) => q.eq("profileId", profile._id).eq("dimension", "device").gte("day", cutoffDay)).collect(),
+            : ctx.db.query("dailyUsage").withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id).gte("day", cutoffDay)).order("desc").take(5000),
+          ctx.db.query("dailyDimensions").withIndex("by_profileId_and_dimension_and_day", (q) => q.eq("profileId", profile._id).eq("dimension", "source").gte("day", cutoffDay)).order("desc").take(5000),
+          ctx.db.query("dailyDimensions").withIndex("by_profileId_and_dimension_and_day", (q) => q.eq("profileId", profile._id).eq("dimension", "device").gte("day", cutoffDay)).order("desc").take(5000),
         ])
       : [[], [], []];
 
@@ -261,10 +261,11 @@ export const dailyModels = query({
         .at(-1);
     }
     if (!cutoffDay) return [];
-    const queriedRows = (await Promise.all(recentDays.map((day) => ctx.db
+    const queriedRows = await ctx.db
       .query("dailyUsage")
-      .withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id).eq("day", day.day))
-      .collect()))).flat();
+      .withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id).gte("day", cutoffDay))
+      .order("desc")
+      .take(10_000);
     const grouped = new Map<string, {
       date: string;
       model: string;
@@ -311,12 +312,13 @@ export const dailyBreakdown = query({
       .take(limit);
     const cutoffDay = recentDays.at(-1)?.day;
     if (!cutoffDay) return [];
-    const rows = (await Promise.all(recentDays.map((day) => ctx.db
+    const rows = await ctx.db
       .query("dailyDimensions")
       .withIndex("by_profileId_and_dimension_and_day", (q) =>
-        q.eq("profileId", profile._id).eq("dimension", args.groupBy).eq("day", day.day),
+        q.eq("profileId", profile._id).eq("dimension", args.groupBy).gte("day", cutoffDay),
       )
-      .collect()))).flat();
+      .order("desc")
+      .take(10_000);
     return rows
       .map((row) => ({
         date: row.day,
@@ -348,18 +350,18 @@ export const breakdowns = query({
     const cutoff = recentDays.at(-1)?.day;
     if (!cutoff) return { sources: [], devices: [] };
     const [sourceRows, deviceRows] = await Promise.all([
-      Promise.all(recentDays.map((day) => ctx.db
-        .query("dailyDimensions")
+      ctx.db.query("dailyDimensions")
         .withIndex("by_profileId_and_dimension_and_day", (q) =>
-          q.eq("profileId", profile._id).eq("dimension", "source").eq("day", day.day),
+          q.eq("profileId", profile._id).eq("dimension", "source").gte("day", cutoff),
         )
-        .collect())).then((rows) => rows.flat()),
-      Promise.all(recentDays.map((day) => ctx.db
-        .query("dailyDimensions")
+        .order("desc")
+        .take(5000),
+      ctx.db.query("dailyDimensions")
         .withIndex("by_profileId_and_dimension_and_day", (q) =>
-          q.eq("profileId", profile._id).eq("dimension", "device").eq("day", day.day),
+          q.eq("profileId", profile._id).eq("dimension", "device").gte("day", cutoff),
         )
-        .collect())).then((rows) => rows.flat()),
+        .order("desc")
+        .take(5000),
     ]);
     const summarize = (rows: typeof sourceRows) => {
       const totals = new Map<string, { key: string; totalTokens: number; costMicros: number }>();
