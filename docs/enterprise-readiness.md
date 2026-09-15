@@ -1,6 +1,11 @@
 # UsageMax enterprise readiness
 
-_Control record — September 14, 2026_
+_Control record — updated September 15, 2026_
+
+New workspace features are implemented and locally verified on
+`codex/usagemax-readiness`, **not yet released to production**. See
+[the delivery record](enterprise-delivery-plan.md) for acceptance and remaining
+engineering gates. Production WorkOS role changes require explicit approval.
 
 This document separates implemented product controls from customer-specific
 onboarding and operational evidence. “Implemented” does not mean certified.
@@ -51,8 +56,11 @@ enterprise contract can claim them:
 ## Remaining engineering gates
 
 - Immutable audit export to customer-owned object storage or SIEM.
-- Workspace projects, cost centers, budgets, anomaly policies, and notifications.
-- Provider billing reconciliation and a verified-versus-self-reported trust tier.
+- Projects, cost centers, budgets, notifications and a separated financial ledger
+  are implemented in the pending release. Statistical anomaly policies, invoice
+  line matching, accounting close and verified source identity remain open.
+- Live provider contract tests with authorized customer credentials, broader
+  provider coverage and independently verified-versus-self-reported trust tiers.
 - Production load evidence at agreed event rates, SLOs, alert thresholds, and
   documented capacity triggers.
 - Independent application security review and dependency/code scanning evidence.
@@ -61,7 +69,7 @@ enterprise contract can claim them:
 
 ## Go-to-market language
 
-UsageMax can accurately claim an enterprise-ready identity, authorization,
-ingestion, audit, and data-boundary foundation. Do not claim SSO, SCIM lifecycle,
+UsageMax has an enterprise-oriented identity, authorization, ingestion, audit,
+and data-boundary foundation. Do not claim SSO, SCIM lifecycle,
 compliance certification, immutable audit storage, regional residency, or a tested
 SLA for a customer until the corresponding onboarding or evidence gate is closed.

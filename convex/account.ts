@@ -7,6 +7,7 @@ import type { Doc, Id, TableNames } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { cleanText, sha256 } from "./lib";
+import { productPolicy } from "./productPolicy";
 
 const RESERVED_HANDLES = new Set([
   "account",
@@ -21,29 +22,41 @@ const RESERVED_HANDLES = new Set([
   "sign-in",
   "sign-up",
   "terms",
+  "workspace",
+  "dashboard",
+  "pricing",
 ]);
 
 const LINK_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const LINK_CODE_TTL_MS = 10 * 60_000;
 
-const WORKSPACE_PERMISSIONS = [
+export const WORKSPACE_PERMISSIONS = [
   "workspace:manage",
   "workspace:delete",
   "profile:manage",
   "collectors:manage",
   "data:export",
   "audit:read",
+  "collectors:self",
+  "members:manage",
+  "teams:manage",
+  "finance:read",
+  "finance:manage",
+  "integrations:manage",
 ] as const;
-type WorkspacePermission = (typeof WORKSPACE_PERMISSIONS)[number];
+export type WorkspacePermission = (typeof WORKSPACE_PERMISSIONS)[number];
 
-const ROLE_PERMISSIONS: Record<string, ReadonlySet<WorkspacePermission>> = {
+export const ROLE_PERMISSIONS: Record<string, ReadonlySet<WorkspacePermission>> = {
   owner: new Set(WORKSPACE_PERMISSIONS),
   admin: new Set(WORKSPACE_PERMISSIONS.filter((permission) => permission !== "workspace:delete")),
-  member: new Set(),
+  finance: new Set(["finance:read", "finance:manage", "data:export"]),
+  manager: new Set(["teams:manage", "collectors:self"]),
+  auditor: new Set(["audit:read", "finance:read", "data:export"]),
+  member: new Set(["collectors:self"]),
   viewer: new Set(),
 };
 
-type AccessReference = {
+export type AccessReference = {
   identityKey: string;
   subject: string;
   organizationId?: string;
@@ -53,7 +66,7 @@ type AccessReference = {
   permissionsAuthoritative: boolean;
 };
 
-const accessReferenceValidator = v.object({
+export const accessReferenceValidator = v.object({
   identityKey: v.string(),
   subject: v.string(),
   organizationId: v.optional(v.string()),
@@ -78,7 +91,7 @@ function issuedAtClaim(value: unknown) {
   return value < 1_000_000_000_000 ? Math.round(value * 1000) : Math.round(value);
 }
 
-function accessReference(identity: UserIdentity): AccessReference {
+export function accessReference(identity: UserIdentity): AccessReference {
   const roles = stringArrayClaim(identity.roles);
   const role = stringClaim(identity.role);
   if (role && !roles.includes(role)) roles.unshift(role);
@@ -99,7 +112,7 @@ async function identityOrThrow(ctx: QueryCtx | MutationCtx) {
   return identity;
 }
 
-async function userForIdentity(ctx: QueryCtx | MutationCtx, identityKey: string) {
+export async function userForIdentity(ctx: QueryCtx | MutationCtx, identityKey: string) {
   const keyed = await ctx.db
     .query("users")
     .withIndex("by_authIdentityKey", (q) => q.eq("authIdentityKey", identityKey))
@@ -123,7 +136,8 @@ async function workspaceAccessForUser(
   let workspace: Doc<"workspaces"> | null = null;
   let membership: Doc<"workspaceMemberships"> | null = null;
   let profile: Doc<"profiles"> | null = null;
-  if (reference.organizationId) {
+  const personalSelected = (await ctx.db.get(userId))?.preferPersonalWorkspace === true;
+  if (reference.organizationId && !personalSelected) {
     workspace = await ctx.db.query("workspaces").withIndex("by_workosOrganizationId", (q) =>
       q.eq("workosOrganizationId", reference.organizationId),
     ).unique();
@@ -137,7 +151,7 @@ async function workspaceAccessForUser(
     const ownedProfiles = await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", userId)).take(20);
     for (const candidate of ownedProfiles) {
       const candidateWorkspace = await ctx.db.get(candidate.workspaceId);
-      if (!candidateWorkspace || candidateWorkspace.workosOrganizationId) continue;
+      if (!candidateWorkspace || candidateWorkspace.workosOrganizationId || candidateWorkspace.ownerId !== userId || candidateWorkspace.accessDisabledAt) continue;
       const candidateMembership = await ctx.db.query("workspaceMemberships").withIndex("by_userId_and_workspaceId", (q) =>
         q.eq("userId", userId).eq("workspaceId", candidateWorkspace._id),
       ).unique();
@@ -151,21 +165,22 @@ async function workspaceAccessForUser(
   return workspace && membership ? { workspace, membership, profile } : null;
 }
 
-function hasWorkspacePermission(
+export function hasWorkspacePermission(
   access: NonNullable<Awaited<ReturnType<typeof workspaceAccessForUser>>>,
   reference: Pick<AccessReference, "organizationId" | "issuedAt" | "roles" | "permissions" | "permissionsAuthoritative">,
   permission: WorkspacePermission,
 ) {
+  if (!access.workspace.workosOrganizationId && access.workspace.ownerId === access.membership.userId && access.membership.source === "personal") return true;
   if (access.workspace.workosOrganizationId && access.workspace.workosOrganizationId !== reference.organizationId) return false;
   if (access.membership.authorizationChangedAt && (!reference.issuedAt || reference.issuedAt < access.membership.authorizationChangedAt)) {
     return false;
   }
-  if (reference.permissionsAuthoritative) return reference.permissions.includes(permission);
+  if (reference.permissionsAuthoritative) return reference.permissions.includes(permission) || (permission === "collectors:self" && reference.permissions.includes("collectors:manage"));
   const roles = reference.roles.length ? reference.roles : [access.membership.role];
   return roles.some((role) => ROLE_PERMISSIONS[role]?.has(permission));
 }
 
-async function requireWorkspaceMembership(ctx: QueryCtx | MutationCtx) {
+export async function requireWorkspaceMembership(ctx: QueryCtx | MutationCtx) {
   const identity = await identityOrThrow(ctx);
   const reference = accessReference(identity);
   const user = await userForIdentity(ctx, reference.identityKey) ?? await userForIdentity(ctx, reference.subject);
@@ -175,14 +190,14 @@ async function requireWorkspaceMembership(ctx: QueryCtx | MutationCtx) {
   return { identity, reference, user, ...access, profile: access.profile };
 }
 
-async function requireWorkspaceAccess(ctx: QueryCtx | MutationCtx, permission: WorkspacePermission) {
+export async function requireWorkspaceAccess(ctx: QueryCtx | MutationCtx, permission: WorkspacePermission) {
   const result = await requireWorkspaceMembership(ctx);
   const { reference, ...access } = result;
   if (!hasWorkspacePermission(access, reference, permission)) throw new ConvexError("FORBIDDEN");
   return result;
 }
 
-async function requireWorkspaceAccessForReference(ctx: QueryCtx | MutationCtx, reference: AccessReference, permission: WorkspacePermission) {
+export async function requireWorkspaceAccessForReference(ctx: QueryCtx | MutationCtx, reference: AccessReference, permission: WorkspacePermission) {
   const user = await userForIdentity(ctx, reference.identityKey) ?? await userForIdentity(ctx, reference.subject);
   if (!user) throw new ConvexError("PROFILE_REQUIRED");
   const access = await workspaceAccessForUser(ctx, user._id, reference);
@@ -191,11 +206,20 @@ async function requireWorkspaceAccessForReference(ctx: QueryCtx | MutationCtx, r
   return { user, ...access, profile: access.profile };
 }
 
-async function audit(ctx: MutationCtx, workspaceId: Id<"workspaces">, actorUserId: Id<"users"> | undefined, action: string, targetType: string, targetId: string | undefined, summary: string) {
+async function requireOwnCollectorAccess(ctx: QueryCtx | MutationCtx, collectorId: Id<"collectors">) {
+  const access = await requireWorkspaceMembership(ctx);
+  const collector = await ctx.db.get(collectorId);
+  if (!collector || collector.workspaceId !== access.workspace._id) throw new ConvexError("COLLECTOR_NOT_FOUND");
+  if (!hasWorkspacePermission(access, access.reference, "collectors:manage") &&
+      !(hasWorkspacePermission(access, access.reference, "collectors:self") && collector.ownerUserId === access.user._id)) throw new ConvexError("FORBIDDEN");
+  return { ...access, collector };
+}
+
+export async function audit(ctx: MutationCtx, workspaceId: Id<"workspaces">, actorUserId: Id<"users"> | undefined, action: string, targetType: string, targetId: string | undefined, summary: string) {
   await ctx.db.insert("auditEvents", { workspaceId, actorUserId, action, targetType, targetId, summary, createdAt: Date.now() });
 }
 
-async function upsertUser(ctx: MutationCtx) {
+export async function upsertUser(ctx: MutationCtx) {
   const identity = await identityOrThrow(ctx);
   const now = Date.now();
   const key = identityKey(identity);
@@ -254,10 +278,10 @@ function referenceHasPermission(
 }
 
 function collectorLimit(plan: Doc<"workspaces">["plan"]) {
-  return plan === "enterprise" ? 500 : plan === "team" ? 100 : plan === "pro" ? 25 : 8;
+  return productPolicy(plan).devices;
 }
 
-async function syncOrganizationMembership(
+export async function syncOrganizationMembership(
   ctx: MutationCtx,
   workspace: Doc<"workspaces">,
   userId: Id<"users">,
@@ -296,7 +320,7 @@ async function syncOrganizationMembership(
   });
 }
 
-async function createProfileRecords(
+export async function createProfileRecords(
   ctx: MutationCtx,
   workspace: Doc<"workspaces">,
   ownerId: Id<"users">,
@@ -361,6 +385,7 @@ async function createProfileRecords(
 function collectorView(collector: Doc<"collectors">) {
   return {
     id: collector._id,
+    ownerUserId: collector.ownerUserId,
     name: collector.name,
     keyPrefix: collector.keyPrefix,
     scopes: collector.scopes,
@@ -395,8 +420,10 @@ export const current = query({
     const user = await userForIdentity(ctx, reference.identityKey) ?? await userForIdentity(ctx, reference.subject);
     const access = user ? await workspaceAccessForUser(ctx, user._id, reference) : null;
     const profile = access?.profile ?? null;
-    const collectors = profile
-      ? await ctx.db.query("collectors").withIndex("by_workspaceId", (q) => q.eq("workspaceId", profile.workspaceId)).order("desc").take(20)
+    const collectors = profile && access && user
+      ? await (hasWorkspacePermission(access, reference, "collectors:manage")
+        ? ctx.db.query("collectors").withIndex("by_workspaceId", (q) => q.eq("workspaceId", profile.workspaceId))
+        : ctx.db.query("collectors").withIndex("by_workspaceId_and_ownerUserId", (q) => q.eq("workspaceId", profile.workspaceId).eq("ownerUserId", user._id))).order("desc").take(20)
       : [];
     const stats = profile
       ? await ctx.db.query("profileStats").withIndex("by_profileId", (q) => q.eq("profileId", profile._id)).unique()
@@ -467,10 +494,10 @@ export const current = query({
 export const listCollectors = query({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
-    const { workspace } = await requireWorkspaceMembership(ctx);
-    const result = await ctx.db.query("collectors").withIndex("by_workspaceId", (q) =>
-      q.eq("workspaceId", workspace._id),
-    ).order("desc").paginate(args.paginationOpts);
+    const access = await requireWorkspaceMembership(ctx);
+    const result = await (hasWorkspacePermission(access, access.reference, "collectors:manage")
+      ? ctx.db.query("collectors").withIndex("by_workspaceId", (q) => q.eq("workspaceId", access.workspace._id))
+      : ctx.db.query("collectors").withIndex("by_workspaceId_and_ownerUserId", (q) => q.eq("workspaceId", access.workspace._id).eq("ownerUserId", access.user._id))).order("desc").paginate(args.paginationOpts);
     return { ...result, page: result.page.map(collectorView) };
   },
 });
@@ -485,7 +512,7 @@ export const writeDeviceLink = internalMutation({
     expiresAt: v.number(),
   },
   handler: async (ctx, args) => {
-    const { user, profile } = await requireWorkspaceAccessForReference(ctx, args.access, "collectors:manage");
+    const { user, profile } = await requireWorkspaceAccessForReference(ctx, args.access, "collectors:self");
     const links = await ctx.db
       .query("deviceLinkCodes")
       .withIndex("by_workspaceId", (q) => q.eq("workspaceId", profile.workspaceId))
@@ -544,7 +571,8 @@ export const redeemDeviceLink = internalMutation({
     if (!link || link.usedAt || link.expiresAt <= args.now) throw new ConvexError("INVALID_LINK_CODE");
     const profile = await ctx.db.get(link.profileId);
     const workspace = await ctx.db.get(link.workspaceId);
-    if (!profile || !workspace || profile.workspaceId !== workspace._id) throw new ConvexError("INVALID_LINK_CODE");
+    const member = await ctx.db.query("workspaceMemberships").withIndex("by_userId_and_workspaceId", (q) => q.eq("userId", link.userId).eq("workspaceId", link.workspaceId)).unique();
+    if (!profile || !workspace || workspace.accessDisabledAt || member?.status !== "active" || profile.workspaceId !== workspace._id) throw new ConvexError("INVALID_LINK_CODE");
     const limit = collectorLimit(workspace.plan);
     const collectors = await ctx.db
       .query("collectors")
@@ -562,10 +590,13 @@ export const redeemDeviceLink = internalMutation({
       const prior = await ctx.db.query("collectors").withIndex("by_keyHash", (q) => q.eq("keyHash", args.priorKeyHash!)).unique();
       if (prior?.workspaceId === link.workspaceId) existing = prior;
     }
+    if (workspace.workosOrganizationId && existing?.ownerUserId && existing.ownerUserId !== link.userId) throw new ConvexError("INSTALLATION_OWNED_BY_ANOTHER_MEMBER");
+    if (workspace.workosOrganizationId && existing && !existing.ownerUserId && !["owner", "admin"].includes(member.role)) throw new ConvexError("ADMIN_MUST_CLAIM_LEGACY_INSTALLATION");
     if (!existing && collectors.filter((collector) => !collector.revokedAt).length >= limit) {
       throw new ConvexError("COLLECTOR_LIMIT_REACHED");
     }
     const update = {
+      ownerUserId: link.userId,
       name: cleanText(args.name, link.deviceName, 80),
       keyHash: args.keyHash,
       keyPrefix: args.keyPrefix,
@@ -604,13 +635,15 @@ export const writeCollector = internalMutation({
     now: v.number(),
   },
   handler: async (ctx, args) => {
-    const { user, profile, workspace } = await requireWorkspaceAccessForReference(ctx, args.access, "collectors:manage");
+    const access = await requireWorkspaceAccessForReference(ctx, args.access, "collectors:self");
+    const { user, profile, workspace } = access;
 
     if (args.collectorId) {
       const collector = await ctx.db.get(args.collectorId);
       if (!collector || collector.workspaceId !== profile.workspaceId || collector.revokedAt) {
         throw new ConvexError("COLLECTOR_NOT_FOUND");
       }
+      if (!hasWorkspacePermission(access, args.access, "collectors:manage") && collector.ownerUserId !== user._id) throw new ConvexError("FORBIDDEN");
       await ctx.db.patch(collector._id, {
         name: args.name ?? collector.name,
         keyHash: args.keyHash,
@@ -636,6 +669,7 @@ export const writeCollector = internalMutation({
     const collectorId = await ctx.db.insert("collectors", {
       workspaceId: profile.workspaceId,
       profileId: profile._id,
+      ownerUserId: user._id,
       name: args.name ?? "My computer",
       keyHash: args.keyHash,
       keyPrefix: args.keyPrefix,
@@ -686,8 +720,7 @@ export const rotateCollector = action({
 export const revokeCollector = mutation({
   args: { collectorId: v.id("collectors") },
   handler: async (ctx, args) => {
-    const { user, profile } = await requireWorkspaceAccess(ctx, "collectors:manage");
-    const collector = await ctx.db.get(args.collectorId);
+    const { user, profile, collector } = await requireOwnCollectorAccess(ctx, args.collectorId);
     if (!profile || !collector || collector.workspaceId !== profile.workspaceId) {
       throw new ConvexError("COLLECTOR_NOT_FOUND");
     }
@@ -736,6 +769,7 @@ export const ensureProfile = mutation({
 
     const { identity, userId } = await upsertUser(ctx);
     const reference = accessReference(identity);
+    if ((await ctx.db.get(userId))?.preferPersonalWorkspace) reference.organizationId = undefined;
     const now = Date.now();
     let workspace: Doc<"workspaces"> | null = null;
 
@@ -807,7 +841,8 @@ export const ensureProfile = mutation({
 export const setProfileVisibility = mutation({
   args: { isPublic: v.boolean() },
   handler: async (ctx, args) => {
-    const { user, profile } = await requireWorkspaceAccess(ctx, "profile:manage");
+    const { user, profile, workspace } = await requireWorkspaceAccess(ctx, "profile:manage");
+    if (args.isPublic && workspace.workosOrganizationId) throw new ConvexError("COMPANY_DATA_IS_PRIVATE");
     await ctx.db.patch(profile._id, { isPublic: args.isPublic, updatedAt: Date.now() });
     await ctx.db.patch(profile.workspaceId, { isPublic: args.isPublic });
     const entries = await ctx.db
@@ -863,8 +898,7 @@ export const updateProfile = mutation({
 export const renameCollector = mutation({
   args: { collectorId: v.id("collectors"), name: v.string() },
   handler: async (ctx, args) => {
-    const { user, profile } = await requireWorkspaceAccess(ctx, "collectors:manage");
-    const collector = await ctx.db.get(args.collectorId);
+    const { user, profile, collector } = await requireOwnCollectorAccess(ctx, args.collectorId);
     if (!profile || !collector || collector.workspaceId !== profile.workspaceId) throw new ConvexError("COLLECTOR_NOT_FOUND");
     const name = cleanText(args.name, "", 80);
     if (!name) throw new ConvexError("COLLECTOR_NAME_REQUIRED");
@@ -1012,7 +1046,7 @@ const deletionStages = [
   "dailyTotals", "dimensions", "devices", "models", "snapshots",
   "collectorSessions", "ingestReceipts", "rateBuckets", "sessionReceipts",
   "snapshotRuns", "snapshotReceipts", "deviceLinks", "collectors", "stats",
-  "audits", "memberships", "profile", "workspace", "user", "complete",
+  "productData", "audits", "memberships", "profile", "workspace", "user", "complete",
 ] as const;
 
 type DeletionStage = (typeof deletionStages)[number];
@@ -1104,6 +1138,38 @@ export const processAccountDeletion = internalMutation({
     }
 
     if (stage === "deviceLinks") return finishRows(await ctx.db.query("deviceLinkCodes").withIndex("by_workspaceId", (q) => q.eq("workspaceId", request.workspaceId)).take(100));
+    if (stage === "productData") {
+      const teams = await ctx.db.query("teams").withIndex("by_workspaceId", q => q.eq("workspaceId", request.workspaceId)).take(100);
+      if (teams.length) return finishRows(teams);
+      const teamMembers = await ctx.db.query("teamMembers").withIndex("by_workspaceId_and_userId_and_leftAt", q => q.eq("workspaceId", request.workspaceId)).take(100);
+      if (teamMembers.length) return finishRows(teamMembers);
+      const projects = await ctx.db.query("projects").withIndex("by_workspaceId_and_key", q => q.eq("workspaceId", request.workspaceId)).take(100);
+      if (projects.length) return finishRows(projects);
+      const workspaceInvitations = await ctx.db.query("workspaceInvitations").withIndex("by_workspaceId_and_state_and_email", q => q.eq("workspaceId", request.workspaceId)).take(100);
+      if (workspaceInvitations.length) return finishRows(workspaceInvitations);
+      const savedViews = await ctx.db.query("savedViews").withIndex("by_workspaceId_and_userId", q => q.eq("workspaceId", request.workspaceId)).take(100);
+      if (savedViews.length) return finishRows(savedViews);
+      const financialEntries = await ctx.db.query("financialEntries").withIndex("by_workspaceId_and_day", q => q.eq("workspaceId", request.workspaceId)).take(100);
+      if (financialEntries.length) return finishRows(financialEntries);
+      const financialDaily = await ctx.db.query("financialDaily").withIndex("by_workspaceId_and_day_and_currency_and_basis", q => q.eq("workspaceId", request.workspaceId)).take(100);
+      if (financialDaily.length) return finishRows(financialDaily);
+      const financialMonthly = await ctx.db.query("financialMonthly").withIndex("by_workspaceId_and_month_and_currency_and_basis", q => q.eq("workspaceId", request.workspaceId)).take(100);
+      if (financialMonthly.length) return finishRows(financialMonthly);
+      const budgets = await ctx.db.query("budgets").withIndex("by_workspaceId", q => q.eq("workspaceId", request.workspaceId)).take(100);
+      if (budgets.length) return finishRows(budgets);
+      const notifications = await ctx.db.query("notifications").withIndex("by_workspaceId_and_userId_and_createdAt", q => q.eq("workspaceId", request.workspaceId)).take(100);
+      if (notifications.length) return finishRows(notifications);
+      const savingsActions = await ctx.db.query("savingsActions").withIndex("by_workspaceId_and_state", q => q.eq("workspaceId", request.workspaceId)).take(100);
+      if (savingsActions.length) return finishRows(savingsActions);
+      const providerConnections = await ctx.db.query("providerConnections").withIndex("by_workspaceId", q => q.eq("workspaceId", request.workspaceId)).take(100);
+      if (providerConnections.length) return finishRows(providerConnections);
+      const providerDailyUsage = await ctx.db.query("providerDailyUsage").withIndex("by_workspaceId_and_day", q => q.eq("workspaceId", request.workspaceId)).take(100);
+      if (providerDailyUsage.length) return finishRows(providerDailyUsage);
+      const providerMappings = await ctx.db.query("providerIdentityMappings").withIndex("by_workspaceId", q => q.eq("workspaceId", request.workspaceId)).take(100);
+      if (providerMappings.length) return finishRows(providerMappings);
+      await advanceDeletion(ctx, requestId, stage, request.processedRows ?? 0);
+      return { processed: true, stage, rows: 0 };
+    }
     if (stage === "collectors") return finishRows((await collectors()).slice(0, 100));
     if (stage === "stats") return finishRows(await ctx.db.query("profileStats").withIndex("by_workspaceId", (q) => q.eq("workspaceId", request.workspaceId)).take(100));
     if (stage === "audits") return finishRows(await ctx.db.query("auditEvents").withIndex("by_workspaceId_and_createdAt", (q) => q.eq("workspaceId", request.workspaceId)).take(100));
@@ -1120,7 +1186,13 @@ export const processAccountDeletion = internalMutation({
       const remainingMembership = await ctx.db.query("workspaceMemberships").withIndex("by_userId_and_workspaceId", (q) => q.eq("userId", request.userId)).first();
       const remainingWorkspace = await ctx.db.query("workspaces").withIndex("by_ownerId", (q) => q.eq("ownerId", request.userId)).first();
       const user = await ctx.db.get(request.userId);
-      if (user && !remainingMembership && !remainingWorkspace) await ctx.db.delete(user._id);
+      if (user && !remainingMembership && !remainingWorkspace) {
+        const preferences = await ctx.db.query("preferences").withIndex("by_userId", q => q.eq("userId", user._id)).take(100);
+        const operations = await ctx.db.query("organizationOperations").withIndex("by_userId_and_requestId", q => q.eq("userId", user._id)).take(100);
+        if (preferences.length) return finishRows(preferences);
+        if (operations.length) return finishRows(operations);
+        await ctx.db.delete(user._id);
+      }
       await advanceDeletion(ctx, requestId, stage, (request.processedRows ?? 0) + Number(Boolean(user && !remainingMembership && !remainingWorkspace)));
       return { processed: true, stage, rows: Number(Boolean(user && !remainingMembership && !remainingWorkspace)) };
     }

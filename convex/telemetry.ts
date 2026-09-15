@@ -1,8 +1,10 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
+import type { Doc } from "./_generated/dataModel";
 import { internalMutation } from "./_generated/server";
 import { DAY_MS, dayFromTimestamp } from "./lib";
 import { enforceCollectorRateLimit } from "./rateLimits";
+import { assertCollectorMembership } from "./collectorAccess";
 
 export const telemetryEventValidator = v.object({
   eventKey: v.string(),
@@ -143,6 +145,7 @@ export const commitBatch = internalMutation({
   handler: async (ctx, args) => {
     const collector = await ctx.db.query("collectors").withIndex("by_keyHash", (q) => q.eq("keyHash", args.keyHash)).unique();
     if (!collector || collector.revokedAt || !collector.scopes.includes("telemetry:write")) throw new ConvexError("INVALID_COLLECTOR");
+    await assertCollectorMembership(ctx, collector);
     if (collector.installationIdHash && args.installationIdHash && collector.installationIdHash !== args.installationIdHash) {
       throw new ConvexError("DEVICE_ID_MISMATCH");
     }
@@ -655,10 +658,8 @@ export const deleteExpired = internalMutation({
     const now = Date.now();
     const batchSize = 250;
     const [events, receipts, snapshotReceipts, completedRuns, failedRuns, uploadingRuns, scanningRuns, rateBuckets, liveAgents, quarantine, deviceLinks, workosReceipts] = await Promise.all([
-      ctx.db
-        .query("telemetryEvents")
-        .withIndex("by_receivedAt", (q) => q.lt("receivedAt", now - 30 * DAY_MS))
-        .take(batchSize),
+      // Workspace-aware retention runs separately; never override a contracted window.
+      Promise.resolve([] as Doc<"telemetryEvents">[]),
       ctx.db
         .query("ingestReceipts")
         .withIndex("by_createdAt", (q) => q.lt("createdAt", now - 90 * DAY_MS))

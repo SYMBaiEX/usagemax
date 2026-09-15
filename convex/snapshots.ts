@@ -5,6 +5,7 @@ import type { MutationCtx } from "./_generated/server";
 import { internalMutation } from "./_generated/server";
 import { DAY_MS, dayFromTimestamp } from "./lib";
 import { enforceCollectorRateLimit } from "./rateLimits";
+import { assertCollectorMembership } from "./collectorAccess";
 
 const costBasisValidator = v.union(
   v.literal("reported"),
@@ -120,6 +121,7 @@ function maxOptional(left: number | undefined, right: number | undefined) {
 async function collectorForKey(ctx: MutationCtx, keyHash: string, installationIdHash?: string) {
   const collector = await ctx.db.query("collectors").withIndex("by_keyHash", (q) => q.eq("keyHash", keyHash)).unique();
   if (!collector || collector.revokedAt || !collector.scopes.includes("telemetry:write")) throw new ConvexError("INVALID_COLLECTOR");
+  await assertCollectorMembership(ctx, collector);
   if (collector.installationIdHash && installationIdHash && collector.installationIdHash !== installationIdHash) {
     throw new ConvexError("DEVICE_ID_MISMATCH");
   }
