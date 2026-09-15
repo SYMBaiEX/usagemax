@@ -56,9 +56,11 @@ UsageMax account
   └─ any additional WSL distro, VM, container, or server home
 ```
 
-Run `bunx usagemax@latest link ...` once in each environment, using a fresh
-one-time code for each. Windows and WSL are intentionally separate because their
-agent stores are separate. All collectors write into one profile.
+Run `bunx usagemax@latest link ...` once in each independent environment, using
+a fresh one-time code for each. A WSL collector now includes readable supported
+provider homes under `/mnt/c/Users`, so use it as the single collector for that
+Windows PC instead of linking the same host history a second time from Windows.
+All collectors write into one profile.
 
 A private random installation ID survives relinking and display-name changes,
 so rerunning the CLI on one installation does not create a second device. The ID

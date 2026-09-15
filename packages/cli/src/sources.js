@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 
 export const CCUSAGE_VERSION = "20.0.20";
-export const SOURCE_INVENTORY_VERSION = 2;
+export const SOURCE_INVENTORY_VERSION = 3;
 export const SUPPORTED_SOURCES = [
   "amp",
   "claude",
@@ -25,6 +25,10 @@ export const SUPPORTED_SOURCES = [
 ];
 
 const MAX_FINGERPRINT_FILES = 50_000;
+const WINDOWS_SYSTEM_PROFILES = /^(?:all users|default(?: user)?|defaultuser0|public|temp(?:\.|$)|umfd-)/i;
+const BACKUP_DIRECTORY = /(?:claude|codex).*(?:backup|archive|old|copy|mirror)|(?:backup|archive|old|copy|mirror).*(?:claude|codex)|superclaude/i;
+const ARCHIVE_EXTENSION = /(?:\.tar(?:\.gz)?|\.tgz|\.zip|\.7z)$/i;
+const ARCHIVE_FILE = /(?:claude|codex).*(?:\.tar(?:\.gz)?|\.tgz|\.zip|\.7z)$/i;
 
 function has(env, name) {
   return Object.prototype.hasOwnProperty.call(env, name);
@@ -43,6 +47,127 @@ function expandTilde(value, home, pathApi) {
   if (value === "~") return home;
   if (value.startsWith("~/") || value.startsWith("~\\")) return pathApi.join(home, value.slice(2));
   return value;
+}
+
+function uniquePaths(values, pathApi) {
+  const seen = new Set();
+  return values.filter((value) => {
+    if (typeof value !== "string" || !value.trim()) return false;
+    const normalized = pathApi.normalize(value.trim());
+    if (seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  });
+}
+
+async function entries(value) {
+  try {
+    return await readdir(value, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+}
+
+async function providerBearingHome(home, pathApi) {
+  const markers = [".claude", ".codex", ".factory", ".gemini", ".openclaw", ".hermes", ".grok"];
+  const checks = await Promise.all(markers.map((marker) => existsDirectory(pathApi.join(home, marker))));
+  return checks.some(Boolean);
+}
+
+async function discoverWslWindowsHomes(env, platform, pathApi) {
+  if (platform !== "linux" || !String(env.WSL_DISTRO_NAME ?? "").trim()) return [];
+  const usersRoot = String(env.USAGEMAX_WSL_USERS_DIR ?? "/mnt/c/Users").trim();
+  const candidates = [];
+  for (const entry of await entries(usersRoot)) {
+    if (!entry.isDirectory() || WINDOWS_SYSTEM_PROFILES.test(entry.name)) continue;
+    const candidate = pathApi.join(usersRoot, entry.name);
+    if (await providerBearingHome(candidate, pathApi)) candidates.push(candidate);
+  }
+  // A WSL distro can see every Windows profile. Auto-select only when there is
+  // one unambiguous provider-bearing profile; multi-user systems opt in with
+  // USAGEMAX_ADDITIONAL_HOME so one employee never absorbs another's usage.
+  return candidates.length === 1 ? candidates : [];
+}
+
+async function discoverBackupRoots(home, pathApi) {
+  const claude = [];
+  const codex = [];
+  const containers = [
+    { path: home, requireProviderName: true },
+    { path: pathApi.join(home, ".claude", "backups"), requireProviderName: false },
+    { path: pathApi.join(home, ".codex", "backups"), requireProviderName: false },
+  ];
+  for (const container of containers) {
+    for (const entry of await entries(container.path)) {
+      if (!entry.isDirectory() || (container.requireProviderName && !BACKUP_DIRECTORY.test(entry.name))) continue;
+      const candidate = pathApi.join(container.path, entry.name);
+      const claudeRoots = [candidate, pathApi.join(candidate, ".claude"), pathApi.join(candidate, "config")];
+      for (const root of claudeRoots) {
+        if (await existsDirectory(pathApi.join(root, "projects"))) claude.push(root);
+      }
+      const codexRoots = [candidate, pathApi.join(candidate, ".codex")];
+      for (const root of codexRoots) {
+        if (await existsDirectory(pathApi.join(root, "sessions")) || await existsDirectory(pathApi.join(root, "archived_sessions"))) codex.push(root);
+      }
+    }
+  }
+  return { claude, codex };
+}
+
+async function discoverNestedClaudeRoots(home, pathApi, maxDirectories = 4_096) {
+  const bases = [
+    pathApi.join(home, "Library", "Application Support", "Claude", "local-agent-mode-sessions"),
+    pathApi.join(home, "AppData", "Roaming", "Claude", "local-agent-mode-sessions"),
+  ];
+  const roots = [];
+  for (const base of bases) {
+    if (!await existsDirectory(base)) continue;
+    const stack = [{ directory: base, depth: 0 }];
+    let visited = 0;
+    while (stack.length && visited < maxDirectories) {
+      const { directory, depth } = stack.pop();
+      visited += 1;
+      for (const entry of await entries(directory)) {
+        if (!entry.isDirectory() || entry.name === "node_modules" || entry.name === ".git") continue;
+        const child = pathApi.join(directory, entry.name);
+        if (entry.name === ".claude") {
+          if (await existsDirectory(pathApi.join(child, "projects"))) roots.push(child);
+        } else if (depth < 7) {
+          stack.push({ directory: child, depth: depth + 1 });
+        }
+      }
+    }
+  }
+  return roots;
+}
+
+function setDiscoveredList(effective, name, defaults, additions, pathApi) {
+  if (has(effective, name) && !String(effective[name] ?? "").trim()) return;
+  const configured = has(effective, name) ? commaList(effective[name]) : defaults;
+  effective[name] = uniquePaths([...configured, ...additions], pathApi).join(",");
+}
+
+export async function discoverProviderArchives({ env = process.env, home = ccusageHome(env), pathApi = path } = {}) {
+  const homes = uniquePaths([home, ...commaList(env.USAGEMAX_DISCOVERED_HOMES), ...commaList(env.USAGEMAX_ADDITIONAL_HOME)], pathApi);
+  const archives = [];
+  for (const candidateHome of homes) {
+    const roots = [
+      { path: candidateHome, source: null },
+      { path: pathApi.join(candidateHome, ".claude", "backups"), source: "claude" },
+      { path: pathApi.join(candidateHome, ".codex", "backups"), source: "codex" },
+    ];
+    for (const root of roots) {
+      for (const entry of await entries(root.path)) {
+        if (!entry.isFile() || !ARCHIVE_EXTENSION.test(entry.name) || (!root.source && !ARCHIVE_FILE.test(entry.name))) continue;
+        const filePath = pathApi.join(root.path, entry.name);
+        try {
+          const metadata = await stat(filePath);
+          archives.push({ path: filePath, size: metadata.size, source: root.source || (/codex/i.test(entry.name) ? "codex" : "claude") });
+        } catch {}
+      }
+    }
+  }
+  return archives.filter((archive, index) => archives.findIndex((item) => item.path === archive.path) === index);
 }
 
 export function ccusageHome(env = process.env, fallback = homedir()) {
@@ -156,13 +281,52 @@ export function sourceDefinitions({ env = process.env, home = ccusageHome(env), 
 
 export async function ccusageEnvironment({ env = process.env, platform = process.platform, pathApi = path } = {}) {
   const effective = { ...env };
-  if (platform !== "win32" || String(effective.GOOSE_PATH_ROOT ?? "").trim() || !String(effective.APPDATA ?? "").trim()) {
-    return effective;
+  const home = ccusageHome(effective);
+  const configuredHomes = commaList(effective.USAGEMAX_ADDITIONAL_HOME).map((item) => expandTilde(item, home, pathApi));
+  const wslHomes = await discoverWslWindowsHomes(effective, platform, pathApi);
+  const additionalHomes = uniquePaths([...configuredHomes, ...wslHomes], pathApi).filter((item) => pathApi.normalize(item) !== pathApi.normalize(home));
+  const homes = [home, ...additionalHomes];
+  const backups = await Promise.all(homes.map((candidate) => discoverBackupRoots(candidate, pathApi)));
+  const nestedClaude = (await Promise.all(homes.map((candidate) => discoverNestedClaudeRoots(candidate, pathApi)))).flat();
+  const mirroredClaude = [];
+  for (const candidate of homes) {
+    const mirror = pathApi.join(candidate, ".cc-mirror", "mclaude", "config");
+    if (await existsDirectory(pathApi.join(mirror, "projects"))) mirroredClaude.push(mirror);
   }
-  const gooseRoot = pathApi.join(String(effective.APPDATA).trim(), "Block", "goose");
-  try {
-    if ((await stat(pathApi.join(gooseRoot, "data", "sessions", "sessions.db"))).isFile()) effective.GOOSE_PATH_ROOT = gooseRoot;
-  } catch {}
+
+  const xdgClaude = pathApi.join(has(effective, "XDG_CONFIG_HOME") ? String(effective.XDG_CONFIG_HOME) : pathApi.join(home, ".config"), "claude");
+  setDiscoveredList(effective, "CLAUDE_CONFIG_DIR", [xdgClaude, pathApi.join(home, ".claude")], [
+    ...additionalHomes.flatMap((candidate) => [pathApi.join(candidate, ".config", "claude"), pathApi.join(candidate, ".claude")]),
+    ...mirroredClaude,
+    ...backups.flatMap((item) => item.claude),
+    ...nestedClaude,
+  ], pathApi);
+  setDiscoveredList(effective, "CODEX_HOME", [pathApi.join(home, ".codex")], [
+    ...additionalHomes.map((candidate) => pathApi.join(candidate, ".codex")),
+    ...backups.flatMap((item) => item.codex),
+  ], pathApi);
+
+  const additions = (segments) => additionalHomes.map((candidate) => pathApi.join(candidate, ...segments));
+  setDiscoveredList(effective, "OPENCODE_DATA_DIR", [pathApi.join(home, ".local", "share", "opencode")], additions([".local", "share", "opencode"]), pathApi);
+  setDiscoveredList(effective, "AMP_DATA_DIR", [pathApi.join(home, ".local", "share", "amp")], additions([".local", "share", "amp"]), pathApi);
+  setDiscoveredList(effective, "DROID_SESSIONS_DIR", [pathApi.join(home, ".factory", "sessions")], additions([".factory", "sessions"]), pathApi);
+  setDiscoveredList(effective, "CODEBUFF_DATA_DIR", ["manicode", "manicode-dev", "manicode-staging"].map((channel) => pathApi.join(home, ".config", channel)), additionalHomes.flatMap((candidate) => ["manicode", "manicode-dev", "manicode-staging"].map((channel) => pathApi.join(candidate, ".config", channel))), pathApi);
+  setDiscoveredList(effective, "HERMES_HOME", [pathApi.join(home, ".hermes")], additions([".hermes"]), pathApi);
+  setDiscoveredList(effective, "PI_AGENT_DIR", [pathApi.join(home, ".pi", "agent", "sessions")], additions([".pi", "agent", "sessions"]), pathApi);
+  setDiscoveredList(effective, "OPENCLAW_DIR", [".openclaw", ".clawdbot", ".moltbot", ".moldbot"].map((name) => pathApi.join(home, name)), additionalHomes.flatMap((candidate) => [".openclaw", ".clawdbot", ".moltbot", ".moldbot"].map((name) => pathApi.join(candidate, name))), pathApi);
+  setDiscoveredList(effective, "KILO_DATA_DIR", [pathApi.join(home, ".local", "share", "kilo")], additions([".local", "share", "kilo"]), pathApi);
+  setDiscoveredList(effective, "KIMI_DATA_DIR", [pathApi.join(home, ".kimi"), pathApi.join(home, ".kimi-code")], additionalHomes.flatMap((candidate) => [pathApi.join(candidate, ".kimi"), pathApi.join(candidate, ".kimi-code")]), pathApi);
+  setDiscoveredList(effective, "QWEN_DATA_DIR", [pathApi.join(home, ".qwen")], additions([".qwen"]), pathApi);
+  setDiscoveredList(effective, "GEMINI_DATA_DIR", [pathApi.join(home, ".gemini", "tmp")], additions([".gemini", "tmp"]), pathApi);
+
+  effective.USAGEMAX_DISCOVERED_HOMES = homes.join(",");
+
+  if (platform === "win32" && !String(effective.GOOSE_PATH_ROOT ?? "").trim() && String(effective.APPDATA ?? "").trim()) {
+    const gooseRoot = pathApi.join(String(effective.APPDATA).trim(), "Block", "goose");
+    try {
+      if ((await stat(pathApi.join(gooseRoot, "data", "sessions", "sessions.db"))).isFile()) effective.GOOSE_PATH_ROOT = gooseRoot;
+    } catch {}
+  }
   return effective;
 }
 

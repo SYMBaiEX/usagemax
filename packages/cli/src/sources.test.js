@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { ccusageEnvironment, ccusageHome, sourceDefinitions, sourceInventory, SUPPORTED_SOURCES } from "./sources.js";
+import { ccusageEnvironment, ccusageHome, discoverProviderArchives, sourceDefinitions, sourceInventory, SUPPORTED_SOURCES } from "./sources.js";
 
 test("matches ccusage home precedence on Windows and POSIX", () => {
   assert.equal(ccusageHome({ HOME: "/linux", USERPROFILE: "C:\\Users\\me" }), "/linux");
@@ -42,6 +42,49 @@ test("adds the official Windows Goose database and configures ccusage when prese
   assert.ok(definitions.some((item) => item.source === "goose" && item.path === database));
   const effective = await ccusageEnvironment({ env: { APPDATA: appData }, platform: "win32" });
   assert.equal(effective.GOOSE_PATH_ROOT, path.join(appData, "Block", "goose"));
+});
+
+test("discovers readable Windows provider homes from WSL without scanning their whole profile", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "usagemax-wsl-"));
+  const home = path.join(root, "linux-home");
+  const users = path.join(root, "mnt", "c", "Users");
+  const windowsHome = path.join(users, "austi");
+  await mkdir(path.join(home, ".claude", "projects"), { recursive: true });
+  await mkdir(path.join(windowsHome, ".claude", "projects"), { recursive: true });
+  await mkdir(path.join(windowsHome, ".codex", "sessions"), { recursive: true });
+  await writeFile(path.join(windowsHome, ".claude", "projects", "one.jsonl"), "{}\n");
+  await writeFile(path.join(windowsHome, ".codex", "sessions", "one.jsonl"), "{}\n");
+
+  const effective = await ccusageEnvironment({
+    env: { HOME: home, USAGEMAX_WSL_USERS_DIR: users, WSL_DISTRO_NAME: "Ubuntu" },
+    platform: "linux",
+  });
+  assert.ok(effective.CLAUDE_CONFIG_DIR.split(",").includes(path.join(windowsHome, ".claude")));
+  assert.ok(effective.CODEX_HOME.split(",").includes(path.join(windowsHome, ".codex")));
+  const inventory = await sourceInventory({ env: effective, home, cwd: root });
+  assert.deepEqual(inventory.sources, ["claude", "codex"]);
+});
+
+test("discovers Claude Desktop agent homes, mirrors, renamed backups, and archives", async () => {
+  const home = await mkdtemp(path.join(tmpdir(), "usagemax-claude-roots-"));
+  const desktopRoot = path.join(home, "Library", "Application Support", "Claude", "local-agent-mode-sessions", "session", "agent", ".claude");
+  const mirrorRoot = path.join(home, ".cc-mirror", "mclaude", "config");
+  const backupRoot = path.join(home, "superclaude-backup.20250101");
+  const archive = path.join(home, ".claude", "backups", "history.tar.gz");
+  for (const root of [desktopRoot, mirrorRoot, backupRoot]) {
+    await mkdir(path.join(root, "projects"), { recursive: true });
+    await writeFile(path.join(root, "projects", `${path.basename(root)}.jsonl`), "{}\n");
+  }
+  await mkdir(path.dirname(archive), { recursive: true });
+  await writeFile(archive, "archive");
+
+  const effective = await ccusageEnvironment({ env: { HOME: home }, platform: "darwin" });
+  const claudeRoots = effective.CLAUDE_CONFIG_DIR.split(",");
+  assert.ok(claudeRoots.includes(desktopRoot));
+  assert.ok(claudeRoots.includes(mirrorRoot));
+  assert.ok(claudeRoots.includes(backupRoot));
+  const archives = await discoverProviderArchives({ env: effective, home });
+  assert.deepEqual(archives.map((item) => item.path), [archive]);
 });
 
 test("fingerprints WAL changes, named pi stores, and previously missing sources", async () => {

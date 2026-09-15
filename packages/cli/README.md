@@ -14,9 +14,10 @@ bunx usagemax@latest link UMX-XXXX-XXXX-XXXX-XXXX
 
 The link code expires after ten minutes and can be used once. Create a new code
 for each Mac, Windows PC, Linux computer, and WSL distribution. All linked
-collectors roll up into the same profile. Windows and WSL have separate home
-directories, so run UsageMax once in Windows and once inside WSL when both have
-agent history.
+collectors roll up into the same profile. When run inside WSL, UsageMax includes
+readable supported-provider homes under `/mnt/c/Users` automatically. Use the
+WSL collector as the single collector for that Windows PC instead of linking the
+same host history again from Windows.
 
 The CLI stores the resulting collector key in a user-only config file, then runs
 a one-shot full-history sync. Running it again, changing the display name, or
@@ -29,6 +30,7 @@ installation identity remains stable.
 bunx usagemax                       # sync changed usage
 bunx usagemax sync                  # same as above
 bunx usagemax sync --full           # reconcile all retained local history
+bunx usagemax sync --archives       # one-time compressed-history recovery
 bunx usagemax link UMX-… --no-sync  # link without uploading yet
 bunx usagemax status                # show link and last-sync state
 bunx usagemax doctor                # metadata-only source check
@@ -50,6 +52,20 @@ The source inventory follows ccusage's environment overrides, including
 `GOOSE_PATH_ROOT`, `OPENCLAW_DIR`, `KILO_DATA_DIR`, `KIMI_DATA_DIR`,
 `QWEN_DATA_DIR`, `COPILOT_OTEL_FILE_EXPORTER_PATH`, `GEMINI_DATA_DIR`, and
 `GROK_HOME`. It also follows XDG Claude configuration and Windows Goose storage.
+
+UsageMax also discovers Claude Desktop local-agent sessions, `.cc-mirror`,
+recognizable renamed Claude/Codex backup folders, and supported Windows homes
+from WSL. Discovery is bounded to known locations and immediate home entries;
+normal syncs do not crawl the whole disk.
+On a multi-user WSL host, automatic Windows-home discovery stays off unless
+there is exactly one provider-bearing profile; set `USAGEMAX_ADDITIONAL_HOME`
+to the intended mounted home explicitly.
+
+If `doctor` reports compressed provider archives, run `sync --archives` once.
+Recovery extracts only safe Claude `projects/*.jsonl` members into a private
+temporary directory, performs one full deduplicated reconciliation, and removes
+the temporary files before exit. Weekly and incremental syncs never unpack
+archives.
 
 Local files are only one coverage layer. Cursor, Windsurf, Aider, Continue,
 Cline, Roo Code, direct provider API traffic, hosted agents, and enterprise

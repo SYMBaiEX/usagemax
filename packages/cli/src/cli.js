@@ -9,13 +9,14 @@ import { dirname, join } from "node:path";
 import process from "node:process";
 import { promisify } from "node:util";
 
+import { prepareArchiveRecovery } from "./archives.js";
 import { batchId, buildDeltaPlan, normalizeLinkCode, sourceSummary, validHttpsUrl } from "./core.js";
 import { stableInstallationId } from "./installation.js";
-import { CCUSAGE_VERSION, ccusageEnvironment, SOURCE_INVENTORY_VERSION, sourceInventory, SUPPORTED_SOURCES } from "./sources.js";
+import { CCUSAGE_VERSION, ccusageEnvironment, ccusageHome, discoverProviderArchives, SOURCE_INVENTORY_VERSION, sourceInventory, SUPPORTED_SOURCES } from "./sources.js";
 
 const require = createRequire(import.meta.url);
 const executeFile = promisify(execFile);
-const VERSION = "0.2.0";
+const VERSION = "0.2.1";
 const DEFAULT_LINK_ENDPOINT = "https://terrific-bobcat-522.convex.site/v1/devices/link";
 const CONFIG_FILE = "config.json";
 const MAX_REPORT_BYTES = 100 * 1024 * 1024;
@@ -79,7 +80,8 @@ function help() {
   process.stdout.write("  usagemax                         Sync changed local usage\n");
   process.stdout.write("  usagemax link <one-use-code>     Link and sync this computer\n");
   process.stdout.write("           [--no-sync] [--name <name>]\n");
-  process.stdout.write("  usagemax sync [--full] [--json] Sync usage once, then exit\n");
+  process.stdout.write("  usagemax sync [--full] [--archives] [--json]\n");
+  process.stdout.write("                                  Sync once; --archives performs a one-time recovery\n");
   process.stdout.write("  usagemax status                  Show local link status\n");
   process.stdout.write("  usagemax doctor [--deep]         Check source coverage; --deep parses full history\n");
   process.stdout.write("  usagemax report [...args]        Run a local ccusage report\n");
@@ -90,7 +92,7 @@ function ccusageCliPath() {
   return join(dirname(require.resolve("ccusage/package.json")), "src", "cli.js");
 }
 
-async function ccusageJson(config, { full = false } = {}) {
+async function ccusageJson(config, { full = false, env } = {}) {
   const args = [ccusageCliPath(), "daily", "--json", "--offline", "--mode", "calculate", "--timezone", "UTC", "--by-agent", "--order", "asc"];
   // Reconcile yesterday once after the UTC date changes. All other incremental
   // scans parse only today; a metadata fingerprint avoids invoking ccusage when
@@ -104,7 +106,7 @@ async function ccusageJson(config, { full = false } = {}) {
   const { stdout } = await executeFile(process.execPath, args, {
     encoding: "utf8",
     maxBuffer: MAX_REPORT_BYTES,
-    env: { ...await ccusageEnvironment(), NO_COLOR: "1" },
+    env: { ...(env || await ccusageEnvironment()), NO_COLOR: "1" },
   });
   return JSON.parse(stdout);
 }
@@ -154,11 +156,24 @@ async function link(args) {
 }
 
 async function sync(args, suppliedConfig) {
+  const baseEnv = await ccusageEnvironment();
+  const recovery = args.includes("--archives")
+    ? await prepareArchiveRecovery(baseEnv)
+    : { archives: 0, cleanup: async () => undefined, env: baseEnv, unsupported: 0 };
+  try {
+    return await syncPrepared(args, suppliedConfig, recovery);
+  } finally {
+    await recovery.cleanup();
+  }
+}
+
+async function syncPrepared(args, suppliedConfig, recovery) {
   const config = suppliedConfig || await readConfig();
   if (!config) throw new Error("This computer is not linked. Open https://usagemax.com/account and create a link code.");
   config.deviceId = await stableInstallationId(configDirectory(), config.deviceId);
   const requestedFull = args.includes("--full");
-  const inventory = await sourceInventory();
+  const requestedArchives = args.includes("--archives");
+  const inventory = await sourceInventory({ env: recovery.env, home: ccusageHome(recovery.env) });
   const today = new Date().toISOString().slice(0, 10);
   const knownSources = Array.isArray(config.knownSources) ? config.knownSources : [];
   const foundNewSource = inventory.sources.some((source) => !knownSources.includes(source));
@@ -167,14 +182,14 @@ async function sync(args, suppliedConfig) {
     || !Number.isFinite(lastFullSync)
     || Date.now() - lastFullSync >= FULL_RECONCILE_INTERVAL_MS
     || foundNewSource;
-  const full = requestedFull || fullDue;
+  const full = requestedFull || requestedArchives || fullDue;
   if (!full && inventory.complete && config.lastSyncComplete && config.lastReconciledDay === today && config.sourceFingerprint === inventory.fingerprint) {
     const result = { accepted: 0, changedRows: 0, sources: inventory.sources, regressions: 0, scanned: false, full: false };
     if (args.includes("--json")) process.stdout.write(`${JSON.stringify(result)}\n`);
     else process.stdout.write("Already up to date. Local usage files have not changed; no logs were parsed or uploaded.\n");
     return;
   }
-  const report = await ccusageJson(config, { full });
+  const report = await ccusageJson(config, { env: recovery.env, full });
   const { plan, regressions } = buildDeltaPlan(report, config.snapshots, config.deviceId, `ccusage@${CCUSAGE_VERSION}`);
   config.lastSyncComplete = false;
   await writeConfig(config);
@@ -210,6 +225,10 @@ async function sync(args, suppliedConfig) {
   if (full) config.lastFullSyncAt = config.lastSyncAt;
   await writeConfig(config);
   const result = { accepted, changedRows: plan.length, sources: sourceSummary(report), regressions: regressions.length, scanned: true, full };
+  if (requestedArchives) {
+    result.archives = recovery.archives;
+    result.unsupportedArchives = recovery.unsupported;
+  }
   if (args.includes("--json")) process.stdout.write(`${JSON.stringify(result)}\n`);
   else {
     process.stdout.write(plan.length ? `Synced ${accepted} changed usage rows from ${result.sources.join(", ") || "local agents"}${full ? " (full history)" : ""}.\n` : `Already up to date. No usage rows were uploaded${full ? " after a full-history reconciliation" : ""}.\n`);
@@ -236,16 +255,21 @@ async function status() {
 
 async function doctor(args = []) {
   const config = await readConfig();
-  const inventory = await sourceInventory();
+  const env = await ccusageEnvironment();
+  const inventory = await sourceInventory({ env, home: ccusageHome(env) });
+  const archives = await discoverProviderArchives({ env, home: ccusageHome(env) });
+  const homes = String(env.USAGEMAX_DISCOVERED_HOMES || ccusageHome(env)).split(",").filter(Boolean);
   process.stdout.write(`Collector: ${config ? "linked" : "not linked"}\n`);
+  process.stdout.write(`Discovered homes: ${homes.length} (${homes.join(", ")})\n`);
   process.stdout.write(`Detected sources: ${inventory.sources.join(", ") || "none"} (${inventory.files}${inventory.truncated ? "+" : ""} data files)\n`);
   process.stdout.write(`Supported sources: ${SUPPORTED_SOURCES.join(", ")} (+ named pi-format stores)\n`);
   if (platform() === "linux" && process.env.WSL_DISTRO_NAME) {
-    process.stdout.write(`Environment: WSL ${process.env.WSL_DISTRO_NAME}; its Linux home is collected separately from Windows\n`);
+    process.stdout.write(`Environment: WSL ${process.env.WSL_DISTRO_NAME}; readable Windows provider homes are included automatically\n`);
   }
+  if (archives.length) process.stdout.write(`Recovery: ${archives.length} compressed provider archive(s) detected; run \`bunx usagemax sync --archives\` once to reconcile them\n`);
   if (!inventory.complete) process.stdout.write(`Inventory: incomplete (${inventory.errors} read error(s)${inventory.truncated ? ", file limit reached" : ""}); no-change shortcut disabled\n`);
   if (args.includes("--deep")) {
-    const report = await ccusageJson(config, { full: true });
+    const report = await ccusageJson(config, { env, full: true });
     process.stdout.write(`Parsed sources: ${sourceSummary(report).join(", ") || "none"}\n`);
   }
   process.stdout.write(`Mode: one-shot, metadata no-op check, ${args.includes("--deep") ? "deep local parse" : "no log parsing"}\n`);
