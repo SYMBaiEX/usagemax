@@ -48,16 +48,16 @@ export function EnterpriseView() {
     <div className="page-surface content-page enterprise-page">
       <PageIntro
         description="A governed operating picture for teams running models, tools, and autonomous systems in production. UsageMax keeps identity, access, ingestion, and public reporting inside explicit workspace boundaries."
-        eyebrow="For teams / the control plane"
-        title={<>Make the invisible workload <span className="text-accent">operational.</span></>}
+        eyebrow="UsageMax for teams"
+        title={<>AI usage, <span className="text-accent">governed across your team.</span></>}
       >
         <Link className="button button-acid" href="/docs">Start with the collector <ArrowUpRight size={16} /></Link>
         <a className="button button-quiet" href="mailto:hello@usagemax.com">Talk to the team <ArrowRight size={16} /></a>
       </PageIntro>
 
       <section className="shell enterprise-signal-band">
-        <div className="enterprise-signal-readout"><span className="metric-label">Team signal / now</span><strong>ONE SHARED PICTURE</strong><span><span className="live-dot" /> Built from the events already moving through your stack</span></div>
-        <div className="enterprise-signal-line" aria-hidden="true"><span /><span /><span /><span /><span /><span /><span /><span /><span /></div>
+        <div className="enterprise-signal-readout"><span className="metric-label">Workspace controls</span><strong>Your team. Your data.</strong><span>Visibility without collecting prompts or source code.</span></div>
+        <div className="enterprise-capabilities"><span>Private workspaces</span><span>Role-based access</span><span>Usage audit trail</span></div>
       </section>
 
       <section className="shell content-section">
@@ -201,7 +201,7 @@ function LegalView({ kind }: { kind: "privacy" | "terms" }) {
   const privacy = kind === "privacy";
   return (
     <div className="page-surface content-page legal-page">
-      <PageIntro description={privacy ? "The short version of how UsageMax treats telemetry, profile data, and the public surface." : "The operating terms for using UsageMax public pages and sending telemetry to the service."} eyebrow={privacy ? "Legal / privacy" : "Legal / terms"} title={privacy ? <>Privacy, with the <span className="text-accent">lights on.</span></> : <>A clear contract for <span className="text-accent">public signal.</span></>} />
+      <PageIntro description={privacy ? "How UsageMax treats telemetry, profile data, and public reporting." : "The terms for using UsageMax and sending telemetry to the service."} eyebrow="Legal" title={privacy ? "Privacy policy" : "Terms of service"} />
       <article className="shell legal-article">
         <div className="legal-meta"><span>Last updated</span><strong>September 13, 2026</strong><span className="meta-divider" /><span>Version 1.0</span></div>
         {privacy ? <>

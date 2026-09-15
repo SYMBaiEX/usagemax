@@ -175,6 +175,18 @@ test("builds authoritative partitions for decreases, deletions, and provider ide
   assert.equal(removed.partitions[0].rows[0].current.totalTokens, 0);
 });
 
+test("daily snapshot timestamps never land later in the current UTC day", () => {
+  const morning = Date.parse("2026-09-15T04:00:00.000Z");
+  const fixture = structuredClone(report);
+  fixture.daily[0].period = "2026-09-15";
+  const { partitions } = buildSnapshotPlan(fixture, {}, { revision: morning });
+  assert.ok(partitions[0].rows.length > 0);
+  for (const row of partitions[0].rows) {
+    assert.equal(row.lastUsedAt, Date.parse("2026-09-15T00:00:00.000Z"));
+    assert.ok(row.lastUsedAt <= morning);
+  }
+});
+
 test("uploads only opaque session identities", () => {
   const sessions = buildSessionPlan({ session: [{ agent: "codex", period: "/private/project/session.jsonl", metadata: { lastActivity: "2026-09-14T12:00:00.000Z" } }] }, "device-1");
   assert.equal(sessions.length, 1);

@@ -321,7 +321,9 @@ export function buildSnapshotPlan(report, priorSnapshots, {
       current,
       costBasis: "estimated",
       contentHash: sha256(`${key}\u001f${JSON.stringify(current)}`),
-      lastUsedAt: Date.parse(`${identity.period}T12:00:00.000Z`),
+      // A daily aggregate has no exact event time. Use the start of its UTC day
+      // so today's partition is valid even when the collector runs before noon.
+      lastUsedAt: Date.parse(`${identity.period}T00:00:00.000Z`),
     });
     grouped.set(partitionKey, rowsForPartition);
   }

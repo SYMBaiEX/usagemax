@@ -73,7 +73,7 @@ export function SiteFooter() {
               Usage<span>Max</span>
             </span>
           </Link>
-          <p>Your AI usage, made visible. A public record of the work behind the work.</p>
+          <p>AI usage analytics for individuals and teams. Private by default. Public by choice.</p>
         </div>
         <div className="footer-links">
           <div>
@@ -99,7 +99,7 @@ export function SiteFooter() {
         <span>© 2026 UsageMax</span>
         <span className="footer-status">
           <span className="live-dot" />
-          Realtime on Convex
+          Live usage analytics
         </span>
         <span>Make the work visible</span>
       </div>
