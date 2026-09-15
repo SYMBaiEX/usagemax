@@ -1,14 +1,8 @@
 import Link from "next/link";
 
-import { HeaderAuthControls, MobileAuthLink } from "./auth-controls";
-import { ArrowRight, ArrowUpRight, ChevronDown, UsageMark } from "./icons";
-
-const navigation = [
-  { href: "/leaderboard", label: "Explore" },
-  { href: "/methodology", label: "How it works" },
-  { href: "/docs", label: "Connect" },
-  { href: "/enterprise", label: "For teams" },
-];
+import { HeaderAuthControls } from "./auth-controls";
+import { ArrowUpRight, UsageMark } from "./icons";
+import { SiteNavigation } from "./site-navigation";
 
 export function SiteHeader() {
   return (
@@ -23,13 +17,7 @@ export function SiteHeader() {
           </span>
         </Link>
 
-        <nav aria-label="Main navigation" className="desktop-nav">
-          {navigation.map((item) => (
-            <Link href={item.href} key={item.href}>
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        <SiteNavigation />
 
         <div className="header-actions">
           <HeaderAuthControls />
@@ -38,23 +26,6 @@ export function SiteHeader() {
           </Link>
         </div>
 
-        <details className="mobile-nav">
-          <summary aria-label="Open navigation">
-            <span className="mobile-nav-label">Menu</span>
-            <ChevronDown size={17} />
-          </summary>
-          <nav aria-label="Mobile navigation">
-            {navigation.map((item) => (
-              <Link href={item.href} key={item.href}>
-                {item.label} <ArrowRight size={14} />
-              </Link>
-            ))}
-            <MobileAuthLink />
-            <Link href="/docs">
-              Connect data <ArrowUpRight size={14} />
-            </Link>
-          </nav>
-        </details>
         </div>
     </header>
   );
@@ -73,7 +44,8 @@ export function SiteFooter() {
               Usage<span>Max</span>
             </span>
           </Link>
-          <p>AI usage analytics for individuals and teams. Private by default. Public by choice.</p>
+          <p className="footer-statement">Keep building.<br />We’ll keep count.</p>
+          <p>Private by default. Public by choice.</p>
         </div>
         <div className="footer-links">
           <div>
@@ -99,7 +71,7 @@ export function SiteFooter() {
         <span>© 2026 UsageMax</span>
         <span className="footer-status">
           <span className="live-dot" />
-          Live usage analytics
+          First-party usage analytics
         </span>
         <span>Make the work visible</span>
       </div>
@@ -124,9 +96,7 @@ export function PageIntro({
         <span className="eyebrow-line" />
         {eyebrow}
       </div>
-      <h1>{title}</h1>
-      <p>{description}</p>
-      {children ? <div className="page-intro-actions">{children}</div> : null}
+      <div className="page-intro-layout"><h1>{title}</h1><div className="page-intro-description"><p>{description}</p>{children ? <div className="page-intro-actions">{children}</div> : null}</div></div>
     </section>
   );
 }

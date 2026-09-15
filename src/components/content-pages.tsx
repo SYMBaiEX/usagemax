@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { PageIntro, TextLink } from "./site-shell";
+import { CopyButton } from "./copy-button";
 import {
   ActivityIcon,
   ArrowRight,
@@ -47,12 +48,12 @@ export function EnterpriseView() {
   return (
     <div className="page-surface content-page enterprise-page">
       <PageIntro
-        description="A governed operating picture for teams running models, tools, and autonomous systems in production. UsageMax keeps identity, access, ingestion, and public reporting inside explicit workspace boundaries."
+        description="Understand what your team is using, where the spend goes, and who can access it. One private workspace, with clear boundaries around every collector and account."
         eyebrow="UsageMax for teams"
-        title={<>AI usage, <span className="text-accent">governed across your team.</span></>}
+        title={<>Your team’s AI.<br /><span className="text-accent">One clear picture.</span></>}
       >
-        <Link className="button button-acid" href="/docs">Start with the collector <ArrowUpRight size={16} /></Link>
-        <a className="button button-quiet" href="mailto:hello@usagemax.com">Talk to the team <ArrowRight size={16} /></a>
+        <a className="button button-acid" href="mailto:hello@usagemax.com">Talk to the team <ArrowUpRight size={16} /></a>
+        <Link className="button button-quiet" href="/docs">Read the integration guide <ArrowRight size={16} /></Link>
       </PageIntro>
 
       <section className="shell enterprise-signal-band">
@@ -122,16 +123,16 @@ const traceExample = `{
 }`;
 
 function CodeBlock({ label, children }: { label: string; children: string }) {
-  return <div className="code-block"><div className="code-block-top"><span>{label}</span><span className="mono-muted">READ / COPY</span></div><pre><code>{children}</code></pre></div>;
+  return <div className="code-block"><div className="code-block-top"><span>{label}</span><CopyButton value={children} /></div><pre tabIndex={0} aria-label={label}><code>{children}</code></pre></div>;
 }
 
 export function DocsView() {
   return (
     <div className="page-surface content-page docs-page">
       <PageIntro
-        description="A small, explicit surface for sending agent telemetry into a public profile. Keep the event contract boring; keep the resulting signal useful."
-        eyebrow="Developer surface / 01"
-        title={<>A clean path from <span className="text-accent">event</span> to insight.</>}
+        description="Connect a computer, bring your own telemetry, or read the public ledger. Start with a one-time link command; go deeper when you need to."
+        eyebrow="The field guide"
+        title={<>Your first sync.<br /><span className="text-accent">And everything after.</span></>}
       >
         <Link className="button button-acid" href="#quickstart">Jump to quickstart <ArrowRight size={16} /></Link>
       </PageIntro>
@@ -150,7 +151,7 @@ export function DocsView() {
           <section className="docs-section" id="quickstart"><div className="docs-section-kicker">01 / QUICKSTART</div><h2>Link a computer in one command.</h2><p>Sign in, create a private profile, and generate a short-lived command from your account. UsageMax uses ccusage to detect supported local coding agents, then uploads only aggregate counters in a bounded one-shot sync.</p><CodeBlock label="terminal / after generating a link code">bunx usagemax link UMX-XXXX-XXXX-XXXX-XXXX</CodeBlock><p>For custom runtimes, create an advanced collector key and send a bounded batch of model, tool, state, and outcome events:</p><CodeBlock label="terminal / native telemetry">{quickstart}</CodeBlock><Callout tone="cyan">Collector secrets are shown once and stored only as hashes. Never put provider credentials or prompt content in the event payload.</Callout></section>
           <section className="docs-section" id="event-contract"><div className="docs-section-kicker">02 / EVENT CONTRACT</div><h2>Small fields. Strong edges.</h2><p>Three required fields identify what happened; optional fields make the trace easier to follow. Token and cost fields are numeric so the public rollups stay deterministic.</p><div className="contract-table"><div><code>eventKey</code><span>stable, idempotent event identifier</span><b>required</b></div><div><code>model</code><span>the model actually used for the event</span><b>required</b></div><div><code>occurredAt</code><span>ISO timestamp or Unix milliseconds</span><b>required</b></div><div><code>eventType</code><span>model_request / tool_call / agent_state / outcome</span><b>optional</b></div><div><code>source</code><span>the runtime or product emitting the event</span><b>optional</b></div><div><code>costBasis</code><span>reported / estimated / unknown</span><b>optional</b></div><div><code>pricingVersion</code><span>calculator, rate card, or billing export version</span><b>optional</b></div><div><code>serviceTier / region</code><span>pricing modifiers retained without guessing</span><b>optional</b></div><div><code>projectId / costCenter</code><span>private allocation dimensions</span><b>optional</b></div><div><code>status</code><span>ok / error / cancelled</span><b>optional</b></div><div><code>traceId</code><span>optional link back to your private trace system</span><b>optional</b></div></div></section>
           <section className="docs-section" id="open-telemetry"><div className="docs-section-kicker">03 / OPEN TELEMETRY</div><h2>Bring the traces you already emit.</h2><p>If your runtime speaks OTLP, send trace payloads to the traces endpoint and let UsageMax map the recognized GenAI attributes into the same rollups.</p><CodeBlock label="json / OTLP trace excerpt">{traceExample}</CodeBlock><div className="inline-links"><TextLink href="/security">Review transport boundaries</TextLink><TextLink href="/methodology">See completeness rules</TextLink></div></section>
-          <section className="docs-section" id="public-surface"><div className="docs-section-kicker">04 / PUBLIC SURFACE</div><h2>Read compact projections in realtime.</h2><p>The public UI is powered by bounded Convex projections: network totals, ranked profiles, daily rollups, and a short live window. The UI never queries raw tables.</p><div className="endpoint-list"><div><span className="endpoint-method">QUERY</span><code>public.network</code><small>global totals and current active agents</small></div><div><span className="endpoint-method">QUERY</span><code>public.leaderboard</code><small>period + metric + bounded limit</small></div><div><span className="endpoint-method">QUERY</span><code>public.profile</code><small>public identity, totals, and model mix</small></div><div><span className="endpoint-method">QUERY</span><code>public.daily / public.live</code><small>cadence and a moving event window</small></div><div><span className="endpoint-method">HTTP</span><code>?groupBy=model|source|device</code><small>daily breakdowns with privacy-safe device aliases</small></div></div></section>
+          <section className="docs-section" id="public-surface"><div className="docs-section-kicker">04 / PUBLIC SURFACE</div><h2>Read compact projections in realtime.</h2><p>The public UI is powered by bounded Convex projections: network totals, ranked profiles, daily rollups, and a short live window. The UI never queries raw tables.</p><div className="endpoint-list"><div><span className="endpoint-method">QUERY</span><code>public.network</code><small>first-party network accounting totals</small></div><div><span className="endpoint-method">QUERY</span><code>public.leaderboard</code><small>period + metric + bounded limit</small></div><div><span className="endpoint-method">QUERY</span><code>public.profile</code><small>public identity, totals, and model mix</small></div><div><span className="endpoint-method">QUERY</span><code>public.daily / public.live</code><small>cadence and a moving event window</small></div><div><span className="endpoint-method">HTTP</span><code>?groupBy=model|source|device</code><small>daily breakdowns with privacy-safe device aliases</small></div></div></section>
         </article>
       </div>
     </div>
@@ -161,9 +162,9 @@ export function SecurityView() {
   return (
     <div className="page-surface content-page security-page">
       <PageIntro
-        description="UsageMax is designed to make AI work more legible without turning telemetry into a second source of sensitive content. The public surface is intentionally narrow."
+        description="Useful analytics should not require handing over your work. Here is what UsageMax collects, what it keeps private, and how access is controlled."
         eyebrow="Trust / boundaries first"
-        title={<>The signal is public. <span className="text-accent">The payload isn&apos;t.</span></>}
+        title={<>Your numbers.<br /><span className="text-accent">Not your secrets.</span></>}
       >
         <Link className="button button-outline" href="/methodology">How data is shaped <ArrowUpRight size={16} /></Link>
       </PageIntro>
@@ -180,9 +181,9 @@ export function MethodologyView() {
   return (
     <div className="page-surface content-page methodology-page">
       <PageIntro
-        description="A short field guide to what UsageMax counts, how it aggregates, and why a clean public metric needs explicit edges."
-        eyebrow="Methodology / version 1"
-        title={<>Measure the work you can <span className="text-accent">stand behind.</span></>}
+        description="No mystery scores. No pretend precision. A practical guide to the counts, cost estimates, and coverage behind every UsageMax profile."
+        eyebrow="How we count"
+        title={<>Behind every number,<br /><span className="text-accent">a clear definition.</span></>}
       >
         <Link className="button button-acid" href="/docs">See the event contract <ArrowUpRight size={16} /></Link>
       </PageIntro>
@@ -191,7 +192,7 @@ export function MethodologyView() {
 
       <section className="shell content-section"><div className="section-heading"><div className="eyebrow"><span className="eyebrow-line" />The ledger</div><h2>Four facts keep the math <span className="text-accent">honest.</span></h2></div><div className="detail-grid detail-grid-four"><DetailCard icon={<ActivityIcon size={21} />} index="01" title="Reported"><p>Events are accepted with the token, cost, status, and timing values sent by the connected runtime.</p></DetailCard><DetailCard accent="cyan" icon={<ChartLine size={21} />} index="02" title="Rolled up"><p>Daily totals group activity by profile, date, source, and model so each view can stay compact.</p></DetailCard><DetailCard accent="orange" icon={<Sparkles size={21} />} index="03" title="Estimated"><p>When a provider returns partial accounting, completeness is retained rather than hidden behind false precision.</p></DetailCard><DetailCard icon={<ShieldCheck size={21} />} index="04" title="Bounded"><p>Rankings and live streams have explicit limits. A larger dataset does not silently become an unbounded read.</p></DetailCard></div></section>
 
-      <section className="shell content-section methodology-table-section"><div className="section-heading"><div className="eyebrow"><span className="eyebrow-line" />Metric notes</div><h2>What each number <span className="text-accent">means.</span></h2></div><div className="methodology-table"><div className="methodology-table-head"><span>Metric</span><span>Definition</span><span>Surface</span></div><div><strong>Total tokens</strong><span>The source-reported total, or input plus output when no total is supplied. Cache and reasoning are shown only when the source exposes those dimensions; the remainder stays unclassified.</span><code>profile / daily</code></div><div><strong>Indexed spend</strong><span>Provider-reported spend or a labeled API-equivalent estimate. Missing prices remain unknown and are never presented as zero-cost usage.</span><code>network / profile</code></div><div><strong>Active agent</strong><span>A live agent row whose heartbeat has not passed its expiry window. Observability-only heartbeats do not alter accounting totals.</span><code>network / live</code></div><div><strong>Signal score</strong><span>The selected leaderboard metric for the chosen period, ordered descending.</span><code>leaderboard</code></div></div></section>
+      <section className="shell content-section methodology-table-section"><div className="section-heading"><div className="eyebrow"><span className="eyebrow-line" />Metric notes</div><h2>What each number <span className="text-accent">means.</span></h2></div><div className="methodology-table"><div className="methodology-table-head"><span>Metric</span><span>Definition</span><span>Surface</span></div><div><strong>Total tokens</strong><span>The source-reported total, or input plus output when no total is supplied. Cache and reasoning are shown only when the source exposes those dimensions; the remainder stays unclassified.</span><code>profile / daily</code></div><div><strong>Indexed spend</strong><span>Provider-reported spend or a labeled API-equivalent estimate. Missing prices remain unknown and are never presented as zero-cost usage.</span><code>network / profile</code></div><div><strong>Active agent</strong><span>A live agent row whose heartbeat has not passed its expiry window. Observability-only heartbeats do not alter accounting totals.</span><code>profile / live</code></div><div><strong>Signal score</strong><span>The selected leaderboard metric for the chosen period, ordered descending.</span><code>leaderboard</code></div></div></section>
       <section className="shell content-section final-band"><Callout>The best public metric is one people can inspect, explain, and reproduce from the same event edge.</Callout><TextLink href="/leaderboard">Explore the signal board</TextLink></section>
     </div>
   );
@@ -202,7 +203,7 @@ function LegalView({ kind }: { kind: "privacy" | "terms" }) {
   return (
     <div className="page-surface content-page legal-page">
       <PageIntro description={privacy ? "How UsageMax treats telemetry, profile data, and public reporting." : "The terms for using UsageMax and sending telemetry to the service."} eyebrow="Legal" title={privacy ? "Privacy policy" : "Terms of service"} />
-      <article className="shell legal-article">
+      <div className="shell legal-layout"><aside className="legal-index"><span className="section-index">The fine print</span><nav aria-label="Trust and legal"><Link href="/privacy" aria-current={privacy ? "page" : undefined}>Privacy policy</Link><Link href="/terms" aria-current={!privacy ? "page" : undefined}>Terms of service</Link><Link href="/security">Security overview</Link></nav><a href="mailto:hello@usagemax.com">Questions? Get in touch <ArrowUpRight size={13} /></a></aside><article className="legal-article">
         <div className="legal-meta"><span>Last updated</span><strong>September 13, 2026</strong><span className="meta-divider" /><span>Version 1.0</span></div>
         {privacy ? <>
           <LegalSection title="What UsageMax receives"><p>When a workspace connects a collector, UsageMax may receive event metadata such as model, provider, token counts, status, latency, task labels, agent identifiers, and timestamps. The public API is designed around those fields.</p><p>Do not send prompts, completions, secrets, access tokens, or other content you do not intend to process.</p></LegalSection>
@@ -215,7 +216,7 @@ function LegalView({ kind }: { kind: "privacy" | "terms" }) {
           <LegalSection title="Accuracy and availability"><p>UsageMax reports the telemetry it receives. It may be incomplete, delayed, estimated, or unavailable. A public metric is not a guarantee of performance, spend, outcome, or future availability.</p></LegalSection>
           <LegalSection title="Changes and contact"><p>These terms may evolve with the service. Questions about the boundary or a public profile can be sent to <a href="mailto:hello@usagemax.com">hello@usagemax.com</a>.</p></LegalSection>
         </>}
-      </article>
+      </article></div>
     </div>
   );
 }

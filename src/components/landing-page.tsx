@@ -10,6 +10,7 @@ import { compactNumber, currencyFromMicros } from "@/lib/format";
 import { AuthNavigation } from "./auth-navigation";
 import { ArrowRight, ArrowUpRight, LockClosed, UsageMark } from "./icons";
 import styles from "./landing-page.module.css";
+import { CopyButton } from "./copy-button";
 
 type Network = FunctionReturnType<typeof api.public.network>;
 type Ranking = FunctionReturnType<typeof api.public.leaderboard>;
@@ -157,7 +158,7 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
             </ol>
             <div className={styles.command}>
               <div><span>Already connected? Sync again with</span><code><span aria-hidden="true">$ </span>bunx usagemax</code></div>
-              <Link href="/docs" aria-label="Read the UsageMax CLI documentation"><ArrowUpRight size={20} /></Link>
+              <CopyButton value="bunx usagemax" />
             </div>
             <p className={styles.resourceNote}>One-shot syncs. No always-running background scanner.</p>
           </div>
