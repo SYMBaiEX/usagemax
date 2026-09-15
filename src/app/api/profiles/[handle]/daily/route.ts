@@ -8,7 +8,7 @@ export async function GET(request: Request, context: { params: Promise<{ handle:
   const { handle } = await context.params;
   const searchParams = new URL(request.url).searchParams;
   const requestedDays = Number(searchParams.get("days") ?? 365);
-  const limit = Number.isFinite(requestedDays) ? Math.min(730, Math.max(1, Math.round(requestedDays))) : 365;
+  const limit = Number.isFinite(requestedDays) ? Math.min(365, Math.max(1, Math.round(requestedDays))) : 365;
   const requestedGroup = searchParams.get("groupBy");
   const groupBy = requestedGroup === "model" || requestedGroup === "source" || requestedGroup === "device"
     ? requestedGroup
@@ -21,6 +21,7 @@ export async function GET(request: Request, context: { params: Promise<{ handle:
       days: rows.map((row) => ({
         date: row.date,
         key: row.model,
+        provider: row.provider,
         totalTokens: row.totalTokens,
         costUsd: row.costMicros / 1_000_000,
         costBasis: row.costBasis,

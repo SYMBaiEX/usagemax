@@ -82,14 +82,16 @@ function addEvent(target: Rollup, event: Event) {
   target.cacheReadTokens += event.cacheReadTokens;
   target.cacheWriteTokens += event.cacheWriteTokens;
   target.reasoningTokens += event.reasoningTokens;
+  // Schema v2 follows the native contract where cache tokens are subsets of
+  // input. V1 aggregate collectors reported cache as a separate bucket.
   target.unclassifiedTokens += Math.max(0, event.totalTokens
     - event.inputTokens
     - event.outputTokens
-    - event.cacheReadTokens
-    - event.cacheWriteTokens);
+    - (event.schemaVersion >= 2 ? 0 : event.cacheReadTokens + event.cacheWriteTokens));
   target.totalTokens += event.totalTokens;
   target.costMicros += event.costMicros;
-  target.requests += event.eventType === "model_request" ? 1 : 0;
+  const isAggregate = event.state === "synced" && event.pricingSource === "ccusage / LiteLLM";
+  target.requests += event.eventType === "model_request" && !isAggregate ? 1 : 0;
   target.errors += event.status === "error" ? 1 : 0;
   target.costBasisMask |= event.costBasis === "reported" ? 1 : event.costBasis === "estimated" ? 2 : 4;
 }
@@ -111,7 +113,7 @@ function mergeCostBasis(
   return "mixed";
 }
 
-function streakMetrics(days: string[]) {
+function streakMetrics(days: string[], now = Date.now()) {
   const ordered = [...new Set(days)].sort();
   let longest = 0;
   let run = 0;
@@ -122,7 +124,10 @@ function streakMetrics(days: string[]) {
     longest = Math.max(longest, run);
     previous = index;
   }
-  return { current: run, longest };
+  const latest = ordered.at(-1);
+  const todayIndex = Math.floor(now / DAY_MS);
+  const latestIndex = latest ? Math.floor(Date.parse(`${latest}T00:00:00.000Z`) / DAY_MS) : Number.NaN;
+  return { current: todayIndex - latestIndex <= 1 ? run : 0, longest };
 }
 
 export const commitBatch = internalMutation({
@@ -149,7 +154,7 @@ export const commitBatch = internalMutation({
 
     const priorReceipt = await ctx.db
       .query("ingestReceipts")
-      .withIndex("by_workspaceId_and_batchId", (q) => q.eq("workspaceId", collector.workspaceId).eq("batchId", args.batchId))
+      .withIndex("by_collectorId_and_batchId", (q) => q.eq("collectorId", collector._id).eq("batchId", args.batchId))
       .unique();
     if (priorReceipt) {
       if (priorReceipt.payloadHash !== args.payloadHash) throw new ConvexError("IDEMPOTENCY_CONFLICT");
@@ -173,7 +178,7 @@ export const commitBatch = internalMutation({
     for (const event of args.events) {
       const prior = await ctx.db
         .query("telemetryEvents")
-        .withIndex("by_workspaceId_and_eventKey", (q) => q.eq("workspaceId", collector.workspaceId).eq("eventKey", event.eventKey))
+        .withIndex("by_collectorId_and_eventKey", (q) => q.eq("collectorId", collector._id).eq("eventKey", event.eventKey))
         .unique();
       if (prior) {
         if (prior.eventHash === event.eventHash) duplicates += 1;
@@ -191,6 +196,7 @@ export const commitBatch = internalMutation({
       await ctx.db.insert("telemetryEvents", {
         workspaceId: collector.workspaceId,
         profileId: collector.profileId,
+        collectorId: collector._id,
         ...event,
         receivedAt: args.receivedAt,
       });
@@ -211,7 +217,7 @@ export const commitBatch = internalMutation({
         const dayTotal = dayRollups.get(day) ?? emptyRollup();
         addEvent(dayTotal, event);
         dayRollups.set(day, dayTotal);
-        const dailyKey = `${day}\u001f${event.source}\u001f${event.model}`;
+        const dailyKey = `${day}\u001f${event.source}\u001f${event.provider}\u001f${event.model}`;
         const daily = dailyRollups.get(dailyKey) ?? emptyRollup();
         addEvent(daily, event);
         dailyRollups.set(dailyKey, daily);
@@ -219,10 +225,11 @@ export const commitBatch = internalMutation({
         const sourceRollup = sourceRollups.get(sourceKey) ?? emptyRollup();
         addEvent(sourceRollup, event);
         sourceRollups.set(sourceKey, sourceRollup);
-        const model = modelRollups.get(event.model) ?? { ...emptyRollup(), provider: event.provider, lastUsedAt: event.occurredAt };
+        const modelKey = `${event.provider}\u001f${event.model}`;
+        const model = modelRollups.get(modelKey) ?? { ...emptyRollup(), provider: event.provider, lastUsedAt: event.occurredAt };
         addEvent(model, event);
         model.lastUsedAt = Math.max(model.lastUsedAt, event.occurredAt);
-        modelRollups.set(event.model, model);
+        modelRollups.set(modelKey, model);
         if (event.sessionId) uniqueSessions.set(event.sessionId, { day, dailyKey, sourceKey });
       }
       if (event.agentExternalId) {
@@ -232,12 +239,13 @@ export const commitBatch = internalMutation({
       if (event.eventType === "outcome" && event.logicalRequestId && ["accepted", "rejected", "abandoned", "retried"].includes(event.state ?? "")) {
         const priorOutcome = await ctx.db
           .query("outcomes")
-          .withIndex("by_workspaceId_and_eventKey", (q) => q.eq("workspaceId", collector.workspaceId).eq("eventKey", event.eventKey))
+          .withIndex("by_collectorId_and_eventKey", (q) => q.eq("collectorId", collector._id).eq("eventKey", event.eventKey))
           .unique();
         if (!priorOutcome) {
           await ctx.db.insert("outcomes", {
             workspaceId: collector.workspaceId,
             profileId: collector.profileId,
+            collectorId: collector._id,
             eventKey: event.eventKey,
             logicalRequestId: event.logicalRequestId,
             outcome: event.state as "accepted" | "rejected" | "abandoned" | "retried",
@@ -251,7 +259,7 @@ export const commitBatch = internalMutation({
     for (const [externalId, event] of liveAgents) {
       const prior = await ctx.db
         .query("agentLiveStats")
-        .withIndex("by_workspaceId_and_externalId", (q) => q.eq("workspaceId", collector.workspaceId).eq("externalId", externalId))
+        .withIndex("by_collectorId_and_externalId", (q) => q.eq("collectorId", collector._id).eq("externalId", externalId))
         .unique();
       const tokensPerSecond = event.latencyMs && event.latencyMs > 0 ? event.outputTokens / (event.latencyMs / 1000) : 0;
       const update = {
@@ -270,7 +278,7 @@ export const commitBatch = internalMutation({
         traceId: event.traceId,
       };
       if (prior) await ctx.db.patch(prior._id, update);
-      else await ctx.db.insert("agentLiveStats", { workspaceId: collector.workspaceId, profileId: collector.profileId, externalId, ...update });
+      else await ctx.db.insert("agentLiveStats", { workspaceId: collector.workspaceId, profileId: collector.profileId, collectorId: collector._id, externalId, ...update });
     }
 
     let newSessions = 0;
@@ -280,12 +288,16 @@ export const commitBatch = internalMutation({
     for (const [sessionId, identity] of uniqueSessions) {
       const priorSession = await ctx.db
         .query("sessionReceipts")
-        .withIndex("by_workspaceId_and_sessionId", (q) => q.eq("workspaceId", collector.workspaceId).eq("sessionId", sessionId))
+        .withIndex("by_collectorId_and_source_and_sessionId", (q) =>
+          q.eq("collectorId", collector._id).eq("source", identity.sourceKey.split("\u001f")[1]).eq("sessionId", sessionId),
+        )
         .unique();
       if (!priorSession) {
         await ctx.db.insert("sessionReceipts", {
           workspaceId: collector.workspaceId,
           profileId: collector.profileId,
+          collectorId: collector._id,
+          source: identity.sourceKey.split("\u001f")[1],
           sessionId,
           firstSeenAt: args.receivedAt,
         });
@@ -310,12 +322,11 @@ export const commitBatch = internalMutation({
       }
 
     for (const [key, rollup] of dailyRollups) {
-      const [day, source, model] = key.split("\u001f");
-      const provider = acceptedEvents.find((event) => dayFromTimestamp(event.occurredAt) === day && event.source === source && event.model === model)?.provider ?? "unknown";
+      const [day, source, provider, model] = key.split("\u001f");
       const prior = await ctx.db
         .query("dailyUsage")
-        .withIndex("by_profileId_and_day_and_source_and_model", (q) =>
-          q.eq("profileId", collector.profileId).eq("day", day).eq("source", source).eq("model", model),
+        .withIndex("by_profileId_and_day_and_source_and_provider_and_model", (q) =>
+          q.eq("profileId", collector.profileId).eq("day", day).eq("source", source).eq("provider", provider).eq("model", model),
         )
         .unique();
       const update = {
@@ -453,10 +464,13 @@ export const commitBatch = internalMutation({
       });
     }
 
-    for (const [modelName, rollup] of modelRollups) {
+    for (const [modelKey, rollup] of modelRollups) {
+      const [, modelName] = modelKey.split("\u001f");
       const prior = await ctx.db
         .query("modelTotals")
-        .withIndex("by_profileId_and_model", (q) => q.eq("profileId", collector.profileId).eq("model", modelName))
+        .withIndex("by_profileId_and_provider_and_model", (q) =>
+          q.eq("profileId", collector.profileId).eq("provider", rollup.provider).eq("model", modelName),
+        )
         .unique();
       const update = {
         provider: rollup.provider,
@@ -478,11 +492,14 @@ export const commitBatch = internalMutation({
     }
 
     const stats = await ctx.db.query("profileStats").withIndex("by_profileId", (q) => q.eq("profileId", collector.profileId)).unique();
-    const leadingModel = await ctx.db
+    const leadingByCost = await ctx.db
       .query("modelTotals")
-      .withIndex("by_profileId_and_totalTokens", (q) => q.eq("profileId", collector.profileId))
+      .withIndex("by_profileId_and_costMicros", (q) => q.eq("profileId", collector.profileId))
       .order("desc")
       .first();
+    const leadingModel = (leadingByCost?.costMicros ?? 0) > 0
+      ? leadingByCost
+      : await ctx.db.query("modelTotals").withIndex("by_profileId_and_totalTokens", (q) => q.eq("profileId", collector.profileId)).order("desc").first();
     const uniqueNewDays = [...uniqueDays].filter((day) => !existingDays.has(day)).length;
     const eventDays = [...uniqueDays].sort();
     const activityRows = await ctx.db
@@ -490,7 +507,7 @@ export const commitBatch = internalMutation({
       .withIndex("by_profileId_and_day", (q) => q.eq("profileId", collector.profileId))
       .order("desc")
       .take(730);
-    const streaks = streakMetrics(activityRows.map((row) => row.day));
+    const streaks = streakMetrics(activityRows.filter((row) => row.totalTokens > 0).map((row) => row.day), args.receivedAt);
     const bestRecentDay = [...activityRows].sort((left, right) => right.costMicros - left.costMicros)[0];
     const priorPeakWins = (stats?.peakDayCostMicros ?? -1) > (bestRecentDay?.costMicros ?? -1);
     const activeDeviceCount = (await ctx.db
@@ -525,6 +542,8 @@ export const commitBatch = internalMutation({
       longestStreakDays: Math.max(stats?.longestStreakDays ?? 0, streaks.longest),
       deviceCount: activeDeviceCount,
       topModel: leadingModel?.model ?? stats?.topModel ?? modelRollups.keys().next().value ?? "unknown",
+      topModelProvider: leadingModel?.provider,
+      topModelMetric: ((leadingByCost?.costMicros ?? 0) > 0 ? "spend" : "tokens") as "spend" | "tokens",
       firstDay,
       lastDay,
       lastEventAt: lastEventAt || undefined,
@@ -568,7 +587,6 @@ export const commitBatch = internalMutation({
               q.eq("profileId", collector.profileId).eq("period", periodScore.period).eq("metric", metric),
             )
             .unique();
-          if (prior && args.receivedAt - prior.updatedAt < 60_000) continue;
           const update = {
             handle: profile.handle,
             displayName: profile.displayName,
@@ -641,10 +659,10 @@ export const commitBatch = internalMutation({
 
 export const deleteExpired = internalMutation({
   args: {},
-  handler: async (ctx): Promise<{ events: number; receipts: number; rateBuckets: number; liveAgents: number; quarantine: number; deviceLinks: number }> => {
+  handler: async (ctx): Promise<{ events: number; receipts: number; snapshotReceipts: number; snapshotRuns: number; staleRuns: number; rateBuckets: number; liveAgents: number; quarantine: number; deviceLinks: number }> => {
     const now = Date.now();
     const batchSize = 250;
-    const [events, receipts, rateBuckets, liveAgents, quarantine, deviceLinks] = await Promise.all([
+    const [events, receipts, snapshotReceipts, completedRuns, failedRuns, uploadingRuns, scanningRuns, rateBuckets, liveAgents, quarantine, deviceLinks] = await Promise.all([
       ctx.db
         .query("telemetryEvents")
         .withIndex("by_receivedAt", (q) => q.lt("receivedAt", now - 30 * DAY_MS))
@@ -652,6 +670,26 @@ export const deleteExpired = internalMutation({
       ctx.db
         .query("ingestReceipts")
         .withIndex("by_createdAt", (q) => q.lt("createdAt", now - 90 * DAY_MS))
+        .take(batchSize),
+      ctx.db
+        .query("snapshotReceipts")
+        .withIndex("by_createdAt", (q) => q.lt("createdAt", now - 90 * DAY_MS))
+        .take(batchSize),
+      ctx.db
+        .query("snapshotRuns")
+        .withIndex("by_status_and_updatedAt", (q) => q.eq("status", "complete").lt("updatedAt", now - 180 * DAY_MS))
+        .take(batchSize),
+      ctx.db
+        .query("snapshotRuns")
+        .withIndex("by_status_and_updatedAt", (q) => q.eq("status", "failed").lt("updatedAt", now - 90 * DAY_MS))
+        .take(batchSize),
+      ctx.db
+        .query("snapshotRuns")
+        .withIndex("by_status_and_updatedAt", (q) => q.eq("status", "uploading").lt("updatedAt", now - 6 * 60 * 60_000))
+        .take(batchSize),
+      ctx.db
+        .query("snapshotRuns")
+        .withIndex("by_status_and_updatedAt", (q) => q.eq("status", "scanning").lt("updatedAt", now - 6 * 60 * 60_000))
         .take(batchSize),
       ctx.db
         .query("ingestRateBuckets")
@@ -672,16 +710,30 @@ export const deleteExpired = internalMutation({
     ]);
     for (const event of events) await ctx.db.delete(event._id);
     for (const receipt of receipts) await ctx.db.delete(receipt._id);
+    for (const receipt of snapshotReceipts) await ctx.db.delete(receipt._id);
+    for (const run of [...completedRuns, ...failedRuns]) await ctx.db.delete(run._id);
+    for (const run of [...uploadingRuns, ...scanningRuns]) {
+      await ctx.db.patch(run._id, { status: "failed", failureCode: "snapshot_run_expired", updatedAt: now });
+      const collector = await ctx.db.get(run.collectorId);
+      if (collector && collector.lastSyncRunId === run.runId) {
+        await ctx.db.patch(collector._id, { lastSyncPhase: "failed", lastFailureAt: now, lastFailureCode: "snapshot_run_expired" });
+      }
+    }
     for (const bucket of rateBuckets) await ctx.db.delete(bucket._id);
     for (const agent of liveAgents) await ctx.db.delete(agent._id);
     for (const row of quarantine) await ctx.db.delete(row._id);
     for (const link of deviceLinks) await ctx.db.delete(link._id);
-    if ([events, receipts, rateBuckets, liveAgents, quarantine, deviceLinks].some((rows) => rows.length === batchSize)) {
+    const snapshotRuns = completedRuns.length + failedRuns.length;
+    const staleRuns = uploadingRuns.length + scanningRuns.length;
+    if ([events, receipts, snapshotReceipts, completedRuns, failedRuns, uploadingRuns, scanningRuns, rateBuckets, liveAgents, quarantine, deviceLinks].some((rows) => rows.length === batchSize)) {
       await ctx.scheduler.runAfter(0, internal.telemetry.deleteExpired, {});
     }
     return {
       events: events.length,
       receipts: receipts.length,
+      snapshotReceipts: snapshotReceipts.length,
+      snapshotRuns,
+      staleRuns,
       rateBuckets: rateBuckets.length,
       liveAgents: liveAgents.length,
       quarantine: quarantine.length,

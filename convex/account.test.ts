@@ -147,4 +147,21 @@ describe("WorkOS-backed accounts", () => {
     expect(account?.collectors).toHaveLength(1);
     expect(account?.collectors[0]).toMatchObject({ name: "Renamed in UI", keyPrefix: "umx_second" });
   });
+
+  test("restores only request-revoked collectors when deletion is cancelled", async () => {
+    const session = t.withIdentity({
+      subject: "user_01RECOVERY",
+      issuer: "https://api.workos.com/",
+      tokenIdentifier: "https://api.workos.com/|user_01RECOVERY",
+    });
+    await session.mutation(api.account.ensureProfile, { handle: "recovery-owner" });
+    const collector = await session.action(api.account.createCollector, { name: "Recovery collector" });
+    const request = await session.mutation(api.account.requestAccountDeletion, { confirmation: "delete my account" });
+    expect(request.scheduledFor).toBeGreaterThan(Date.now());
+    expect((await session.query(api.account.current, {}))?.collectors[0]?.revokedAt).toBeTypeOf("number");
+    await expect(session.mutation(api.account.cancelAccountDeletion, {})).resolves.toEqual({ cancelled: true });
+    const restored = (await session.query(api.account.current, {}))?.collectors[0];
+    expect(restored).toMatchObject({ id: collector.collectorId });
+    expect(restored).not.toHaveProperty("revokedAt");
+  });
 });

@@ -14,6 +14,7 @@ async function forward(request: Request) {
       authorization: request.headers.get("authorization") ?? "",
       "content-type": request.headers.get("content-type") ?? "application/json",
       "idempotency-key": request.headers.get("idempotency-key") ?? "",
+      "x-usagemax-device-id": request.headers.get("x-usagemax-device-id") ?? "",
     },
     body,
     cache: "no-store",
@@ -27,7 +28,7 @@ export function OPTIONS() {
     status: 204,
     headers: {
       "access-control-allow-origin": "*",
-      "access-control-allow-headers": "authorization, content-type, idempotency-key",
+      "access-control-allow-headers": "authorization, content-type, idempotency-key, x-usagemax-device-id",
       "access-control-allow-methods": "POST, OPTIONS",
     },
   });

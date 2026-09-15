@@ -1,11 +1,60 @@
-# UsageMax telemetry contract v1
+# UsageMax telemetry contracts
+
+UsageMax has two deliberately separate ingestion paths:
+
+- **Snapshot v2** is the recommended path for local coding-agent history. It is
+  authoritative, correction-aware, and optimized for a short-lived CLI run.
+- **Event v2** records live model attempts, tool calls, agent state, and outcomes.
+
+Neither path accepts prompts, completions, files, or tool payloads.
+
+## Authoritative snapshot endpoint
+
+`POST /v2/usage/snapshots` on the linked Convex deployment accepts a small
+operation envelope. The link response supplies the exact `snapshotUrl`; clients
+must not derive it.
+
+A run follows this sequence:
+
+1. `begin` declares a UUID `runId`, mode, source inventory, partition count, and
+   coverage bounds.
+2. `sessions` uploads opaque, installation-scoped session hashes in chunks of
+   at most 100. Local paths and raw session identifiers never leave the device.
+3. `partitions` uploads at most 10 complete source/day partitions per request,
+   with at most 100 provider/model rows per partition.
+4. `complete` atomically publishes coverage and leaderboard metadata only after
+   every declared partition has been accepted. `fail` records a bounded error
+   code without advancing the local checkpoint.
+
+The canonical row identity is:
+
+`collector + source + UTC day + provider + model`
+
+Each partition carries a monotonically increasing revision, a stable
+`partitionId`, and a server-recomputed payload hash. Replaying the same payload
+is safe. Reusing an idempotency key for different content is rejected. A
+complete partition removes rows that disappeared locally; signed server-side
+diffs therefore handle corrected and deleted history instead of permanently
+inflating totals.
+
+Snapshot token buckets mirror ccusage's disjoint local accounting categories:
+input, output, cache read, cache write, reasoning, and unclassified. Their exact
+sum must equal `totalTokens`. Aggregate reports do not fabricate request counts.
+Unknown pricing remains explicitly unknown and contributes no guessed cost.
+
+The official CLI performs a one-shot scan and exits. It does not install a
+resident filesystem watcher. A first sync, explicit `--full` sync, or inventory
+revision can catalog history back to 2024; normal runs send only changed
+partitions.
+
+## Event endpoint
 
 UsageMax records one normalized event per provider attempt. Retries share a
 `logicalRequestId` but must have distinct `eventKey` values. Every HTTP batch also
 requires an `Idempotency-Key`; replaying an identical batch is safe, while reusing
 the key for different data returns `409`.
 
-## Native endpoint
+### Native endpoint
 
 `POST /api/v1/telemetry/llm`
 
@@ -33,7 +82,7 @@ One request accepts 1–100 events and at most 1 MB of JSON. Collector limits ar
 120 requests and 5,000 events per minute. Timestamps before 2024 or more than five
 minutes in the future are rejected.
 
-Token categories follow the current OpenTelemetry GenAI convention:
+For event schema v2, token categories follow the current OpenTelemetry GenAI convention:
 
 - `inputTokens` includes every input token, including cache reads and writes.
 - `cacheReadTokens` and `cacheWriteTokens` are informational subsets of input.
@@ -54,7 +103,7 @@ Only `model_request` events update token and spend accounting. `tool_call`,
 changing profile totals, sessions, spend, or leaderboards. Display frames and
 animation heartbeats are not part of this API.
 
-## OTLP endpoint
+### OTLP endpoint
 
 `POST /api/v1/traces` accepts OTLP/HTTP JSON `resourceSpans`. UsageMax maps the
 OpenTelemetry GenAI semantic attributes into the native content-free contract,

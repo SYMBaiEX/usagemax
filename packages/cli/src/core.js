@@ -43,6 +43,82 @@ function providerFor(model, source) {
   return source;
 }
 
+const snapshotCounterFields = [
+  "inputTokens",
+  "outputTokens",
+  "cacheReadTokens",
+  "cacheWriteTokens",
+  "reasoningTokens",
+  "unclassifiedTokens",
+  "totalTokens",
+  "costMicros",
+  "requests",
+  "errors",
+];
+
+function snapshotCounters(value = {}) {
+  const inputTokens = number(value.inputTokens);
+  const outputTokens = number(value.outputTokens);
+  const cacheReadTokens = number(value.cacheReadTokens);
+  const cacheWriteTokens = number(value.cacheWriteTokens);
+  const reasoningTokens = number(value.reasoningTokens);
+  const suppliedTotal = number(value.totalTokens);
+  const classified = inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens + reasoningTokens;
+  const unclassifiedTokens = value.unclassifiedTokens === undefined
+    ? Math.max(0, suppliedTotal - classified)
+    : number(value.unclassifiedTokens);
+  return {
+    inputTokens,
+    outputTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
+    reasoningTokens,
+    unclassifiedTokens,
+    totalTokens: classified + unclassifiedTokens,
+    costMicros: number(value.costMicros, MAX_SAFE_COST_MICROS),
+    requests: number(value.requests),
+    errors: number(value.errors),
+  };
+}
+
+function sameCounters(left, right) {
+  return snapshotCounterFields.every((field) => left[field] === right[field]);
+}
+
+function snapshotKey(source, period, provider, model) {
+  return `${source}\u001f${period}\u001f${provider}\u001f${model}`;
+}
+
+function readSnapshotKey(key) {
+  const parts = String(key).split("\u001f");
+  if (parts.length === 4) return { source: parts[0], period: parts[1], provider: parts[2], model: parts[3] };
+  if (parts.length === 3) return { source: parts[0], period: parts[1], provider: providerFor(parts[2], parts[0]), model: parts[2] };
+  return null;
+}
+
+function normalizedSnapshotRows(report) {
+  const rows = new Map();
+  for (const row of currentRows(report)) {
+    const provider = providerFor(row.model, row.source);
+    const key = snapshotKey(row.source, row.period, provider, row.model);
+    const current = snapshotCounters(row.current);
+    const existing = rows.get(key);
+    if (existing) {
+      for (const field of snapshotCounterFields) existing.current[field] += current[field];
+    } else {
+      rows.set(key, {
+        key,
+        source: row.source,
+        period: row.period,
+        provider,
+        model: row.model,
+        current,
+      });
+    }
+  }
+  return rows;
+}
+
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -193,6 +269,113 @@ export function buildDeltaPlan(report, priorSnapshots, deviceId, pricingVersion 
   }
   plan.sort((left, right) => left.event.occurredAt.localeCompare(right.event.occurredAt));
   return { plan, regressions };
+}
+
+export function buildSnapshotPlan(report, priorSnapshots, {
+  bootstrap = false,
+  complete = true,
+  full = false,
+  pricingVersion = "ccusage",
+  revision = Date.now(),
+  runId = randomPlanId(),
+} = {}) {
+  const rows = normalizedSnapshotRows(report);
+  const priorRows = new Map();
+  const snapshots = priorSnapshots && typeof priorSnapshots === "object" ? priorSnapshots : {};
+  for (const [rawKey, rawValue] of Object.entries(snapshots)) {
+    const identity = readSnapshotKey(rawKey);
+    if (!identity || !/^\d{4}-\d{2}-\d{2}$/.test(identity.period)) continue;
+    const key = snapshotKey(identity.source, identity.period, identity.provider, identity.model);
+    priorRows.set(key, {
+      key,
+      ...identity,
+      current: snapshotCounters(rawValue),
+    });
+  }
+
+  const currentPartitions = new Set([...rows.values()].map((row) => `${row.source}\u001f${row.period}`));
+  const allKeys = new Set(rows.keys());
+  for (const [key, prior] of priorRows) {
+    if (full || currentPartitions.has(`${prior.source}\u001f${prior.period}`)) allKeys.add(key);
+  }
+
+  const grouped = new Map();
+  const nextSnapshots = {};
+  const regressions = [];
+  for (const key of allKeys) {
+    const currentRow = rows.get(key);
+    const priorRow = priorRows.get(key);
+    const identity = currentRow || priorRow;
+    if (!identity) continue;
+    const previous = priorRow?.current ?? snapshotCounters();
+    const current = currentRow?.current ?? snapshotCounters();
+    if (snapshotCounterFields.some((field) => current[field] < previous[field])) regressions.push(key);
+    if (!sameCounters(current, snapshotCounters())) nextSnapshots[key] = current;
+    const partitionKey = `${identity.source}\u001f${identity.period}`;
+    const rowsForPartition = grouped.get(partitionKey) ?? [];
+    rowsForPartition.push({
+      snapshotKey: key,
+      provider: identity.provider,
+      model: identity.model,
+      previous,
+      current,
+      costBasis: "estimated",
+      contentHash: sha256(`${key}\u001f${JSON.stringify(current)}`),
+      lastUsedAt: Date.parse(`${identity.period}T12:00:00.000Z`),
+    });
+    grouped.set(partitionKey, rowsForPartition);
+  }
+
+  const partitions = [];
+  for (const [partitionKey, partitionRows] of grouped) {
+    const [source, day] = partitionKey.split("\u001f");
+    const changed = partitionRows.some((row) => !sameCounters(row.previous, row.current));
+    if (!bootstrap && !full && !changed) continue;
+    partitionRows.sort((left, right) => `${left.provider}/${left.model}`.localeCompare(`${right.provider}/${right.model}`));
+    const payloadHash = sha256(JSON.stringify({ source, day, complete, pricingVersion, rows: partitionRows }));
+    partitions.push({
+      partitionId: `${runId}:${sha256(partitionKey).slice(0, 24)}`,
+      payloadHash,
+      revision,
+      source,
+      day,
+      complete,
+      pricingVersion,
+      rows: partitionRows.map((row) => {
+        const wireRow = { ...row };
+        delete wireRow.snapshotKey;
+        return wireRow;
+      }),
+    });
+  }
+  partitions.sort((left, right) => left.day === right.day ? left.source.localeCompare(right.source) : left.day.localeCompare(right.day));
+  return { partitions, nextSnapshots, regressions };
+}
+
+function randomPlanId() {
+  return `run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function buildSessionPlan(report, deviceId) {
+  const sessionRows = Array.isArray(report?.session) ? report.session : [];
+  const sessions = new Map();
+  for (const row of sessionRows) {
+    if (!row || typeof row !== "object") continue;
+    const source = text(row.agent, "unknown", 60).toLowerCase();
+    const stableIdentity = text(row.period ?? row.sessionId ?? row.id, "", 1000);
+    if (!stableIdentity) continue;
+    const metadata = row.metadata && typeof row.metadata === "object" ? row.metadata : {};
+    const firstActivityAt = Date.parse(metadata.firstActivity ?? metadata.createdAt ?? "");
+    const lastActivityAt = Date.parse(metadata.lastActivity ?? row.lastActivity ?? "");
+    const sessionKey = sha256(`${deviceId}\u001f${source}\u001f${stableIdentity}`);
+    sessions.set(`${source}\u001f${sessionKey}`, {
+      source,
+      sessionKey,
+      ...(Number.isFinite(firstActivityAt) ? { firstActivityAt } : {}),
+      ...(Number.isFinite(lastActivityAt) ? { lastActivityAt } : {}),
+    });
+  }
+  return [...sessions.values()].sort((left, right) => `${left.source}/${left.sessionKey}`.localeCompare(`${right.source}/${right.sessionKey}`));
 }
 
 export function batchId(deviceId, events) {

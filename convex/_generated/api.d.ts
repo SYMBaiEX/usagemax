@@ -16,6 +16,7 @@ import type * as lib from "../lib.js";
 import type * as maintenance from "../maintenance.js";
 import type * as migrations from "../migrations.js";
 import type * as public_ from "../public.js";
+import type * as snapshots from "../snapshots.js";
 import type * as telemetry from "../telemetry.js";
 
 import type {
@@ -33,6 +34,7 @@ declare const fullApi: ApiFromModules<{
   maintenance: typeof maintenance;
   migrations: typeof migrations;
   public: typeof public_;
+  snapshots: typeof snapshots;
   telemetry: typeof telemetry;
 }>;
 

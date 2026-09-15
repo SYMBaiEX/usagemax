@@ -31,13 +31,16 @@ bunx usagemax                       # sync changed usage
 bunx usagemax sync                  # same as above
 bunx usagemax sync --full           # reconcile all retained local history
 bunx usagemax sync --archives       # one-time compressed-history recovery
+bunx usagemax sync --dry-run --explain
+                                      # inspect the exact bounded plan; upload nothing
 bunx usagemax link UMX-… --no-sync  # link without uploading yet
 bunx usagemax status                # show link and last-sync state
 bunx usagemax doctor                # metadata-only source check
-bunx usagemax doctor --deep         # parse and verify all retained history
+bunx usagemax doctor --deep --json  # machine-readable retained-history audit
 bunx usagemax report                # open ccusage's local daily report
 bunx usagemax report session --breakdown
 bunx usagemax unlink                # remove the local collector key
+bunx usagemax unlink --revoke       # disable future uploads, then remove locally
 ```
 
 UsageMax pins [ccusage v20.0.20](https://github.com/ccusage/ccusage/releases/tag/v20.0.20)
@@ -75,8 +78,9 @@ connector. UsageMax never invents usage that the source did not retain.
 
 ## Privacy, correctness, and load
 
-- The sync payload contains aggregate token counts, model/provider names, costs,
-  source names, and dates.
+- The sync payload contains authoritative aggregate token counts,
+  model/provider names, costs, source names, dates, coverage state, and opaque
+  SHA-256 session identities.
 - It does not upload prompts, completions, source code, file contents, project
   paths, or provider credentials.
 - Sync is one-shot. There is no resident scanner or high-frequency polling loop.
@@ -84,7 +88,10 @@ connector. UsageMax never invents usage that the source did not retain.
   nothing changed.
 - Normal changed syncs parse today or today plus yesterday. A bounded weekly
   full reconciliation catches restored files, parser changes, and older logs.
-- Full history means all retained local history from 2024 onward. Deleted or
+- Full history means all retained local history from 2024 onward. UsageMax
+  publishes complete source/day partitions, so decreased or removed local rows
+  correct the server-owned contribution instead of being silently retained.
+  Deleted or
   never-persisted usage requires a provider export; no local tool can reconstruct it.
 - Source totals that cannot be assigned to a model are retained as
   `unattributed` rather than silently discarded.
@@ -93,6 +100,8 @@ connector. UsageMax never invents usage that the source did not retain.
 - A private random installation ID survives collector rotation, relinking, and
   display-name changes. It is not a hardware fingerprint; the server stores only
   its SHA-256 hash. Concurrent and repeated syncs are idempotent.
+- The server, not the local checkpoint, owns the accounting baseline. A lost
+  response or interrupted run can be retried without adding the same partition twice.
 - Do not point two different installations at the same copied or network-mounted
   log tree. Cross-installation copied-history deduplication is inherently
   ambiguous and intentionally not guessed.

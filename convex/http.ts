@@ -6,6 +6,7 @@ import type { telemetryEventValidator } from "./telemetry";
 
 type NormalizedEvent = typeof telemetryEventValidator.type;
 type JsonObject = Record<string, unknown>;
+const RECOMMENDED_CLI_VERSION = "0.3.0";
 
 function newCollectorToken() {
   const bytes = new Uint8Array(32);
@@ -37,6 +38,42 @@ function timestamp(value: unknown, now: number) {
   const parsed = typeof value === "number" ? value : typeof value === "string" ? Date.parse(value) : NaN;
   if (!Number.isFinite(parsed) || parsed < MIN_EVENT_TIME || parsed > now + 5 * 60_000) throw new Error("INVALID_TIMESTAMP");
   return Math.round(parsed);
+}
+
+function safeCounter(value: unknown, maximum = 1_000_000_000_000_000) {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0 || value > maximum) {
+    throw new Error("INVALID_SNAPSHOT_COUNTER");
+  }
+  return value;
+}
+
+function snapshotCounters(value: unknown) {
+  const counters = object(value);
+  if (!counters) throw new Error("INVALID_SNAPSHOT_COUNTERS");
+  const normalized = {
+    inputTokens: safeCounter(counters.inputTokens),
+    outputTokens: safeCounter(counters.outputTokens),
+    cacheReadTokens: safeCounter(counters.cacheReadTokens),
+    cacheWriteTokens: safeCounter(counters.cacheWriteTokens),
+    reasoningTokens: safeCounter(counters.reasoningTokens),
+    unclassifiedTokens: safeCounter(counters.unclassifiedTokens),
+    totalTokens: safeCounter(counters.totalTokens),
+    costMicros: safeCounter(counters.costMicros),
+    requests: safeCounter(counters.requests),
+    errors: safeCounter(counters.errors),
+  };
+  const classified = normalized.inputTokens + normalized.outputTokens + normalized.cacheReadTokens
+    + normalized.cacheWriteTokens + normalized.reasoningTokens + normalized.unclassifiedTokens;
+  if (classified !== normalized.totalTokens) throw new Error("INVALID_SNAPSHOT_TOTAL");
+  return normalized;
+}
+
+async function authorizationContext(request: Request) {
+  const authorization = request.headers.get("authorization") ?? "";
+  const token = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
+  if (!/^umx_[a-f0-9]{64}$/.test(token)) throw new Error("UNAUTHORIZED");
+  const id = deviceId(request.headers.get("x-usagemax-device-id"));
+  return { keyHash: await sha256(token), installationIdHash: id ? await sha256(id) : undefined };
 }
 
 function nativeEvent(value: unknown, now: number): Omit<NormalizedEvent, "eventHash"> {
@@ -336,6 +373,9 @@ const linkDevice = httpAction(async (ctx, request) => {
       ok: true,
       token,
       ingestUrl: new URL("/v1/telemetry/llm", request.url).toString(),
+      snapshotUrl: new URL("/v2/usage/snapshots", request.url).toString(),
+      revokeUrl: new URL("/v1/devices/revoke", request.url).toString(),
+      recommendedCliVersion: RECOMMENDED_CLI_VERSION,
       profileHandle: result.handle,
       profileUrl: `https://usagemax.com/${encodeURIComponent(result.handle)}`,
     });
@@ -345,6 +385,155 @@ const linkDevice = httpAction(async (ctx, request) => {
     if (message.includes("INVALID_LINK_CODE")) return jsonResponse({ error: "invalid_or_expired_link_code" }, 400);
     if (message.includes("INVALID_DEVICE_ID")) return jsonResponse({ error: "invalid_device_id" }, 400);
     return jsonResponse({ error: "link_failed" }, 500);
+  }
+});
+
+const snapshots = httpAction(async (ctx, request) => {
+  if (!request.headers.get("content-type")?.toLowerCase().includes("application/json")) {
+    return jsonResponse({ error: "content_type_must_be_application_json" }, 415);
+  }
+  const declaredLength = Number(request.headers.get("content-length") ?? 0);
+  if (declaredLength > 2_000_000) return jsonResponse({ error: "payload_too_large" }, 413);
+  const rawBody = await request.text();
+  if (rawBody.length > 2_000_000) return jsonResponse({ error: "payload_too_large" }, 413);
+  let body: JsonObject | null;
+  let auth: Awaited<ReturnType<typeof authorizationContext>>;
+  try {
+    body = object(JSON.parse(rawBody));
+    if (!body) throw new Error("INVALID_BODY");
+    auth = await authorizationContext(request);
+  } catch (error) {
+    return jsonResponse({ error: String(error).includes("UNAUTHORIZED") ? "unauthorized" : "invalid_request" }, String(error).includes("UNAUTHORIZED") ? 401 : 400);
+  }
+  const operation = body.operation;
+  const runId = cleanText(body.runId, "", 80);
+  const now = Date.now();
+  if (!runId) return jsonResponse({ error: "run_id_required" }, 400);
+  try {
+    if (operation === "begin") {
+      const result = await ctx.runMutation(internal.snapshots.beginRun, {
+        ...auth,
+        runId,
+        mode: ["incremental", "full", "archives"].includes(String(body.mode)) ? body.mode as "incremental" | "full" | "archives" : "incremental",
+        sourceCount: safeCounter(body.sourceCount, 10_000),
+        partitionCount: safeCounter(body.partitionCount, 100_000),
+        inventoryComplete: body.inventoryComplete === true,
+        inventoryErrors: safeCounter(body.inventoryErrors, 100_000),
+        inventoryTruncated: body.inventoryTruncated === true,
+        coverageStartDay: optionalText(body.coverageStartDay, 10),
+        coverageEndDay: optionalText(body.coverageEndDay, 10),
+        now,
+      });
+      return jsonResponse({ ok: true, recommendedCliVersion: RECOMMENDED_CLI_VERSION, ...result }, result.replay ? 200 : 202);
+    }
+    if (operation === "sessions") {
+      const rawSessions = array(body.sessions);
+      if (rawSessions.length > 100) return jsonResponse({ error: "sessions_must_contain_0_to_100_items" }, 400);
+      const sessions = rawSessions.map((value) => {
+        const session = object(value);
+        const source = cleanText(session?.source, "", 60);
+        const sessionKey = cleanText(session?.sessionKey, "", 64);
+        if (!source || !/^[a-f0-9]{64}$/.test(sessionKey)) throw new Error("INVALID_SESSION");
+        return {
+          source,
+          sessionKey,
+          firstActivityAt: session?.firstActivityAt === undefined ? undefined : timestamp(session.firstActivityAt, now),
+          lastActivityAt: session?.lastActivityAt === undefined ? undefined : timestamp(session.lastActivityAt, now),
+        };
+      });
+      const result = await ctx.runMutation(internal.snapshots.commitSessions, { ...auth, runId, sessions, now });
+      return jsonResponse({ ok: true, recommendedCliVersion: RECOMMENDED_CLI_VERSION, ...result }, 202);
+    }
+    if (operation === "partitions") {
+      const rawPartitions = array(body.partitions);
+      if (rawPartitions.length < 1 || rawPartitions.length > 10) return jsonResponse({ error: "partitions_must_contain_1_to_10_items" }, 400);
+      let changedRows = 0;
+      let correctionRows = 0;
+      let replays = 0;
+      for (const value of rawPartitions) {
+        const partition = object(value);
+        if (!partition) throw new Error("INVALID_PARTITION");
+        const source = cleanText(partition.source, "", 60);
+        const day = cleanText(partition.day, "", 10);
+        const partitionId = cleanText(partition.partitionId, "", 180);
+        const pricingVersion = optionalText(partition.pricingVersion, 120);
+        const revision = safeCounter(partition.revision, Number.MAX_SAFE_INTEGER);
+        const rawRows = array(partition.rows);
+        if (!source || !/^\d{4}-\d{2}-\d{2}$/.test(day) || !partitionId || rawRows.length > 100) throw new Error("INVALID_PARTITION");
+        const rows = rawRows.map((rowValue) => {
+          const row = object(rowValue);
+          const provider = cleanText(row?.provider, "", 60);
+          const model = cleanText(row?.model, "", 120);
+          const contentHash = cleanText(row?.contentHash, "", 64);
+          const costBasis = ["reported", "estimated", "api-equivalent", "unknown"].includes(String(row?.costBasis))
+            ? row?.costBasis as "reported" | "estimated" | "api-equivalent" | "unknown"
+            : "unknown";
+          if (!provider || !model || !/^[a-f0-9]{64}$/.test(contentHash)) throw new Error("INVALID_SNAPSHOT_ROW");
+          return {
+            provider,
+            model,
+            previous: snapshotCounters(row?.previous),
+            current: snapshotCounters(row?.current),
+            costBasis,
+            contentHash,
+            lastUsedAt: timestamp(row?.lastUsedAt, now),
+          };
+        });
+        const complete = partition.complete === true;
+        const calculatedHash = await sha256(JSON.stringify({ source, day, complete, pricingVersion, rows }));
+        if (calculatedHash !== partition.payloadHash) throw new Error("PAYLOAD_HASH_MISMATCH");
+        const result = await ctx.runMutation(internal.snapshots.commitPartition, {
+          ...auth,
+          runId,
+          partitionId,
+          payloadHash: calculatedHash,
+          revision,
+          source,
+          day,
+          complete,
+          pricingVersion,
+          rows,
+          now: Date.now(),
+        });
+        changedRows += result.changedRows;
+        correctionRows += result.correctionRows;
+        replays += result.replay ? 1 : 0;
+      }
+      return jsonResponse({ ok: true, recommendedCliVersion: RECOMMENDED_CLI_VERSION, changedRows, correctionRows, replays }, 202);
+    }
+    if (operation === "complete") {
+      const result = await ctx.runMutation(internal.snapshots.completeRun, { ...auth, runId, now });
+      return jsonResponse({ ok: true, recommendedCliVersion: RECOMMENDED_CLI_VERSION, ...result }, 200);
+    }
+    if (operation === "fail") {
+      const result = await ctx.runMutation(internal.snapshots.failRun, {
+        keyHash: auth.keyHash,
+        runId,
+        failureCode: cleanText(body.failureCode, "sync_failed", 80),
+        now,
+      });
+      return jsonResponse({ ok: true, recommendedCliVersion: RECOMMENDED_CLI_VERSION, ...result }, 200);
+    }
+    return jsonResponse({ error: "unknown_operation" }, 400);
+  } catch (error) {
+    const message = String(error);
+    if (message.includes("INVALID_COLLECTOR")) return jsonResponse({ error: "unauthorized" }, 401);
+    if (message.includes("DEVICE_ID_MISMATCH")) return jsonResponse({ error: "device_identity_mismatch" }, 409);
+    if (message.includes("IDEMPOTENCY_CONFLICT") || message.includes("STALE_SNAPSHOT_REVISION")) return jsonResponse({ error: "snapshot_conflict" }, 409);
+    if (message.includes("SNAPSHOT_RUN_INCOMPLETE")) return jsonResponse({ error: "snapshot_run_incomplete" }, 409);
+    if (message.includes("PROJECTION_UNDERFLOW")) return jsonResponse({ error: "reconciliation_required" }, 409);
+    if (message.includes("INVALID_") || message.includes("PAYLOAD_") || message.includes("DUPLICATE_")) return jsonResponse({ error: "invalid_snapshot" }, 400);
+    return jsonResponse({ error: "snapshot_failed" }, 500);
+  }
+});
+
+const revokeDevice = httpAction(async (ctx, request) => {
+  try {
+    const auth = await authorizationContext(request);
+    const result = await ctx.runMutation(internal.snapshots.revokeSelf, { ...auth, now: Date.now() });
+    return jsonResponse({ ok: true, ...result });
+  } catch (error) {
+    return jsonResponse({ error: String(error).includes("INVALID_COLLECTOR") || String(error).includes("UNAUTHORIZED") ? "unauthorized" : "revoke_failed" }, String(error).includes("INVALID_COLLECTOR") || String(error).includes("UNAUTHORIZED") ? 401 : 500);
   }
 });
 
@@ -358,8 +547,10 @@ const cors = httpAction(async () => new Response(null, {
   },
 }));
 
-http.route({ path: "/health", method: "GET", handler: httpAction(async () => jsonResponse({ ok: true, service: "usagemax-ingest", storage: "convex" })) });
+http.route({ path: "/health", method: "GET", handler: httpAction(async () => jsonResponse({ ok: true, service: "usagemax-ingest", storage: "convex", protocol: 2, recommendedCliVersion: RECOMMENDED_CLI_VERSION })) });
 http.route({ path: "/v1/devices/link", method: "POST", handler: linkDevice });
+http.route({ path: "/v1/devices/revoke", method: "POST", handler: revokeDevice });
+http.route({ path: "/v2/usage/snapshots", method: "POST", handler: snapshots });
 http.route({ path: "/v1/telemetry/llm", method: "POST", handler: httpAction((ctx, request) => ingest(ctx, request, "native")) });
 http.route({ path: "/v1/telemetry/llm", method: "OPTIONS", handler: cors });
 http.route({ path: "/v1/traces", method: "POST", handler: httpAction((ctx, request) => ingest(ctx, request, "otlp")) });

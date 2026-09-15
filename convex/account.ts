@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
+import type { Id, TableNames } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { action, internalMutation, mutation, query } from "./_generated/server";
 import { cleanText, sha256 } from "./lib";
@@ -30,21 +30,47 @@ async function identityOrThrow(ctx: QueryCtx | MutationCtx) {
   return identity;
 }
 
-async function userForIdentity(ctx: QueryCtx | MutationCtx, subject: string) {
+async function userForIdentity(ctx: QueryCtx | MutationCtx, identityKey: string) {
+  const keyed = await ctx.db
+    .query("users")
+    .withIndex("by_authIdentityKey", (q) => q.eq("authIdentityKey", identityKey))
+    .unique();
+  if (keyed) return keyed;
   return ctx.db
     .query("users")
-    .withIndex("by_workosUserId", (q) => q.eq("workosUserId", subject))
+    .withIndex("by_workosUserId", (q) => q.eq("workosUserId", identityKey))
     .unique();
+}
+
+function identityKey(identity: Awaited<ReturnType<typeof identityOrThrow>>) {
+  return identity.tokenIdentifier || identity.subject;
+}
+
+async function profileForUser(ctx: QueryCtx | MutationCtx, userId: Id<"users">) {
+  const owned = await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", userId)).unique();
+  if (owned) return owned;
+  const membership = await ctx.db.query("workspaceMemberships").withIndex("by_userId_and_workspaceId", (q) =>
+    q.eq("userId", userId),
+  ).filter((q) => q.eq(q.field("status"), "active")).first();
+  return membership
+    ? ctx.db.query("profiles").withIndex("by_workspaceId", (q) => q.eq("workspaceId", membership.workspaceId)).first()
+    : null;
+}
+
+async function audit(ctx: MutationCtx, workspaceId: Id<"workspaces">, actorUserId: Id<"users"> | undefined, action: string, targetType: string, targetId: string | undefined, summary: string) {
+  await ctx.db.insert("auditEvents", { workspaceId, actorUserId, action, targetType, targetId, summary, createdAt: Date.now() });
 }
 
 async function upsertUser(ctx: MutationCtx) {
   const identity = await identityOrThrow(ctx);
   const now = Date.now();
-  const existing = await userForIdentity(ctx, identity.subject);
+  const key = identityKey(identity);
+  const existing = await userForIdentity(ctx, key) ?? await userForIdentity(ctx, identity.subject);
   const values = {
     name: identity.name,
     email: identity.email,
     avatarUrl: identity.pictureUrl,
+    authIdentityKey: key,
     updatedAt: now,
     lastSeenAt: now,
   };
@@ -90,15 +116,23 @@ export const current = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
-    const user = await userForIdentity(ctx, identity.subject);
+    const user = await userForIdentity(ctx, identityKey(identity)) ?? await userForIdentity(ctx, identity.subject);
     const profile = user
-      ? await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", user._id)).unique()
+      ? await profileForUser(ctx, user._id)
       : null;
     const collectors = profile
       ? await ctx.db.query("collectors").withIndex("by_workspaceId", (q) => q.eq("workspaceId", profile.workspaceId)).take(20)
       : [];
     const stats = profile
       ? await ctx.db.query("profileStats").withIndex("by_profileId", (q) => q.eq("profileId", profile._id)).unique()
+      : null;
+    const latestDeletion = user
+      ? await ctx.db.query("accountDeletionRequests").withIndex("by_userId_and_requestedAt", (q) => q.eq("userId", user._id)).order("desc").first()
+      : null;
+    const latestRun = collectors.length
+      ? (await Promise.all(collectors.map((collector) => ctx.db.query("snapshotRuns").withIndex("by_collectorId_and_updatedAt", (q) => q.eq("collectorId", collector._id)).order("desc").first())))
+          .filter(Boolean)
+          .sort((left, right) => (right?.updatedAt ?? 0) - (left?.updatedAt ?? 0))[0]
       : null;
     return {
       user: {
@@ -111,6 +145,7 @@ export const current = query({
         ? {
             handle: profile.handle,
             displayName: profile.displayName,
+            bio: profile.bio,
             avatarUrl: profile.avatarUrl,
             isPublic: profile.isPublic,
             isVerified: profile.isVerified,
@@ -127,11 +162,42 @@ export const current = query({
           cliVersion: collector.cliVersion,
           createdAt: collector.createdAt,
           lastSeenAt: collector.lastSeenAt,
+          lastSuccessAt: collector.lastSuccessAt,
+          lastFailureAt: collector.lastFailureAt,
+          lastFailureCode: collector.lastFailureCode,
+          lastSyncPhase: collector.lastSyncPhase,
+          lastFullSyncAt: collector.lastFullSyncAt,
+          coverageStatus: collector.coverageStatus ?? "not_assessed",
+          coverageStartDay: collector.coverageStartDay,
+          coverageEndDay: collector.coverageEndDay,
+          inventoryComplete: collector.inventoryComplete,
+          inventoryErrors: collector.inventoryErrors,
+          inventoryTruncated: collector.inventoryTruncated,
+          sourceCount: collector.sourceCount,
+          unresolvedCorrections: collector.unresolvedCorrections,
           rotatedAt: collector.rotatedAt,
           revokedAt: collector.revokedAt,
         })),
       connectedSources: stats?.sources ?? [],
       lastSyncAt: stats?.lastSyncAt ?? stats?.lastEventAt,
+      coverage: latestRun ? {
+        status: latestRun.inventoryComplete && !latestRun.inventoryTruncated && latestRun.inventoryErrors === 0 ? "complete" : "partial",
+        phase: latestRun.status,
+        mode: latestRun.mode,
+        sourceCount: latestRun.sourceCount,
+        partitionCount: latestRun.partitionCount,
+        acceptedPartitions: latestRun.acceptedPartitions,
+        correctionRows: latestRun.correctionRows,
+        inventoryComplete: latestRun.inventoryComplete,
+        inventoryErrors: latestRun.inventoryErrors,
+        inventoryTruncated: latestRun.inventoryTruncated,
+        from: latestRun.coverageStartDay,
+        to: latestRun.coverageEndDay,
+        completedAt: latestRun.completedAt,
+      } : null,
+      deletionRequest: latestDeletion && !latestDeletion.cancelledAt && !latestDeletion.completedAt
+        ? { requestedAt: latestDeletion.requestedAt, scheduledFor: latestDeletion.scheduledFor }
+        : null,
     };
   },
 });
@@ -172,20 +238,20 @@ export const writeDeviceLink = internalMutation({
 
 export const createDeviceLink = action({
   args: { name: v.string() },
-  handler: async (ctx, args): Promise<{ code: string; expiresAt: number }> => {
+  handler: async (ctx, args): Promise<{ code: string; expiresAt: number; linkId: Id<"deviceLinkCodes"> }> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new ConvexError("AUTH_REQUIRED");
     const code = newDeviceLinkCode();
     const now = Date.now();
-    await ctx.runMutation(internal.account.writeDeviceLink, {
-      workosUserId: identity.subject,
+    const linkId = await ctx.runMutation(internal.account.writeDeviceLink, {
+      workosUserId: identityKey(identity),
       codeHash: await sha256(code),
       codePrefix: code.slice(0, 8),
       deviceName: args.name,
       now,
       expiresAt: now + LINK_CODE_TTL_MS,
     });
-    return { code, expiresAt: now + LINK_CODE_TTL_MS };
+    return { code, expiresAt: now + LINK_CODE_TTL_MS, linkId };
   },
 });
 
@@ -314,7 +380,7 @@ export const createCollector = action({
     const token = newCollectorToken();
     const keyPrefix = token.slice(0, 12);
     const collectorId: Id<"collectors"> = await ctx.runMutation(internal.account.writeCollector, {
-      workosUserId: identity.subject,
+      workosUserId: identityKey(identity),
       name: cleanText(args.name, "My computer", 80),
       keyHash: await sha256(token),
       keyPrefix,
@@ -332,7 +398,7 @@ export const rotateCollector = action({
     const token = newCollectorToken();
     const keyPrefix = token.slice(0, 12);
     const collectorId: Id<"collectors"> = await ctx.runMutation(internal.account.writeCollector, {
-      workosUserId: identity.subject,
+      workosUserId: identityKey(identity),
       keyHash: await sha256(token),
       keyPrefix,
       collectorId: args.collectorId,
@@ -346,14 +412,17 @@ export const revokeCollector = mutation({
   args: { collectorId: v.id("collectors") },
   handler: async (ctx, args) => {
     const identity = await identityOrThrow(ctx);
-    const user = await userForIdentity(ctx, identity.subject);
+    const user = await userForIdentity(ctx, identityKey(identity)) ?? await userForIdentity(ctx, identity.subject);
     if (!user) throw new ConvexError("PROFILE_REQUIRED");
     const profile = await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", user._id)).unique();
     const collector = await ctx.db.get(args.collectorId);
     if (!profile || !collector || collector.workspaceId !== profile.workspaceId) {
       throw new ConvexError("COLLECTOR_NOT_FOUND");
     }
-    if (!collector.revokedAt) await ctx.db.patch(collector._id, { revokedAt: Date.now() });
+    if (!collector.revokedAt) {
+      await ctx.db.patch(collector._id, { revokedAt: Date.now() });
+      await audit(ctx, profile.workspaceId, user._id, "collector.revoked", "collector", String(collector._id), `Revoked ${collector.name}`);
+    }
     return { collectorId: collector._id, revoked: true };
   },
 });
@@ -405,6 +474,7 @@ export const ensureProfile = mutation({
       isVerified: false,
       verification: "account",
       createdAt: now,
+      updatedAt: now,
     });
     await ctx.db.insert("profileStats", {
       workspaceId,
@@ -449,17 +519,306 @@ export const setProfileVisibility = mutation({
   args: { isPublic: v.boolean() },
   handler: async (ctx, args) => {
     const identity = await identityOrThrow(ctx);
-    const user = await userForIdentity(ctx, identity.subject);
+    const user = await userForIdentity(ctx, identityKey(identity)) ?? await userForIdentity(ctx, identity.subject);
     if (!user) throw new ConvexError("PROFILE_REQUIRED");
     const profile = await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", user._id)).unique();
     if (!profile) throw new ConvexError("PROFILE_REQUIRED");
-    await ctx.db.patch(profile._id, { isPublic: args.isPublic });
+    await ctx.db.patch(profile._id, { isPublic: args.isPublic, updatedAt: Date.now() });
     await ctx.db.patch(profile.workspaceId, { isPublic: args.isPublic });
     const entries = await ctx.db
       .query("leaderboardEntries")
       .withIndex("by_profileId_and_period_and_metric", (q) => q.eq("profileId", profile._id))
       .collect();
     for (const entry of entries) await ctx.db.patch(entry._id, { isPublic: args.isPublic });
+    await audit(ctx, profile.workspaceId, user._id, "profile.visibility_changed", "profile", String(profile._id), args.isPublic ? "Made profile public" : "Made profile private");
     return { handle: profile.handle, isPublic: args.isPublic };
+  },
+});
+
+export const deviceLinkStatus = query({
+  args: { linkId: v.id("deviceLinkCodes") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    const user = await userForIdentity(ctx, identityKey(identity)) ?? await userForIdentity(ctx, identity.subject);
+    const link = await ctx.db.get(args.linkId);
+    if (!user || !link || link.userId !== user._id) return null;
+    const collector = link.collectorId ? await ctx.db.get(link.collectorId) : null;
+    return {
+      createdAt: link.createdAt,
+      expiresAt: link.expiresAt,
+      redeemedAt: link.usedAt,
+      collectorName: collector?.name,
+      firstUploadAt: collector?.lastSuccessAt,
+      syncPhase: collector?.lastSyncPhase,
+      failedAt: collector?.lastFailureAt,
+      failureCode: collector?.lastFailureCode,
+    };
+  },
+});
+
+export const updateProfile = mutation({
+  args: { displayName: v.string(), bio: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await identityOrThrow(ctx);
+    const user = await userForIdentity(ctx, identityKey(identity)) ?? await userForIdentity(ctx, identity.subject);
+    if (!user) throw new ConvexError("PROFILE_REQUIRED");
+    const profile = await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", user._id)).unique();
+    if (!profile) throw new ConvexError("PROFILE_REQUIRED");
+    const displayName = cleanText(args.displayName, "", 80);
+    const bio = cleanText(args.bio, "", 280);
+    if (!displayName) throw new ConvexError("DISPLAY_NAME_REQUIRED");
+    const now = Date.now();
+    await ctx.db.patch(profile._id, { displayName, bio, updatedAt: now });
+    const entries = await ctx.db.query("leaderboardEntries").withIndex("by_profileId_and_period_and_metric", (q) => q.eq("profileId", profile._id)).collect();
+    for (const entry of entries) await ctx.db.patch(entry._id, { displayName, updatedAt: now });
+    await audit(ctx, profile.workspaceId, user._id, "profile.updated", "profile", String(profile._id), "Updated profile details");
+    return { displayName, bio };
+  },
+});
+
+export const renameCollector = mutation({
+  args: { collectorId: v.id("collectors"), name: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await identityOrThrow(ctx);
+    const user = await userForIdentity(ctx, identityKey(identity)) ?? await userForIdentity(ctx, identity.subject);
+    if (!user) throw new ConvexError("PROFILE_REQUIRED");
+    const profile = await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", user._id)).unique();
+    const collector = await ctx.db.get(args.collectorId);
+    if (!profile || !collector || collector.workspaceId !== profile.workspaceId) throw new ConvexError("COLLECTOR_NOT_FOUND");
+    const name = cleanText(args.name, "", 80);
+    if (!name) throw new ConvexError("COLLECTOR_NAME_REQUIRED");
+    await ctx.db.patch(collector._id, { name });
+    await audit(ctx, profile.workspaceId, user._id, "collector.renamed", "collector", String(collector._id), `Renamed collector to ${name}`);
+    return { collectorId: collector._id, name };
+  },
+});
+
+export const exportAccount = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new ConvexError("AUTH_REQUIRED");
+    const user = await userForIdentity(ctx, identityKey(identity)) ?? await userForIdentity(ctx, identity.subject);
+    if (!user) throw new ConvexError("PROFILE_REQUIRED");
+    const profile = await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", user._id)).unique();
+    if (!profile) throw new ConvexError("PROFILE_REQUIRED");
+    const [workspace, stats, collectors, daily, models, auditLog] = await Promise.all([
+      ctx.db.get(profile.workspaceId),
+      ctx.db.query("profileStats").withIndex("by_profileId", (q) => q.eq("profileId", profile._id)).unique(),
+      ctx.db.query("collectors").withIndex("by_workspaceId", (q) => q.eq("workspaceId", profile.workspaceId)).collect(),
+      ctx.db.query("profileDailyTotals").withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id)).order("desc").take(730),
+      ctx.db.query("modelTotals").withIndex("by_profileId_and_totalTokens", (q) => q.eq("profileId", profile._id)).order("desc").take(500),
+      ctx.db.query("auditEvents").withIndex("by_workspaceId_and_createdAt", (q) => q.eq("workspaceId", profile.workspaceId)).order("desc").take(500),
+    ]);
+    return {
+      exportedAt: Date.now(),
+      formatVersion: 1,
+      user: { name: user.name, email: user.email, createdAt: user.createdAt },
+      workspace: workspace ? { slug: workspace.slug, name: workspace.name, plan: workspace.plan, retentionDays: workspace.retentionDays } : null,
+      profile: { handle: profile.handle, displayName: profile.displayName, bio: profile.bio, isPublic: profile.isPublic, createdAt: profile.createdAt },
+      stats,
+      collectors: collectors.map((collector) => ({
+        id: collector._id,
+        name: collector.name,
+        keyPrefix: collector.keyPrefix,
+        scopes: collector.scopes,
+        platform: collector.platform,
+        cliVersion: collector.cliVersion,
+        createdAt: collector.createdAt,
+        lastSeenAt: collector.lastSeenAt,
+        lastSuccessAt: collector.lastSuccessAt,
+        rotatedAt: collector.rotatedAt,
+        revokedAt: collector.revokedAt,
+      })),
+      daily,
+      models,
+      auditLog,
+      limits: { dailyDays: 730, models: 500, auditEvents: 500 },
+    };
+  },
+});
+
+export const requestAccountDeletion = mutation({
+  args: { confirmation: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await identityOrThrow(ctx);
+    const user = await userForIdentity(ctx, identityKey(identity)) ?? await userForIdentity(ctx, identity.subject);
+    if (!user || args.confirmation.trim().toLowerCase() !== "delete my account") throw new ConvexError("CONFIRMATION_REQUIRED");
+    const profile = await ctx.db.query("profiles").withIndex("by_ownerId", (q) => q.eq("ownerId", user._id)).unique();
+    if (!profile) throw new ConvexError("PROFILE_REQUIRED");
+    const now = Date.now();
+    const existing = await ctx.db.query("accountDeletionRequests").withIndex("by_userId_and_requestedAt", (q) => q.eq("userId", user._id)).order("desc").first();
+    if (existing && !existing.cancelledAt && !existing.completedAt) return { scheduledFor: existing.scheduledFor, replay: true };
+    const scheduledFor = now + 7 * 24 * 60 * 60 * 1000;
+    const requestId = await ctx.db.insert("accountDeletionRequests", {
+      workspaceId: profile.workspaceId,
+      userId: user._id,
+      profileId: profile._id,
+      requestedAt: now,
+      scheduledFor,
+      stage: "privacy",
+      processedRows: 0,
+    });
+    const collectors = await ctx.db.query("collectors").withIndex("by_workspaceId", (q) => q.eq("workspaceId", profile.workspaceId)).collect();
+    for (const collector of collectors) if (!collector.revokedAt) await ctx.db.patch(collector._id, { revokedAt: now });
+    await audit(ctx, profile.workspaceId, user._id, "account.deletion_requested", "workspace", String(profile.workspaceId), "Requested account deletion with seven-day recovery window");
+    await ctx.scheduler.runAt(scheduledFor, internal.account.processAccountDeletion, { requestId });
+    return { scheduledFor, replay: false };
+  },
+});
+
+export const cancelAccountDeletion = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await identityOrThrow(ctx);
+    const user = await userForIdentity(ctx, identityKey(identity)) ?? await userForIdentity(ctx, identity.subject);
+    if (!user) throw new ConvexError("PROFILE_REQUIRED");
+    const request = await ctx.db.query("accountDeletionRequests").withIndex("by_userId_and_requestedAt", (q) => q.eq("userId", user._id)).order("desc").first();
+    if (!request || request.cancelledAt || request.completedAt) return { cancelled: false };
+    const now = Date.now();
+    await ctx.db.patch(request._id, { cancelledAt: now });
+    const collectors = await ctx.db.query("collectors").withIndex("by_workspaceId", (q) => q.eq("workspaceId", request.workspaceId)).collect();
+    for (const collector of collectors) {
+      if (collector.revokedAt === request.requestedAt) await ctx.db.patch(collector._id, { revokedAt: undefined });
+    }
+    await audit(ctx, request.workspaceId, user._id, "account.deletion_cancelled", "workspace", String(request.workspaceId), "Cancelled account deletion");
+    return { cancelled: true };
+  },
+});
+
+const deletionStages = [
+  "privacy", "leaderboard", "telemetry", "outcomes", "agents", "dailyUsage",
+  "dailyTotals", "dimensions", "devices", "models", "snapshots",
+  "collectorSessions", "ingestReceipts", "rateBuckets", "sessionReceipts",
+  "snapshotRuns", "snapshotReceipts", "deviceLinks", "collectors", "stats",
+  "audits", "memberships", "profile", "workspace", "user", "complete",
+] as const;
+
+type DeletionStage = (typeof deletionStages)[number];
+
+async function advanceDeletion(
+  ctx: MutationCtx,
+  requestId: Id<"accountDeletionRequests">,
+  current: DeletionStage,
+  processedRows: number,
+) {
+  const next = deletionStages[deletionStages.indexOf(current) + 1] ?? "complete";
+  await ctx.db.patch(requestId, { stage: next, processedRows, startedAt: Date.now() });
+  await ctx.scheduler.runAfter(0, internal.account.processAccountDeletion, { requestId });
+}
+
+async function repeatDeletion(
+  ctx: MutationCtx,
+  requestId: Id<"accountDeletionRequests">,
+  processedRows: number,
+) {
+  await ctx.db.patch(requestId, { processedRows });
+  await ctx.scheduler.runAfter(0, internal.account.processAccountDeletion, { requestId });
+}
+
+/**
+ * Bounded, resumable hard deletion. Each invocation removes at most 100 rows
+ * from one table, then schedules the next slice. Aggregate network counters are
+ * deliberately retained as anonymous service-level statistics.
+ */
+export const processAccountDeletion = internalMutation({
+  args: { requestId: v.id("accountDeletionRequests") },
+  handler: async (ctx, { requestId }) => {
+    const request = await ctx.db.get(requestId);
+    if (!request || request.cancelledAt || request.completedAt || request.scheduledFor > Date.now()) return { processed: false };
+    const stage = deletionStages.includes(request.stage as DeletionStage) ? request.stage as DeletionStage : "privacy";
+    const profileId = request.profileId;
+    const remove = async <T extends { _id: Id<TableNames> }>(rows: T[]) => {
+      for (const row of rows) await ctx.db.delete(row._id);
+      return (request.processedRows ?? 0) + rows.length;
+    };
+    const finishRows = async <T extends { _id: Id<TableNames> }>(rows: T[]) => {
+      const processed = await remove(rows);
+      if (rows.length) await repeatDeletion(ctx, requestId, processed);
+      else await advanceDeletion(ctx, requestId, stage, processed);
+      return { processed: true, stage, rows: rows.length };
+    };
+    const collectors = () => ctx.db.query("collectors").withIndex("by_workspaceId", (q) => q.eq("workspaceId", request.workspaceId)).collect();
+
+    if (stage === "privacy") {
+      const profile = profileId ? await ctx.db.get(profileId) : null;
+      const workspace = await ctx.db.get(request.workspaceId);
+      if (profile) await ctx.db.patch(profile._id, { isPublic: false, displayName: "Deleted account", bio: "", avatarUrl: undefined, updatedAt: Date.now() });
+      if (workspace) await ctx.db.patch(workspace._id, { isPublic: false, name: "Deleted account" });
+      await advanceDeletion(ctx, requestId, stage, request.processedRows ?? 0);
+      return { processed: true, stage, rows: 0 };
+    }
+    if (stage === "leaderboard") return finishRows(profileId ? await ctx.db.query("leaderboardEntries").withIndex("by_profileId_and_period_and_metric", (q) => q.eq("profileId", profileId)).take(100) : []);
+    if (stage === "telemetry") return finishRows(profileId ? await ctx.db.query("telemetryEvents").withIndex("by_profileId_and_occurredAt", (q) => q.eq("profileId", profileId)).take(100) : []);
+    if (stage === "outcomes") return finishRows(profileId ? await ctx.db.query("outcomes").withIndex("by_profileId_and_occurredAt", (q) => q.eq("profileId", profileId)).take(100) : []);
+    if (stage === "agents") return finishRows(profileId ? await ctx.db.query("agentLiveStats").withIndex("by_profileId_and_updatedAt", (q) => q.eq("profileId", profileId)).take(100) : []);
+    if (stage === "dailyUsage") return finishRows(profileId ? await ctx.db.query("dailyUsage").withIndex("by_profileId_and_day", (q) => q.eq("profileId", profileId)).take(100) : []);
+    if (stage === "dailyTotals") return finishRows(profileId ? await ctx.db.query("profileDailyTotals").withIndex("by_profileId_and_day", (q) => q.eq("profileId", profileId)).take(100) : []);
+    if (stage === "dimensions") return finishRows(profileId ? await ctx.db.query("dailyDimensions").withIndex("by_profileId_and_dimension_and_day", (q) => q.eq("profileId", profileId)).take(100) : []);
+    if (stage === "devices") return finishRows(profileId ? await ctx.db.query("profileDevices").withIndex("by_profileId", (q) => q.eq("profileId", profileId)).take(100) : []);
+    if (stage === "models") return finishRows(profileId ? await ctx.db.query("modelTotals").withIndex("by_profileId_and_totalTokens", (q) => q.eq("profileId", profileId)).take(100) : []);
+    if (stage === "snapshots") return finishRows(profileId ? await ctx.db.query("collectorUsageSnapshots").withIndex("by_profileId_and_day", (q) => q.eq("profileId", profileId)).take(100) : []);
+    if (stage === "collectorSessions") return finishRows(profileId ? await ctx.db.query("collectorSessions").withIndex("by_profileId_and_lastActivityAt", (q) => q.eq("profileId", profileId)).take(100) : []);
+
+    if (["ingestReceipts", "rateBuckets", "sessionReceipts", "snapshotRuns", "snapshotReceipts"].includes(stage)) {
+      for (const collector of await collectors()) {
+        const rows = stage === "ingestReceipts"
+          ? await ctx.db.query("ingestReceipts").withIndex("by_collectorId_and_batchId", (q) => q.eq("collectorId", collector._id)).take(100)
+          : stage === "rateBuckets"
+            ? await ctx.db.query("ingestRateBuckets").withIndex("by_collectorId_and_bucketStart", (q) => q.eq("collectorId", collector._id)).take(100)
+            : stage === "sessionReceipts"
+              ? await ctx.db.query("sessionReceipts").withIndex("by_collectorId_and_source_and_sessionId", (q) => q.eq("collectorId", collector._id)).take(100)
+              : stage === "snapshotRuns"
+                ? await ctx.db.query("snapshotRuns").withIndex("by_collectorId_and_updatedAt", (q) => q.eq("collectorId", collector._id)).take(100)
+                : await ctx.db.query("snapshotReceipts").withIndex("by_collectorId_and_partitionId", (q) => q.eq("collectorId", collector._id)).take(100);
+        if (rows.length) {
+          for (const row of rows) await ctx.db.delete(row._id);
+          const processed = (request.processedRows ?? 0) + rows.length;
+          await repeatDeletion(ctx, requestId, processed);
+          return { processed: true, stage, rows: rows.length };
+        }
+      }
+      await advanceDeletion(ctx, requestId, stage, request.processedRows ?? 0);
+      return { processed: true, stage, rows: 0 };
+    }
+
+    if (stage === "deviceLinks") return finishRows(await ctx.db.query("deviceLinkCodes").withIndex("by_workspaceId", (q) => q.eq("workspaceId", request.workspaceId)).take(100));
+    if (stage === "collectors") return finishRows((await collectors()).slice(0, 100));
+    if (stage === "stats") return finishRows(await ctx.db.query("profileStats").withIndex("by_workspaceId", (q) => q.eq("workspaceId", request.workspaceId)).take(100));
+    if (stage === "audits") return finishRows(await ctx.db.query("auditEvents").withIndex("by_workspaceId_and_createdAt", (q) => q.eq("workspaceId", request.workspaceId)).take(100));
+    if (stage === "memberships") return finishRows(await ctx.db.query("workspaceMemberships").withIndex("by_workspaceId_and_userId", (q) => q.eq("workspaceId", request.workspaceId)).take(100));
+    if (stage === "profile") {
+      const profile = profileId ? await ctx.db.get(profileId) : null;
+      return finishRows(profile ? [profile] : []);
+    }
+    if (stage === "workspace") {
+      const workspace = await ctx.db.get(request.workspaceId);
+      return finishRows(workspace ? [workspace] : []);
+    }
+    if (stage === "user") {
+      const remainingMembership = await ctx.db.query("workspaceMemberships").withIndex("by_userId_and_workspaceId", (q) => q.eq("userId", request.userId)).first();
+      const remainingWorkspace = await ctx.db.query("workspaces").withIndex("by_ownerId", (q) => q.eq("ownerId", request.userId)).first();
+      const user = await ctx.db.get(request.userId);
+      if (user && !remainingMembership && !remainingWorkspace) await ctx.db.delete(user._id);
+      await advanceDeletion(ctx, requestId, stage, (request.processedRows ?? 0) + Number(Boolean(user && !remainingMembership && !remainingWorkspace)));
+      return { processed: true, stage, rows: Number(Boolean(user && !remainingMembership && !remainingWorkspace)) };
+    }
+    await ctx.db.patch(requestId, { stage: "complete", completedAt: Date.now() });
+    return { processed: true, stage: "complete", rows: 0 };
+  },
+});
+
+export const processDueDeletionRequests = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const due = await ctx.db.query("accountDeletionRequests").withIndex("by_scheduledFor", (q) => q.lte("scheduledFor", Date.now())).take(10);
+    let queued = 0;
+    for (const request of due) {
+      if (request.cancelledAt || request.completedAt) continue;
+      await ctx.scheduler.runAfter(0, internal.account.processAccountDeletion, { requestId: request._id });
+      queued += 1;
+    }
+    return { queued };
   },
 });

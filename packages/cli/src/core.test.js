@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { batchId, buildDeltaPlan, normalizeLinkCode, sourceSummary, validHttpsUrl } from "./core.js";
+import { batchId, buildDeltaPlan, buildSessionPlan, buildSnapshotPlan, normalizeLinkCode, sourceSummary, validHttpsUrl } from "./core.js";
 
 const report = {
   daily: [{
@@ -142,4 +142,30 @@ test("classifies prefixed and bracketed model providers without changing model i
   assert.equal(events.find((event) => event.model === "[openclaw] qwen3-coder")?.provider, "alibaba");
   assert.equal(events.find((event) => event.model.startsWith("openrouter/"))?.provider, "openrouter");
   assert.equal(events.find((event) => event.model === "kimi-k2.5")?.provider, "moonshot");
+});
+
+test("builds authoritative partitions for decreases, deletions, and provider identity", () => {
+  const first = buildSnapshotPlan(report, {}, { bootstrap: true, full: true, runId: "run-1", revision: 1 });
+  assert.equal(first.partitions.length, 1);
+  const previous = first.nextSnapshots;
+  const changed = structuredClone(report);
+  changed.daily[0].modelBreakdowns[0].inputTokens = 80;
+  changed.daily[0].modelBreakdowns[0].cost = 0.5;
+  const second = buildSnapshotPlan(changed, previous, { full: true, runId: "run-2", revision: 2 });
+  assert.equal(second.regressions.length, 1);
+  const corrected = second.partitions[0].rows.find((row) => row.model === "gpt-5.6");
+  assert.equal(corrected.previous.inputTokens, 100);
+  assert.equal(corrected.current.inputTokens, 80);
+  assert.equal(corrected.provider, "openai");
+
+  const removed = buildSnapshotPlan({ daily: [] }, previous, { full: true, runId: "run-3", revision: 3 });
+  assert.equal(removed.partitions.length, 1);
+  assert.equal(removed.partitions[0].rows[0].current.totalTokens, 0);
+});
+
+test("uploads only opaque session identities", () => {
+  const sessions = buildSessionPlan({ session: [{ agent: "codex", period: "/private/project/session.jsonl", metadata: { lastActivity: "2026-09-14T12:00:00.000Z" } }] }, "device-1");
+  assert.equal(sessions.length, 1);
+  assert.match(sessions[0].sessionKey, /^[a-f0-9]{64}$/);
+  assert.equal(JSON.stringify(sessions).includes("/private/project"), false);
 });

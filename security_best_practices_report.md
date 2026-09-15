@@ -10,11 +10,11 @@ and sessions, while Convex validates WorkOS JWTs and owns authorization and
 realtime product data. The telemetry edge uses hashed bearer credentials,
 idempotency keys, bounded payloads, validation, and per-collector rate limits.
 
-This is a strong pre-production foundation, not a claim of formal enterprise
-certification. Production auth remains disabled until a real WorkOS environment
-is provisioned and its secrets are installed in Convex and Vercel. A capacity
-test and production monitoring are still required before publishing a numeric
-SLA.
+This is a strong production foundation, not a claim of formal enterprise
+certification. WorkOS/Convex authentication is wired and the product now has
+collector-scoped accounting and governance controls. A measured capacity test,
+external monitoring, and an independent security review are still required
+before publishing a numeric SLA or compliance claim.
 
 ## High-impact changes completed
 
@@ -22,6 +22,8 @@ SLA.
   WorkOS JWT verification in Convex.
 - Added app-owned users, organization-ready workspaces, and explicit workspace
   memberships. Authentication does not imply authorization.
+- Migrated identity lookup to Convex `tokenIdentifier`, with a compatibility
+  fallback for existing WorkOS subject records.
 - New profiles are private by default. A signed-in user cannot claim an existing
   imported profile merely by entering its handle.
 - Removed internal workspace IDs, trace IDs, event hashes, and raw event records
@@ -30,7 +32,16 @@ SLA.
 - Replaced the global ingestion counter write hotspot with 128 counter shards.
 - Replaced leaderboard N+1 reads with denormalized public leaderboard rows.
 - Replaced multi-thousand-row daily reads with one materialized total per day.
-- Throttled leaderboard rewrites to at most once per minute per profile entry.
+- Added authoritative, collector-owned source/day snapshots. Corrections and
+  removed model rows apply signed deltas instead of becoming permanent overcounts.
+- Scoped event, batch, session, outcome, and live-agent identity to the collector
+  so two computers cannot collide by reusing a local key.
+- Added immutable audit events for profile, visibility, collector, and account
+  lifecycle changes; added bounded JSON export and deletion-request recovery.
+- Added an enforcing Content Security Policy, resource isolation headers,
+  reduced-motion behavior, visible focus states, and chart data disclosures.
+- Added CI, dependency update automation, npm OIDC trusted-publishing workflow,
+  and a bounded non-production capacity probe.
 - Preserved fixed query limits for live agents, events, models, leaderboard
   entries, and daily windows.
 - Confirmed no known production dependency advisories with `bun audit`.
@@ -41,8 +52,8 @@ SLA.
 - Ingestion requires JSON, a bearer credential, and an idempotency key.
 - Batches are limited to 100 events, 120 requests per minute per collector, and
   5,000 events per minute per collector.
-- Event timestamps, strings, numeric ranges, status values, and schema shape are
-  validated before persistence.
+- Event and snapshot timestamps, strings, numeric ranges, partition hashes,
+  status values, and schema shape are validated before persistence.
 - Public profiles are opt-in and public queries return compact projections.
 - Security headers enable HTTPS transport persistence and disable framing, MIME
   sniffing, camera, microphone, geolocation, and payment access.
@@ -51,13 +62,12 @@ SLA.
 
 ## Follow-up controls before enterprise GA
 
-### Production activation
+### Production identity verification
 
-- Provision separate WorkOS production and non-production environments.
-- Configure a production GitHub OAuth application in WorkOS and restrict its
-  redirect URI to `https://usagemax.com/callback`.
-- Store `WORKOS_API_KEY` and `WORKOS_COOKIE_PASSWORD` only in encrypted Vercel
-  environment variables; set `WORKOS_CLIENT_ID` in Convex for JWT validation.
+- Keep separate WorkOS production and non-production environments and verify
+  GitHub/Google callback restrictions after each environment change.
+- Keep `WORKOS_API_KEY` and `WORKOS_COOKIE_PASSWORD` only in encrypted Vercel
+  environment variables; keep `WORKOS_CLIENT_ID` synchronized with Convex JWT validation.
 - Enable MFA and organization policies in WorkOS, then test SSO and SCIM with a
   real pilot tenant.
 - Remove obsolete auth secrets after the WorkOS cutover is verified.
@@ -66,10 +76,9 @@ SLA.
 
 - Enforce workspace membership and permission checks in every future private
   query and mutation. Never trust a client-supplied workspace ID by itself.
-- Add immutable audit events for membership, role, collector, visibility,
-  export, and retention-policy changes.
-- Add collector rotation, last-used visibility, scoped credentials, and an
-  emergency revoke-all control.
+- Extend immutable audit events to membership, role, export completion, and
+  retention-policy changes when those enterprise controls are enabled.
+- Add an organization-wide emergency revoke-all control before enterprise GA.
 - Define enterprise retention, deletion, export, and legal-hold workflows before
   accepting customer content beyond the current aggregate telemetry contract.
 
@@ -80,19 +89,20 @@ SLA.
   conflicts, and Vercel function errors.
 - Add error tracking, structured security logs, alerting, backup verification,
   and a tested incident-response runbook.
-- Materialize the model-by-day cube if a single profile approaches the current
-  2,500-row bounded model-history read.
-- Add retention jobs for raw telemetry, receipts, rate buckets, and quarantine
-  records.
-- Add an enforcing nonce-based Content Security Policy after AuthKit and Next.js
-  script requirements are verified in production. The current header set does
-  not yet include CSP.
+- Materialize the model-by-day cube if measured query bandwidth justifies it;
+  current public reads query bounded calendar-day partitions without silent
+  1,000/4,000-row truncation.
+- Monitor the deployed retention job for raw telemetry, event and snapshot
+  receipts, completed/failed snapshot runs, stale uploads, rate buckets, live
+  agents, link codes, and quarantine records.
+- Move from the current enforcing static CSP to a nonce-based strict CSP only
+  if production profiling shows the dynamic-rendering tradeoff is acceptable.
 
 ## Scale position
 
-The revised schema removes the two clearest early scale failures: a single
-global write document and N+1 leaderboard reads. It is architecturally suitable
-for thousands of users, provided telemetry is distributed across collectors and
-the documented limits are enforced. That statement is an engineering readiness
-assessment, not load-test evidence; enterprise launch should remain gated on the
-capacity and observability work above.
+The revised schema removes the clearest early scale failures: a single global
+write document, N+1 leaderboard reads, workspace-scoped collector collisions,
+and capped raw-row dashboard scans. It is architecturally suitable for thousands
+of users when traffic is distributed across collectors and the documented limits
+are enforced. That statement remains an engineering assessment, not load-test
+evidence; enterprise launch is gated on the capacity and observability work above.

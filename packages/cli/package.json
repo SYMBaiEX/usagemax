@@ -1,6 +1,6 @@
 {
   "name": "usagemax",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Link local coding-agent usage to your UsageMax profile",
   "license": "MIT",
   "author": "UsageMax",

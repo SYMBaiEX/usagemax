@@ -113,6 +113,8 @@ but UsageMax versions its own contract because those conventions continue to evo
 | Public profiles, streaks, heatmap, top models | Yes |  |  |
 | Spend/token leaderboards: 7d, 30d, all | Yes |  |  |
 | Native + OTLP JSON ingest | Yes |  |  |
+| Authoritative collector snapshots and corrections | Yes |  |  |
+| Opaque cross-source session accounting | Yes | Daily membership detail |  |
 | Realtime active agents and parent/child topology | Yes |  |  |
 | Idempotency, provenance, timestamp bounds, retention | Yes |  |  |
 | Outcome ledger: accepted/rejected/abandoned/retried | Foundation | Full UI | Policy |
@@ -143,7 +145,7 @@ Enterprise value comes from measurable waste reduction and governance evidence.
   adapters, plus an explicit coverage report for apps and direct API traffic that
   require OTel or provider exports;
 - finish outcome capture and show cost per accepted outcome;
-- finish GitHub/Google login hardening, collector rotation, profile consent, export, deletion;
+- verify GitHub/Google production callbacks, collector rotation, profile consent, export, and deletion recovery;
 - load-test realistic 100, 500, and 1,000 event/second workloads.
 
 ### 30–90 days — team control plane
@@ -151,7 +153,7 @@ Enterprise value comes from measurable waste reduction and governance evidence.
 - team workspaces, projects, budgets, alerting, tags, and daily/weekly digests;
 - retry-waste, cache-leverage, latency, error, quality, and model-mix views;
 - signed collector releases and verifiable aggregate submissions;
-- authoritative server-owned source/day snapshots for downward corrections;
+- provider billing reconciliation against authoritative source/day snapshots;
 - provider and application connectors for Cursor, Cline, Roo Code, Continue,
   Aider, Windsurf, direct SDK traffic, and billing exports.
 

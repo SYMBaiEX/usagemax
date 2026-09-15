@@ -129,9 +129,9 @@ describe("telemetry ingestion", () => {
     const breakdowns = await t.query(api.public.breakdowns, { handle: "tester", days: 30 });
     expect(breakdowns.sources).toEqual([expect.objectContaining({ key: "test", totalTokens: 120 })]);
     expect(breakdowns.devices).toEqual([expect.objectContaining({ key: "Device 1", totalTokens: 120 })]);
-    const live = await t.query(api.public.live, { handle: "tester", now: receivedAt, agentLimit: 10, eventLimit: 10 });
+    const live = await t.query(api.public.live, { handle: "tester", agentLimit: 10, eventLimit: 10 });
     expect(live.agents).toHaveLength(1);
-    expect(live.agents[0].online).toBe(true);
+    expect(live.agents[0].expiresAt).toBeGreaterThan(receivedAt);
     expect(live.events).toHaveLength(1);
   });
 
@@ -308,12 +308,11 @@ describe("telemetry ingestion", () => {
 
     const live = await t.query(api.public.live, {
       handle: "tester",
-      now: receivedAt,
       agentLimit: 10,
       eventLimit: 10,
     });
     expect(live.agents).toHaveLength(1);
-    expect(live.agents[0].online).toBe(true);
+    expect(live.agents[0].expiresAt).toBeGreaterThan(receivedAt);
     expect(live.events).toHaveLength(1);
   });
 

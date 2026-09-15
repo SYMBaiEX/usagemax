@@ -79,6 +79,14 @@ describe("public usage dimensions", () => {
     });
     expect(rows).toEqual([expect.objectContaining({ key: "Device 1", totalTokens: 120 })]);
     expect(JSON.stringify(rows)).not.toContain("salted-device-hash");
+
+    const snapshot = await t.query(api.public.profileSnapshot, { handle: "privacy-builder", days: 365 });
+    expect(snapshot).toMatchObject({
+      profile: { handle: "privacy-builder" },
+      daily: [expect.objectContaining({ date: "2026-09-14", totalTokens: 120 })],
+      breakdowns: { devices: [expect.objectContaining({ key: "Device 1", totalTokens: 120 })] },
+      live: { agents: [], events: [] },
+    });
   });
 
   test("quarantines retired imported profiles from every public aggregate", async () => {

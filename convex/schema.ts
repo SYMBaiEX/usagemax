@@ -4,6 +4,7 @@ import { v } from "convex/values";
 export default defineSchema({
   users: defineTable({
     workosUserId: v.string(),
+    authIdentityKey: v.optional(v.string()),
     name: v.optional(v.string()),
     email: v.optional(v.string()),
     avatarUrl: v.optional(v.string()),
@@ -12,6 +13,7 @@ export default defineSchema({
     lastSeenAt: v.number(),
   })
     .index("by_workosUserId", ["workosUserId"])
+    .index("by_authIdentityKey", ["authIdentityKey"])
     .index("by_email", ["email"]),
 
   workspaces: defineTable({
@@ -54,6 +56,7 @@ export default defineSchema({
     sourceUrl: v.optional(v.string()),
     importedAt: v.optional(v.number()),
     createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
   })
     .index("by_handle", ["handle"])
     .index("by_workspaceId", ["workspaceId"])
@@ -74,6 +77,26 @@ export default defineSchema({
     lastSuccessAt: v.optional(v.number()),
     lastFailureAt: v.optional(v.number()),
     lastFailureCode: v.optional(v.string()),
+    lastSyncRunId: v.optional(v.string()),
+    lastSyncPhase: v.optional(v.union(
+      v.literal("scanning"),
+      v.literal("uploading"),
+      v.literal("complete"),
+      v.literal("failed"),
+    )),
+    lastFullSyncAt: v.optional(v.number()),
+    coverageStatus: v.optional(v.union(
+      v.literal("not_assessed"),
+      v.literal("complete"),
+      v.literal("partial"),
+    )),
+    coverageStartDay: v.optional(v.string()),
+    coverageEndDay: v.optional(v.string()),
+    inventoryComplete: v.optional(v.boolean()),
+    inventoryErrors: v.optional(v.number()),
+    inventoryTruncated: v.optional(v.boolean()),
+    sourceCount: v.optional(v.number()),
+    unresolvedCorrections: v.optional(v.number()),
     rotatedAt: v.optional(v.number()),
     revokedAt: v.optional(v.number()),
   })
@@ -117,6 +140,9 @@ export default defineSchema({
     longestStreakDays: v.number(),
     deviceCount: v.number(),
     topModel: v.string(),
+    topModelProvider: v.optional(v.string()),
+    topModelMetric: v.optional(v.union(v.literal("tokens"), v.literal("spend"))),
+    sessionCoverage: v.optional(v.union(v.literal("unknown"), v.literal("partial"), v.literal("complete"))),
     firstDay: v.optional(v.string()),
     lastDay: v.optional(v.string()),
     lastEventAt: v.optional(v.number()),
@@ -156,6 +182,7 @@ export default defineSchema({
   })
     .index("by_profileId_and_day", ["profileId", "day"])
     .index("by_profileId_and_day_and_source_and_model", ["profileId", "day", "source", "model"])
+    .index("by_profileId_and_day_and_source_and_provider_and_model", ["profileId", "day", "source", "provider", "model"])
     .index("by_profileId_and_source_and_updatedAt", ["profileId", "source", "updatedAt"]),
 
   profileDailyTotals: defineTable({
@@ -200,6 +227,7 @@ export default defineSchema({
     profileId: v.id("profiles"),
     deviceHash: v.string(),
     publicLabel: v.string(),
+    collectorId: v.optional(v.id("collectors")),
     firstSeenAt: v.number(),
     lastSeenAt: v.number(),
   })
@@ -225,11 +253,14 @@ export default defineSchema({
     lastUsedAt: v.number(),
   })
     .index("by_profileId_and_model", ["profileId", "model"])
-    .index("by_profileId_and_totalTokens", ["profileId", "totalTokens"]),
+    .index("by_profileId_and_provider_and_model", ["profileId", "provider", "model"])
+    .index("by_profileId_and_totalTokens", ["profileId", "totalTokens"])
+    .index("by_profileId_and_costMicros", ["profileId", "costMicros"]),
 
   telemetryEvents: defineTable({
     workspaceId: v.id("workspaces"),
     profileId: v.id("profiles"),
+    collectorId: v.optional(v.id("collectors")),
     eventKey: v.string(),
     eventHash: v.string(),
     logicalRequestId: v.optional(v.string()),
@@ -276,6 +307,7 @@ export default defineSchema({
     completeness: v.union(v.literal("reported"), v.literal("estimated"), v.literal("unknown")),
   })
     .index("by_workspaceId_and_eventKey", ["workspaceId", "eventKey"])
+    .index("by_collectorId_and_eventKey", ["collectorId", "eventKey"])
     .index("by_profileId_and_occurredAt", ["profileId", "occurredAt"])
     .index("by_receivedAt", ["receivedAt"]),
 
@@ -289,6 +321,7 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_workspaceId_and_batchId", ["workspaceId", "batchId"])
+    .index("by_collectorId_and_batchId", ["collectorId", "batchId"])
     .index("by_createdAt", ["createdAt"]),
 
   ingestRateBuckets: defineTable({
@@ -303,13 +336,18 @@ export default defineSchema({
   sessionReceipts: defineTable({
     workspaceId: v.id("workspaces"),
     profileId: v.id("profiles"),
+    collectorId: v.optional(v.id("collectors")),
+    source: v.optional(v.string()),
     sessionId: v.string(),
     firstSeenAt: v.number(),
-  }).index("by_workspaceId_and_sessionId", ["workspaceId", "sessionId"]),
+  })
+    .index("by_workspaceId_and_sessionId", ["workspaceId", "sessionId"])
+    .index("by_collectorId_and_source_and_sessionId", ["collectorId", "source", "sessionId"]),
 
   agentLiveStats: defineTable({
     workspaceId: v.id("workspaces"),
     profileId: v.id("profiles"),
+    collectorId: v.optional(v.id("collectors")),
     externalId: v.string(),
     parentExternalId: v.optional(v.string()),
     name: v.string(),
@@ -326,6 +364,7 @@ export default defineSchema({
     traceId: v.optional(v.string()),
   })
     .index("by_workspaceId_and_externalId", ["workspaceId", "externalId"])
+    .index("by_collectorId_and_externalId", ["collectorId", "externalId"])
     .index("by_profileId_and_updatedAt", ["profileId", "updatedAt"])
     .index("by_expiresAt", ["expiresAt"]),
 
@@ -376,6 +415,7 @@ export default defineSchema({
   outcomes: defineTable({
     workspaceId: v.id("workspaces"),
     profileId: v.id("profiles"),
+    collectorId: v.optional(v.id("collectors")),
     eventKey: v.string(),
     logicalRequestId: v.string(),
     outcome: v.union(
@@ -388,7 +428,116 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_workspaceId_and_eventKey", ["workspaceId", "eventKey"])
+    .index("by_collectorId_and_eventKey", ["collectorId", "eventKey"])
     .index("by_profileId_and_occurredAt", ["profileId", "occurredAt"]),
+
+  collectorUsageSnapshots: defineTable({
+    workspaceId: v.id("workspaces"),
+    profileId: v.id("profiles"),
+    collectorId: v.id("collectors"),
+    source: v.string(),
+    day: v.string(),
+    provider: v.string(),
+    model: v.string(),
+    inputTokens: v.number(),
+    outputTokens: v.number(),
+    cacheReadTokens: v.number(),
+    cacheWriteTokens: v.number(),
+    reasoningTokens: v.number(),
+    unclassifiedTokens: v.number(),
+    totalTokens: v.number(),
+    costMicros: v.number(),
+    requests: v.number(),
+    errors: v.number(),
+    costBasis: v.union(v.literal("reported"), v.literal("estimated"), v.literal("api-equivalent"), v.literal("unknown")),
+    pricingVersion: v.optional(v.string()),
+    contentHash: v.string(),
+    revision: v.number(),
+    lastUsedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_collectorId_and_source_and_day", ["collectorId", "source", "day"])
+    .index("by_collectorId_and_source_and_day_and_provider_and_model", ["collectorId", "source", "day", "provider", "model"])
+    .index("by_profileId_and_day", ["profileId", "day"]),
+
+  snapshotRuns: defineTable({
+    workspaceId: v.id("workspaces"),
+    profileId: v.id("profiles"),
+    collectorId: v.id("collectors"),
+    runId: v.string(),
+    mode: v.union(v.literal("incremental"), v.literal("full"), v.literal("archives")),
+    status: v.union(v.literal("scanning"), v.literal("uploading"), v.literal("complete"), v.literal("failed")),
+    sourceCount: v.number(),
+    partitionCount: v.number(),
+    acceptedPartitions: v.number(),
+    changedRows: v.number(),
+    correctionRows: v.number(),
+    inventoryComplete: v.boolean(),
+    inventoryErrors: v.number(),
+    inventoryTruncated: v.boolean(),
+    coverageStartDay: v.optional(v.string()),
+    coverageEndDay: v.optional(v.string()),
+    failureCode: v.optional(v.string()),
+    startedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  })
+    .index("by_collectorId_and_runId", ["collectorId", "runId"])
+    .index("by_collectorId_and_updatedAt", ["collectorId", "updatedAt"])
+    .index("by_status_and_updatedAt", ["status", "updatedAt"]),
+
+  snapshotReceipts: defineTable({
+    collectorId: v.id("collectors"),
+    partitionId: v.string(),
+    payloadHash: v.string(),
+    revision: v.number(),
+    changedRows: v.number(),
+    correctionRows: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_collectorId_and_partitionId", ["collectorId", "partitionId"])
+    .index("by_createdAt", ["createdAt"]),
+
+  collectorSessions: defineTable({
+    workspaceId: v.id("workspaces"),
+    profileId: v.id("profiles"),
+    collectorId: v.id("collectors"),
+    source: v.string(),
+    sessionKey: v.string(),
+    firstActivityAt: v.optional(v.number()),
+    lastActivityAt: v.optional(v.number()),
+    discoveredAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_collectorId_and_source_and_sessionKey", ["collectorId", "source", "sessionKey"])
+    .index("by_profileId_and_lastActivityAt", ["profileId", "lastActivityAt"]),
+
+  auditEvents: defineTable({
+    workspaceId: v.id("workspaces"),
+    actorUserId: v.optional(v.id("users")),
+    action: v.string(),
+    targetType: v.string(),
+    targetId: v.optional(v.string()),
+    summary: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"])
+    .index("by_createdAt", ["createdAt"]),
+
+  accountDeletionRequests: defineTable({
+    workspaceId: v.id("workspaces"),
+    userId: v.id("users"),
+    profileId: v.optional(v.id("profiles")),
+    requestedAt: v.number(),
+    scheduledFor: v.number(),
+    stage: v.optional(v.string()),
+    processedRows: v.optional(v.number()),
+    startedAt: v.optional(v.number()),
+    cancelledAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_userId_and_requestedAt", ["userId", "requestedAt"])
+    .index("by_scheduledFor", ["scheduledFor"]),
 
   quarantine: defineTable({
     workspaceId: v.optional(v.id("workspaces")),

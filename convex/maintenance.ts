@@ -181,7 +181,7 @@ export const repairDuplicateCollector = internalMutation({
       const dayUsage = days.get(day) ?? emptyUsage();
       add(dayUsage, event);
       days.set(day, dayUsage);
-      const dailyKey = `${day}\u001f${event.source}\u001f${event.model}`;
+      const dailyKey = `${day}\u001f${event.source}\u001f${event.provider}\u001f${event.model}`;
       const dailyUsage = daily.get(dailyKey) ?? emptyUsage();
       add(dailyUsage, event);
       daily.set(dailyKey, dailyUsage);
@@ -189,18 +189,19 @@ export const repairDuplicateCollector = internalMutation({
       const sourceUsage = sources.get(sourceKey) ?? emptyUsage();
       add(sourceUsage, event);
       sources.set(sourceKey, sourceUsage);
-      const modelUsage = models.get(event.model) ?? emptyUsage();
+      const modelKey = `${event.provider}\u001f${event.model}`;
+      const modelUsage = models.get(modelKey) ?? emptyUsage();
       add(modelUsage, event);
-      models.set(event.model, modelUsage);
+      models.set(modelKey, modelUsage);
     }
     if (total.totalTokens !== args.expectedTotalTokens) throw new ConvexError("DUPLICATE_REPAIR_TOTAL_MISMATCH");
 
     for (const [key, usage] of daily) {
-      const [day, source, model] = key.split("\u001f");
+      const [day, source, provider, model] = key.split("\u001f");
       const row = await ctx.db
         .query("dailyUsage")
-        .withIndex("by_profileId_and_day_and_source_and_model", (q) =>
-          q.eq("profileId", duplicate.profileId).eq("day", day).eq("source", source).eq("model", model),
+        .withIndex("by_profileId_and_day_and_source_and_provider_and_model", (q) =>
+          q.eq("profileId", duplicate.profileId).eq("day", day).eq("source", source).eq("provider", provider).eq("model", model),
         )
         .unique();
       if (!row) throw new ConvexError("DUPLICATE_REPAIR_MISSING_DAILY_USAGE");
@@ -250,9 +251,10 @@ export const repairDuplicateCollector = internalMutation({
       });
     }
 
-    for (const [model, usage] of models) {
-      const row = await ctx.db.query("modelTotals").withIndex("by_profileId_and_model", (q) =>
-        q.eq("profileId", duplicate.profileId).eq("model", model),
+    for (const [key, usage] of models) {
+      const [provider, model] = key.split("\u001f");
+      const row = await ctx.db.query("modelTotals").withIndex("by_profileId_and_provider_and_model", (q) =>
+        q.eq("profileId", duplicate.profileId).eq("provider", provider).eq("model", model),
       ).unique();
       if (!row) throw new ConvexError("DUPLICATE_REPAIR_MISSING_MODEL");
       await ctx.db.patch(row._id, {
@@ -315,11 +317,14 @@ export const repairDuplicateCollector = internalMutation({
     const streak = streaks(activeRows.map((row) => row.day));
     const peak = [...activeRows].sort((left, right) => right.costMicros - left.costMicros)[0];
     const devices = await ctx.db.query("profileDevices").withIndex("by_profileId", (q) => q.eq("profileId", duplicate.profileId)).collect();
-    const leadingModel = await ctx.db
+    const leadingByCost = await ctx.db
       .query("modelTotals")
-      .withIndex("by_profileId_and_totalTokens", (q) => q.eq("profileId", duplicate.profileId))
+      .withIndex("by_profileId_and_costMicros", (q) => q.eq("profileId", duplicate.profileId))
       .order("desc")
       .first();
+    const leadingModel = (leadingByCost?.costMicros ?? 0) > 0
+      ? leadingByCost
+      : await ctx.db.query("modelTotals").withIndex("by_profileId_and_totalTokens", (q) => q.eq("profileId", duplicate.profileId)).order("desc").first();
     const nextStats = {
       totalTokens: subtract(stats.totalTokens, total.totalTokens, "stats.total"),
       totalCostMicros: subtract(stats.totalCostMicros, total.costMicros, "stats.cost"),
@@ -333,6 +338,8 @@ export const repairDuplicateCollector = internalMutation({
       longestStreakDays: streak.longest,
       deviceCount: devices.length,
       topModel: leadingModel?.model ?? "unknown",
+      topModelProvider: leadingModel?.provider,
+      topModelMetric: ((leadingByCost?.costMicros ?? 0) > 0 ? "spend" : "tokens") as "spend" | "tokens",
       firstDay: activeRows.map((row) => row.day).sort()[0],
       lastDay: activeRows.map((row) => row.day).sort().at(-1),
       peakDay: peak?.day,
