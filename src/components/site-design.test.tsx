@@ -3,7 +3,7 @@ import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { DocsView, EnterpriseView, MethodologyView, PrivacyView, SecurityView, TermsView } from "./content-pages";
-import { SiteHeader } from "./site-shell";
+import { PageIntro, SiteHeader } from "./site-shell";
 import { AccountView } from "./account-view";
 import NotFound from "../app/not-found";
 
@@ -54,6 +54,30 @@ describe("site design and behavior boundaries", () => {
       expect(html).toContain(`href="#${anchor}"`);
       expect(html).toContain(`id="${anchor}"`);
     }
+  });
+
+  test.each([
+    [DocsView, "Documentation"], [EnterpriseView, "UsageMax for teams"],
+    [MethodologyView, "Methodology"], [SecurityView, "Security"],
+    [PrivacyView, "Privacy policy"], [TermsView, "Terms of service"],
+  ] as const)("content pages use a direct title without an introductory pitch (%#)", (View, title) => {
+    const html = renderToStaticMarkup(<View />);
+    expect(html).toContain(`<h1>${title}</h1>`);
+    expect(html).not.toContain('class="page-intro-description"');
+    expect(html).not.toContain('class="methodology-quote"');
+  });
+
+  test("a title without actions does not leave empty intro wrappers", () => {
+    const html = renderToStaticMarkup(<PageIntro title="Documentation" />);
+    expect(html).not.toContain('class="page-intro-actions"');
+    expect(html).not.toContain('class="eyebrow"');
+  });
+
+  test("shorter methodology preserves cost and completeness caveats", () => {
+    const html = renderToStaticMarkup(<MethodologyView />);
+    expect(html).toContain("Missing prices remain unknown");
+    expect(html).toContain("the remainder stays unclassified");
+    expect(html).toContain("Observability-only heartbeats do not alter accounting totals");
   });
 
   test("read-only account cannot gain management controls through the new layout", () => {

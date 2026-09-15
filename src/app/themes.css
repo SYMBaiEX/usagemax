@@ -53,8 +53,7 @@
 [data-theme="dark"] .ranking-table tbody tr:nth-child(odd) { background: #1b1e20; }
 [data-theme="dark"] .ranking-table tbody tr:hover { background: #272b2e; }
 [data-theme="dark"] .filter-pills button.is-active { border-radius: 3px; }
-[data-theme="dark"] .page-intro-layout h1 { font-size: clamp(34px, 4vw, 54px); line-height: 1.08; }
-[data-theme="dark"] .page-intro, [data-theme="dark"] .leaderboard-hero { padding-block: 42px 30px; }
+[data-theme="dark"] .page-intro, [data-theme="dark"] .leaderboard-hero { padding-block: 30px 20px; }
 [data-theme="dark"] .profile-cover { grid-template-columns: minmax(0,1.35fr) minmax(0,1fr); }
 [data-theme="dark"] .profile-identity-card { order: 0; padding: 18px 12px; }
 [data-theme="dark"] .profile-chart-hero { background: #171a1d; border-radius: 4px; }
@@ -72,7 +71,7 @@
 [data-theme="dark"] .account-sidebar nav a:hover { background: #292e30; }
 [data-theme="dark"] .account-data-controls { background: #281e1b; }
 [data-theme="dark"] .security-lock-icon { background: #26352b; color: #b7d3ad; }
-[data-theme="dark"] .enterprise-page .page-intro { background: transparent; border-radius: 0; width: min(1184px, calc(100% - 96px)); padding: 44px 0 24px; }
+[data-theme="dark"] .enterprise-page .page-intro { background: transparent; border-radius: 0; width: min(1184px, calc(100% - 96px)); padding: 30px 0 20px; }
 [data-theme="dark"] .enterprise-page .page-intro .text-accent { color: #ff9a66; }
 [data-theme="dark"] .enterprise-page .page-intro .eyebrow, [data-theme="dark"] .enterprise-page .page-intro-description p { color: #b0b6b8; }
 [data-theme="dark"] .enterprise-page .page-intro .button-acid { background: #eeefeb; color: #151719; }

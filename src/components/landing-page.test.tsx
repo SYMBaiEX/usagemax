@@ -47,8 +47,8 @@ describe("landing page", () => {
   test("keeps an empty public ledger useful and does not imply private profiles are public", () => {
     const html = render([], { ...network, totalTokens: 0, profiles: 0 });
     expect(html).toContain("No public profiles in this period yet.");
-    expect(html).toContain("Only profiles that choose to be public.");
-    expect(html).toContain("Make your mark");
+    expect(html).toContain("Public profiles only.");
+    expect(html).toContain("Create profile");
     expect(html).not.toContain("test-builder");
   });
 

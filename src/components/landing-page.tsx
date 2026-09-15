@@ -50,8 +50,8 @@ function PublicLedger({ rows, period, metric, setPeriod, setMetric, connected }:
   return (
     <section className={`${styles.wrap} ${styles.ledger}`} aria-labelledby="public-ledger-title">
       <div className={styles.ledgerIntro}>
-        <div><span className={styles.eyebrow}>The public ledger</span><h2 id="public-ledger-title">Good company.<br /><span>Great numbers.</span></h2></div>
-        <div><p>Behind every number, a builder.<br />Explore their models, habits, and milestones.</p><Link className={styles.textLink} href="/leaderboard">Meet the builders <ArrowUpRight size={15} /></Link></div>
+        <h2 id="public-ledger-title">Leaderboard</h2>
+        <Link className={styles.textLink} href="/leaderboard">View all <ArrowUpRight size={15} /></Link>
       </div>
       <div className={styles.board}>
         <div className={styles.boardControls}>
@@ -89,8 +89,8 @@ function PublicLedger({ rows, period, metric, setPeriod, setMetric, connected }:
           </table>
         </div>
         <div className={styles.boardFooter}>
-          <span>Only profiles that choose to be public.</span>
-          <AuthNavigation href="/sign-up">Make your mark <ArrowRight size={14} /></AuthNavigation>
+          <span>Public profiles only.</span>
+          <AuthNavigation href="/sign-up">Create profile <ArrowRight size={14} /></AuthNavigation>
         </div>
         <p className={styles.boardNote}>¹ Costs may include API-equivalent estimates, not subscription bills.</p>
       </div>
@@ -112,12 +112,11 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
       <section className={styles.hero} aria-labelledby="landing-title">
         <div className={`${styles.wrap} ${styles.heroInner}`}>
         <div className={styles.heroCopy}>
-          <span className={styles.eyebrow}><span className={styles.plus} aria-hidden="true">↗</span> For the ones building with AI</span>
           <h1 id="landing-title">Your AI work.<br /><span>On the record.</span></h1>
-          <p>All your tokens, models, and machines.<br />One picture of what you’re putting into the world.</p>
+          <p>Track tokens and costs across your models and computers.</p>
           <div className={styles.heroActions}>
             <AuthNavigation className={styles.primaryButton} href="/sign-up">Start tracking <ArrowUpRight size={17} /></AuthNavigation>
-            <Link className={styles.textLink} href="/leaderboard">Look around <ArrowRight size={16} /></Link>
+            <Link className={styles.textLink} href="/leaderboard">Leaderboard <ArrowRight size={16} /></Link>
           </div>
           <span className={styles.privacy}><LockClosed size={13} /> Private by default. Public when you choose.</span>
         </div>
@@ -128,13 +127,12 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
           <div className={styles.stageReadout}><code><span>usage.network</span> {"{"} tokens: <b>{network ? compactNumber(network.totalTokens, 2) : "null"}</b>, sessions: <b>{network ? compactNumber(network.totalSessions, 2) : "null"}</b> {"}"}</code><span>Source: connected accounts</span></div>
         </div>
         </div>
-        <div className={styles.heroCoordinates} aria-hidden="true"><span>USAGE, WITHOUT THE GUESSWORK</span><span>ONE RECORD. EVERY MACHINE.</span></div>
       </section>
 
       <NetworkRecord network={network} connected={connected} />
 
       <div className={`${styles.wrap} ${styles.sources}`}>
-        <span>Works where you work</span>
+        <span>Integrations</span>
         <ul aria-label="Supported local coding agents">{sources.map((source) => <li key={source}>{source}</li>)}</ul>
         <Link href="/docs">16 local sources <ArrowUpRight size={12} /></Link>
       </div>
@@ -144,21 +142,19 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
       <section className={styles.connectBand} aria-labelledby="connect-title">
         <div className={`${styles.wrap} ${styles.connect}`}>
           <div className={styles.connectCopy}>
-            <span className={styles.eyebrow}>A small command. A bigger picture.</span>
-            <h2 id="connect-title">Plug in.<br /><span>Zoom out.</span></h2>
-            <p>Link your computers to one account. See your model mix, spending, and activity without uploading the work itself.</p>
-            <Link className={styles.textLink} href="/security">See what stays private <ArrowUpRight size={15} /></Link>
+            <h2 id="connect-title">Connect your computers.</h2>
+            <Link className={styles.textLink} href="/docs">Setup guide <ArrowUpRight size={15} /></Link>
           </div>
           <div className={styles.setup}>
             <div className={styles.command}>
               <div className={styles.terminalTop}><span><i /><i /><i /></span><span>usagemax / terminal</span></div>
               <div className={styles.commandBody}><code><span aria-hidden="true">↳ </span>bunx usagemax</code><CopyButton value="bunx usagemax" /></div>
-              <p>Already linked? One command syncs your retained usage.</p>
+              <p>Run again to sync a linked computer.</p>
             </div>
             <ol className={styles.steps}>
-              <li><span>01</span><div><h3>Make it yours.</h3><p>Sign in with GitHub or Google. Your profile starts private.</p></div></li>
-              <li><span>02</span><div><h3>Link a machine.</h3><p>Copy a one-time command from your account. Repeat on your other computers.</p></div></li>
-              <li><span>03</span><div><h3>See the whole picture.</h3><p>Sync retained usage. Compare models and costs. Publish your profile only if you want to.</p></div></li>
+              <li><span>01</span><div><h3>Sign in</h3><p>Use GitHub or Google.</p></div></li>
+              <li><span>02</span><div><h3>Link each computer</h3><p>Run the one-time command from your account.</p></div></li>
+              <li><span>03</span><div><h3>Sync usage</h3><p>Only aggregate counts are uploaded. Publishing your profile is optional.</p></div></li>
             </ol>
             <p className={styles.resourceNote}>One-shot syncs. No always-running background scanner.</p>
           </div>
@@ -167,7 +163,7 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
 
       <section className={`${styles.wrap} ${styles.teams}`} aria-labelledby="teams-title">
         <div className={styles.teamArt}><CtaArtwork /><CodeField /></div>
-        <div><span className={styles.eyebrow}>Independent builders. Entire teams.</span><h2 id="teams-title">Big picture.<br />Tight boundaries.</h2><p>Understand AI usage across your organization. Keep the work itself where it belongs.</p><Link className={styles.teamLink} href="/enterprise">Meet UsageMax for teams <ArrowUpRight size={17} /></Link></div>
+        <div><h2 id="teams-title">UsageMax for teams</h2><p>Private workspaces, role-based access, and usage tracking.</p><Link className={styles.teamLink} href="/enterprise">Explore team features <ArrowUpRight size={17} /></Link></div>
       </section>
     </div>
   );

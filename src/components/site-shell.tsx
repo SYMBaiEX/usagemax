@@ -45,8 +45,6 @@ export function SiteFooter() {
               Usage<span>Max</span>
             </span>
           </Link>
-          <p className="footer-statement">Make the work visible.</p>
-          <p>Private by default. Public by choice.</p>
         </div>
         <div className="footer-links">
           <div>
@@ -83,24 +81,16 @@ export function SiteFooter() {
 }
 
 export function PageIntro({
-  eyebrow,
   title,
-  description,
   children,
 }: {
-  eyebrow: string;
   title: React.ReactNode;
-  description: string;
   children?: React.ReactNode;
 }) {
   return (
     <section className="page-intro shell">
       <div className="intro-ambient"><CodeField /></div>
-      <div className="eyebrow">
-        <span className="eyebrow-line" />
-        {eyebrow}
-      </div>
-      <div className="page-intro-layout"><h1>{title}</h1><div className="page-intro-description"><p>{description}</p>{children ? <div className="page-intro-actions">{children}</div> : null}</div></div>
+      <div className="page-title-row"><h1>{title}</h1>{children ? <div className="page-intro-actions">{children}</div> : null}</div>
     </section>
   );
 }

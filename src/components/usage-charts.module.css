@@ -2,13 +2,13 @@
 .trend { padding: 28px; background: #ffffff; border-radius: 10px; }
 .heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
 .kicker { display: block; color: #637068; font: 500 10px/1.5 var(--font-mono); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 12px; }
-.heading h2 { font-size: clamp(25px, 3vw, 36px); font-weight: 550; line-height: 1.15; letter-spacing: -.04em; }
+.heading h2 { font-size: 24px; font-weight: 550; line-height: 1.15; letter-spacing: -.04em; }
 .heading h2 em { font: inherit; color: #667d6f; }
 .heading h3 { font-size: 24px; letter-spacing: -.035em; line-height: 1.2; font-weight: 550; }
 .periods, .metricTabs { display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 30px; background: #f0f1ed; flex-shrink: 0; }
 .periods button, .metricTabs button { border: 0; padding: 8px 13px; border-radius: 24px; min-height: 36px; background: transparent; color: #64685f; font-size: 11px; }
 .periods button[aria-pressed="true"], .metricTabs button[aria-pressed="true"] { background: #272f2c; color: #ffffff; }
-.readout { display: flex; align-items: center; gap: 24px; margin: 32px 0 8px; flex-wrap: wrap; }
+.readout { display: flex; align-items: center; gap: 24px; margin: 20px 0 8px; flex-wrap: wrap; }
 .readout > strong { font: 500 34px/1.1 var(--font-sans); letter-spacing: -.045em; font-variant-numeric: tabular-nums; min-width: 160px; }
 .readout > span { margin-left: auto; font-size: 11px; color: #637068; }
 .metricTabs { background: transparent; }
