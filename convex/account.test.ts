@@ -84,6 +84,28 @@ describe("WorkOS-backed accounts", () => {
     expect(account?.collectors[0]?.revokedAt).toBeTypeOf("number");
   });
 
+  test("emergency-revokes every active collector in one workspace", async () => {
+    const session = t.withIdentity({
+      subject: "user_01EMERGENCY",
+      issuer: "https://api.workos.com/",
+      tokenIdentifier: "https://api.workos.com/|user_01EMERGENCY",
+      name: "Security Admin",
+      email: "security@example.com",
+    });
+    await session.mutation(api.account.ensureProfile, { handle: "security-admin" });
+    await session.action(api.account.createCollector, { name: "Production CI" });
+    await session.action(api.account.createCollector, { name: "Compromised laptop" });
+
+    const result = await session.mutation(api.account.revokeAllCollectors, {});
+    expect(result).toEqual({ revoked: 2 });
+    const account = await session.query(api.account.current, {});
+    expect(account?.collectors).toHaveLength(2);
+    expect(account?.collectors.every((collector) => typeof collector.revokedAt === "number")).toBe(true);
+
+    const second = await session.mutation(api.account.revokeAllCollectors, {});
+    expect(second).toEqual({ revoked: 0 });
+  });
+
   test("exchanges a short-lived device code once without storing either plaintext secret", async () => {
     const session = t.withIdentity({
       subject: "user_01PAIRING",

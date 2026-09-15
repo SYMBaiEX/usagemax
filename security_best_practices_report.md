@@ -36,7 +36,7 @@ before publishing a numeric SLA or compliance claim.
   removed model rows apply signed deltas instead of becoming permanent overcounts.
 - Scoped event, batch, session, outcome, and live-agent identity to the collector
   so two computers cannot collide by reusing a local key.
-- Added immutable audit events for profile, visibility, collector, and account
+- Added append-only application audit events for profile, visibility, collector, and account
   lifecycle changes; added bounded JSON export and deletion-request recovery.
 - Added an enforcing Content Security Policy, resource isolation headers,
   reduced-motion behavior, visible focus states, and chart data disclosures.
@@ -76,9 +76,9 @@ before publishing a numeric SLA or compliance claim.
 
 - Enforce workspace membership and permission checks in every future private
   query and mutation. Never trust a client-supplied workspace ID by itself.
-- Extend immutable audit events to membership, role, export completion, and
+- Extend append-only application audit events to membership, role, export completion, and
   retention-policy changes when those enterprise controls are enabled.
-- Add an organization-wide emergency revoke-all control before enterprise GA.
+- Exercise the organization-wide emergency revoke-all control during incident-response drills.
 - Define enterprise retention, deletion, export, and legal-hold workflows before
   accepting customer content beyond the current aggregate telemetry contract.
 

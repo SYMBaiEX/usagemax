@@ -16,11 +16,13 @@ onboarding and operational evidence. “Implemented” does not mean certified.
 - Personal and organization workspaces are isolated for a user with both contexts.
 - Organization memberships are mirrored on authenticated access and deactivated
   memberships cannot resolve a workspace.
-- Private, tenant-scoped, paginated audit events for profile, visibility, collector,
+- Private, tenant-scoped, paginated append-only audit events for profile, visibility, collector,
   workspace export, and deletion lifecycle actions.
 - Hashed, write-scoped collector credentials with one-time display, rotation,
-  revocation, device binding, replay protection, payload bounds, and layered rate
-  limits.
+  individual and workspace-wide emergency revocation, device binding, replay
+  protection, payload bounds, and layered rate limits.
+- Signed, idempotent WorkOS organization and membership lifecycle webhook
+  processing with replay and out-of-order event protection.
 - Authoritative source/day/model snapshots with correction receipts and resumable,
   bounded account deletion.
 - Bounded public projections and indexed date-range reads rather than per-day query
@@ -48,7 +50,6 @@ enterprise contract can claim them:
 
 ## Remaining engineering gates
 
-- Signed, idempotent WorkOS membership lifecycle webhook processing.
 - Immutable audit export to customer-owned object storage or SIEM.
 - Workspace projects, cost centers, budgets, anomaly policies, and notifications.
 - Provider billing reconciliation and a verified-versus-self-reported trust tier.

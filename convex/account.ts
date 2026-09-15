@@ -699,6 +699,33 @@ export const revokeCollector = mutation({
   },
 });
 
+export const revokeAllCollectors = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const { user, profile } = await requireWorkspaceAccess(ctx, "collectors:manage");
+    const activeCollectors = await ctx.db
+      .query("collectors")
+      .withIndex("by_workspaceId_and_revokedAt", (q) =>
+        q.eq("workspaceId", profile.workspaceId).eq("revokedAt", undefined),
+      )
+      .take(501);
+    if (activeCollectors.length > 500) throw new ConvexError("COLLECTOR_REVOKE_LIMIT_EXCEEDED");
+    if (!activeCollectors.length) return { revoked: 0 };
+    const now = Date.now();
+    for (const collector of activeCollectors) await ctx.db.patch(collector._id, { revokedAt: now });
+    await audit(
+      ctx,
+      profile.workspaceId,
+      user._id,
+      "collectors.revoked_all",
+      "workspace",
+      String(profile.workspaceId),
+      `Emergency-revoked ${activeCollectors.length} active collector${activeCollectors.length === 1 ? "" : "s"}`,
+    );
+    return { revoked: activeCollectors.length };
+  },
+});
+
 export const ensureProfile = mutation({
   args: { handle: v.string() },
   handler: async (ctx, args) => {

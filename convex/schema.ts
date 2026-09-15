@@ -115,6 +115,7 @@ export default defineSchema({
   })
     .index("by_keyHash", ["keyHash"])
     .index("by_workspaceId", ["workspaceId"])
+    .index("by_workspaceId_and_revokedAt", ["workspaceId", "revokedAt"])
     .index("by_workspaceId_and_installationIdHash", ["workspaceId", "installationIdHash"]),
 
   deviceLinkCodes: defineTable({
