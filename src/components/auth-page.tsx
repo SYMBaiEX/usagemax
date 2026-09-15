@@ -19,7 +19,6 @@ export function AuthPage({ mode, context, error }: { mode: AuthMode; context: Au
     </header>
     <div className={styles.layout}>
       <aside className={styles.exhibit} aria-label="Your UsageMax account">
-        <div className={styles.exhibitLabel}><span className={styles.studioLabel}>UsageMax / Studio</span><span className={styles.signalLabel}>UsageMax / Signal</span><span>001 — ∞</span></div>
         <AuthSculpture />
         <div className={styles.exhibitCopy}>
           <p className={styles.kicker}>Many sources. One perspective.</p>
@@ -27,7 +26,7 @@ export function AuthPage({ mode, context, error }: { mode: AuthMode; context: Au
           <p>Tokens, costs, and the rhythm of building.<br />Together, across your computers.</p>
         </div>
         <div className={styles.codeWindow} aria-hidden="true"><CodeField /><div className={styles.codeForeground}><span>usage.config</span><code><b>privacy</b>: <em>{'"yours"'}</em><br /><b>sources</b>: <em>{'"connected"'}</em><br /><b>perspective</b>: <em>{'"complete"'}</em></code></div><span className={styles.codeCursor}>▌</span></div>
-        <div className={styles.exhibitFoot}><span>Built in the open.</span><a href="https://github.com/SYMBaiEX/usagemax" target="_blank" rel="noreferrer">View source <ArrowUpRight size={13} /></a></div>
+        <div className={styles.exhibitFoot}><a href="https://github.com/SYMBaiEX/usagemax" target="_blank" rel="noreferrer">View source <ArrowUpRight size={13} /></a></div>
       </aside>
       <section className={styles.access} aria-labelledby="auth-title">
         <div className={styles.form}>
