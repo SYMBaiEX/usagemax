@@ -267,7 +267,6 @@ export const beginRun = internalMutation({
       lastSeenAt: args.now,
       lastSyncRunId: args.runId,
       lastSyncPhase: "uploading",
-      snapshotBaselineMode: collector.snapshotBaselineMode ?? (baselineMode === "adopt-current" ? "legacy_adopted" : "native"),
     });
     return { replay: false, status: "uploading" as const, acceptedPartitions: 0, baselineMode };
   },

@@ -162,16 +162,28 @@ describe("authoritative collector snapshots", () => {
     expect(stats?.totalTokens).toBe(30);
   });
 
-  test("keeps an interrupted legacy baseline in adopt mode on retry", async () => {
+  test("does not establish an interrupted legacy baseline until completion", async () => {
     const now = Date.UTC(2026, 8, 14, 12);
     const { collectorId } = await seed(t, now);
     await t.mutation(internal.snapshots.beginRun, { keyHash, runId: "legacy-interrupted", mode: "full", requestedBaselineMode: "adopt-current", sourceCount: 1, partitionCount: 2, inventoryComplete: true, inventoryErrors: 0, inventoryTruncated: false, now });
     await t.mutation(internal.snapshots.commitPartition, { keyHash, runId: "legacy-interrupted", partitionId: "legacy-interrupted:p", payloadHash: "one", revision: 1, source: "codex", day: "2026-09-14", complete: true, rows: [{ provider: "openai", model: "gpt-test", previous: counters(50), current: counters(40), costBasis: "estimated", contentHash: "one", lastUsedAt: now }], now });
     await t.mutation(internal.snapshots.failRun, { keyHash, runId: "legacy-interrupted", failureCode: "network_interrupted", now: now + 1 });
-    const retry = await t.mutation(internal.snapshots.beginRun, { keyHash, runId: "legacy-retry", mode: "full", requestedBaselineMode: "apply", sourceCount: 1, partitionCount: 1, inventoryComplete: true, inventoryErrors: 0, inventoryTruncated: false, now: now + 2 });
+    const retry = await t.mutation(internal.snapshots.beginRun, { keyHash, runId: "legacy-retry", mode: "full", requestedBaselineMode: "adopt-current", sourceCount: 1, partitionCount: 1, inventoryComplete: true, inventoryErrors: 0, inventoryTruncated: false, now: now + 2 });
     expect(retry).toMatchObject({ baselineMode: "adopt-current" });
     const collector = await t.run(async (ctx) => ctx.db.get(collectorId));
-    expect(collector).toMatchObject({ snapshotBaselineMode: "legacy_adopted" });
+    expect(collector?.snapshotBaselineMode).toBeUndefined();
+    expect(collector?.snapshotBaselineEstablishedAt).toBeUndefined();
+  });
+
+  test("allows a failed first run to change baseline mode before completion", async () => {
+    const now = Date.UTC(2026, 8, 14, 12);
+    const { collectorId } = await seed(t, now);
+    await t.mutation(internal.snapshots.beginRun, { keyHash, runId: "rewind", mode: "full", requestedBaselineMode: "apply", sourceCount: 1, partitionCount: 0, inventoryComplete: false, inventoryErrors: 1, inventoryTruncated: false, now });
+    await t.mutation(internal.snapshots.failRun, { keyHash, runId: "rewind", failureCode: "legacy_bootstrap_rewound", now: now + 1 });
+    const retry = await t.mutation(internal.snapshots.beginRun, { keyHash, runId: "legacy-retry", mode: "full", requestedBaselineMode: "adopt-current", sourceCount: 1, partitionCount: 0, inventoryComplete: true, inventoryErrors: 0, inventoryTruncated: false, now: now + 2 });
+    expect(retry).toMatchObject({ baselineMode: "adopt-current" });
+    const collector = await t.run(async (ctx) => ctx.db.get(collectorId));
+    expect(collector?.snapshotBaselineMode).toBeUndefined();
     expect(collector?.snapshotBaselineEstablishedAt).toBeUndefined();
   });
 
