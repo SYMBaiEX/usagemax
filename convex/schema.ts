@@ -97,6 +97,11 @@ export default defineSchema({
     inventoryTruncated: v.optional(v.boolean()),
     sourceCount: v.optional(v.number()),
     unresolvedCorrections: v.optional(v.number()),
+    snapshotBaselineEstablishedAt: v.optional(v.number()),
+    snapshotBaselineMode: v.optional(v.union(
+      v.literal("native"),
+      v.literal("legacy_adopted"),
+    )),
     rotatedAt: v.optional(v.number()),
     revokedAt: v.optional(v.number()),
   })
@@ -466,6 +471,7 @@ export default defineSchema({
     collectorId: v.id("collectors"),
     runId: v.string(),
     mode: v.union(v.literal("incremental"), v.literal("full"), v.literal("archives")),
+    baselineMode: v.optional(v.union(v.literal("apply"), v.literal("adopt-current"))),
     status: v.union(v.literal("scanning"), v.literal("uploading"), v.literal("complete"), v.literal("failed")),
     sourceCount: v.number(),
     partitionCount: v.number(),

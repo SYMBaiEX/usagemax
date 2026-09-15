@@ -261,6 +261,8 @@ async function syncPrepared(args, suppliedConfig, recovery) {
     return;
   }
   const report = await ccusageJson(config, { env: recovery.env, full });
+  const legacySnapshotBootstrap = config.snapshotProtocolVersion !== 2
+    && Object.keys(config.snapshots || {}).length > 0;
   const runId = randomUUID();
   const revision = Date.now();
   const pricingVersion = `ccusage@${CCUSAGE_VERSION}`;
@@ -307,6 +309,7 @@ async function syncPrepared(args, suppliedConfig, recovery) {
     const begin = await snapshotRequest(config, "begin", {
       runId,
       mode: requestedArchives ? "archives" : full ? "full" : "incremental",
+      baselineMode: legacySnapshotBootstrap ? "adopt-current" : "apply",
       sourceCount: sources.length,
       partitionCount: partitions.length,
       inventoryComplete: inventory.complete,

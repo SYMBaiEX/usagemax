@@ -217,6 +217,7 @@ export const beginRun = internalMutation({
     installationIdHash: v.optional(v.string()),
     runId: v.string(),
     mode: v.union(v.literal("incremental"), v.literal("full"), v.literal("archives")),
+    requestedBaselineMode: v.optional(v.union(v.literal("apply"), v.literal("adopt-current"))),
     sourceCount: v.number(),
     partitionCount: v.number(),
     inventoryComplete: v.boolean(),
@@ -234,12 +235,20 @@ export const beginRun = internalMutation({
       .unique();
     if (prior) return { replay: true, status: prior.status, acceptedPartitions: prior.acceptedPartitions };
     await enforceCollectorRateLimit(ctx, String(collector._id));
+    const baselineMode = collector.snapshotBaselineMode === "legacy_adopted"
+      ? "adopt-current" as const
+      : collector.snapshotBaselineMode === "native"
+        ? "apply" as const
+        : args.requestedBaselineMode === "adopt-current"
+          ? "adopt-current" as const
+          : "apply" as const;
     await ctx.db.insert("snapshotRuns", {
       workspaceId: collector.workspaceId,
       profileId: collector.profileId,
       collectorId: collector._id,
       runId: args.runId,
       mode: args.mode,
+      baselineMode,
       status: "uploading",
       sourceCount: Math.max(0, Math.round(args.sourceCount)),
       partitionCount: Math.max(0, Math.round(args.partitionCount)),
@@ -258,8 +267,9 @@ export const beginRun = internalMutation({
       lastSeenAt: args.now,
       lastSyncRunId: args.runId,
       lastSyncPhase: "uploading",
+      snapshotBaselineMode: collector.snapshotBaselineMode ?? (baselineMode === "adopt-current" ? "legacy_adopted" : "native"),
     });
-    return { replay: false, status: "uploading" as const, acceptedPartitions: 0 };
+    return { replay: false, status: "uploading" as const, acceptedPartitions: 0, baselineMode };
   },
 });
 
@@ -364,7 +374,11 @@ export const commitPartition = internalMutation({
     }> = [];
     for (const row of uniqueRows.values()) {
       const prior = priorSnapshots.find((candidate) => candidate.provider === row.provider && candidate.model === row.model);
-      const base = prior ? Object.fromEntries(counterFields.map((field) => [field, prior[field]])) as Counters : row.previous;
+      const base = run.baselineMode === "adopt-current"
+        ? row.current
+        : prior
+          ? Object.fromEntries(counterFields.map((field) => [field, prior[field]])) as Counters
+          : row.previous;
       changes.push({
         provider: row.provider,
         model: row.model,
@@ -715,6 +729,8 @@ export const completeRun = internalMutation({
       inventoryTruncated: run.inventoryTruncated,
       sourceCount: run.sourceCount,
       unresolvedCorrections: 0,
+      snapshotBaselineEstablishedAt: collector.snapshotBaselineEstablishedAt ?? args.now,
+      snapshotBaselineMode: collector.snapshotBaselineMode ?? (run.baselineMode === "adopt-current" ? "legacy_adopted" : "native"),
     });
     return { replay: false, changedRows: run.changedRows, correctionRows: run.correctionRows, coverageStatus };
   },

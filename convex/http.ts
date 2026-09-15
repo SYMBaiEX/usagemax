@@ -418,6 +418,7 @@ const snapshots = httpAction(async (ctx, request) => {
         ...auth,
         runId,
         mode: ["incremental", "full", "archives"].includes(String(body.mode)) ? body.mode as "incremental" | "full" | "archives" : "incremental",
+        requestedBaselineMode: body.baselineMode === "adopt-current" ? "adopt-current" : "apply",
         sourceCount: safeCounter(body.sourceCount, 10_000),
         partitionCount: safeCounter(body.partitionCount, 100_000),
         inventoryComplete: body.inventoryComplete === true,

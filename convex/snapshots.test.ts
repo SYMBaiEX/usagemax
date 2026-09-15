@@ -102,4 +102,98 @@ describe("authoritative collector snapshots", () => {
     const profile = await t.query(api.public.profile, { handle: "snapshot" });
     expect(profile?.stats).toMatchObject({ sessions: 1, totalTokens: 20 });
   });
+
+  test("adopts a legacy local baseline once without double-counting imported totals", async () => {
+    const now = Date.UTC(2026, 8, 14, 12);
+    const { profileId, collectorId } = await seed(t, now);
+    await t.run(async (ctx) => {
+      const stats = await ctx.db.query("profileStats").filter((q) => q.eq(q.field("profileId"), profileId)).unique();
+      if (!stats) throw new Error("missing stats");
+      await ctx.db.patch(stats._id, { totalTokens: 80, inputTokens: 80 });
+    });
+    const begun = await t.mutation(internal.snapshots.beginRun, {
+      keyHash,
+      runId: "legacy-baseline",
+      mode: "full",
+      requestedBaselineMode: "adopt-current",
+      sourceCount: 1,
+      partitionCount: 1,
+      inventoryComplete: true,
+      inventoryErrors: 0,
+      inventoryTruncated: false,
+      now,
+    });
+    expect(begun).toMatchObject({ baselineMode: "adopt-current" });
+    const committed = await t.mutation(internal.snapshots.commitPartition, {
+      keyHash,
+      runId: "legacy-baseline",
+      partitionId: "legacy-baseline:codex:2026-09-14",
+      payloadHash: "legacy-payload",
+      revision: 1,
+      source: "codex",
+      day: "2026-09-14",
+      complete: true,
+      rows: [{ provider: "openai", model: "gpt-test", previous: counters(100), current: counters(80), costBasis: "estimated", contentHash: "legacy", lastUsedAt: now }],
+      now,
+    });
+    expect(committed).toMatchObject({ changedRows: 0, correctionRows: 0 });
+    await t.mutation(internal.snapshots.completeRun, { keyHash, runId: "legacy-baseline", now });
+    const state = await t.run(async (ctx) => ({
+      collector: await ctx.db.get(collectorId),
+      snapshots: await ctx.db.query("collectorUsageSnapshots").collect(),
+      stats: await ctx.db.query("profileStats").filter((q) => q.eq(q.field("profileId"), profileId)).unique(),
+    }));
+    expect(state.collector).toMatchObject({ snapshotBaselineMode: "legacy_adopted", snapshotBaselineEstablishedAt: now });
+    expect(state.snapshots).toEqual([expect.objectContaining({ totalTokens: 80 })]);
+    expect(state.stats?.totalTokens).toBe(80);
+  });
+
+  test("does not permit a second adopt request to suppress real deltas", async () => {
+    const now = Date.UTC(2026, 8, 14, 12);
+    const { profileId } = await seed(t, now);
+    await t.mutation(internal.snapshots.beginRun, { keyHash, runId: "native-one", mode: "full", requestedBaselineMode: "apply", sourceCount: 1, partitionCount: 1, inventoryComplete: true, inventoryErrors: 0, inventoryTruncated: false, now });
+    await t.mutation(internal.snapshots.commitPartition, { keyHash, runId: "native-one", partitionId: "native-one:p", payloadHash: "one", revision: 1, source: "codex", day: "2026-09-14", complete: true, rows: [{ provider: "openai", model: "gpt-test", previous: counters(0), current: counters(20), costBasis: "estimated", contentHash: "one", lastUsedAt: now }], now });
+    await t.mutation(internal.snapshots.completeRun, { keyHash, runId: "native-one", now });
+    const begun = await t.mutation(internal.snapshots.beginRun, { keyHash, runId: "native-two", mode: "full", requestedBaselineMode: "adopt-current", sourceCount: 1, partitionCount: 1, inventoryComplete: true, inventoryErrors: 0, inventoryTruncated: false, now: now + 1 });
+    expect(begun).toMatchObject({ baselineMode: "apply" });
+    await t.mutation(internal.snapshots.commitPartition, { keyHash, runId: "native-two", partitionId: "native-two:p", payloadHash: "two", revision: 2, source: "codex", day: "2026-09-14", complete: true, rows: [{ provider: "openai", model: "gpt-test", previous: counters(20), current: counters(30), costBasis: "estimated", contentHash: "two", lastUsedAt: now + 1 }], now: now + 1 });
+    await t.mutation(internal.snapshots.completeRun, { keyHash, runId: "native-two", now: now + 1 });
+    const stats = await t.run(async (ctx) => ctx.db.query("profileStats").filter((q) => q.eq(q.field("profileId"), profileId)).unique());
+    expect(stats?.totalTokens).toBe(30);
+  });
+
+  test("keeps an interrupted legacy baseline in adopt mode on retry", async () => {
+    const now = Date.UTC(2026, 8, 14, 12);
+    const { collectorId } = await seed(t, now);
+    await t.mutation(internal.snapshots.beginRun, { keyHash, runId: "legacy-interrupted", mode: "full", requestedBaselineMode: "adopt-current", sourceCount: 1, partitionCount: 2, inventoryComplete: true, inventoryErrors: 0, inventoryTruncated: false, now });
+    await t.mutation(internal.snapshots.commitPartition, { keyHash, runId: "legacy-interrupted", partitionId: "legacy-interrupted:p", payloadHash: "one", revision: 1, source: "codex", day: "2026-09-14", complete: true, rows: [{ provider: "openai", model: "gpt-test", previous: counters(50), current: counters(40), costBasis: "estimated", contentHash: "one", lastUsedAt: now }], now });
+    await t.mutation(internal.snapshots.failRun, { keyHash, runId: "legacy-interrupted", failureCode: "network_interrupted", now: now + 1 });
+    const retry = await t.mutation(internal.snapshots.beginRun, { keyHash, runId: "legacy-retry", mode: "full", requestedBaselineMode: "apply", sourceCount: 1, partitionCount: 1, inventoryComplete: true, inventoryErrors: 0, inventoryTruncated: false, now: now + 2 });
+    expect(retry).toMatchObject({ baselineMode: "adopt-current" });
+    const collector = await t.run(async (ctx) => ctx.db.get(collectorId));
+    expect(collector).toMatchObject({ snapshotBaselineMode: "legacy_adopted" });
+    expect(collector?.snapshotBaselineEstablishedAt).toBeUndefined();
+  });
+
+  test("adopts over partial retry snapshots without replaying their stale delta", async () => {
+    const now = Date.UTC(2026, 8, 14, 12);
+    const { profileId } = await seed(t, now);
+    await t.run(async (ctx) => {
+      const stats = await ctx.db.query("profileStats").filter((q) => q.eq(q.field("profileId"), profileId)).unique();
+      if (!stats) throw new Error("missing stats");
+      await ctx.db.patch(stats._id, { totalTokens: 80, inputTokens: 80 });
+    });
+    await t.mutation(internal.snapshots.beginRun, { keyHash, runId: "partial-legacy", mode: "full", requestedBaselineMode: "adopt-current", sourceCount: 1, partitionCount: 2, inventoryComplete: true, inventoryErrors: 0, inventoryTruncated: false, now });
+    await t.mutation(internal.snapshots.commitPartition, { keyHash, runId: "partial-legacy", partitionId: "partial-legacy:p", payloadHash: "one", revision: 1, source: "codex", day: "2026-09-14", complete: true, rows: [{ provider: "openai", model: "gpt-test", previous: counters(100), current: counters(80), costBasis: "estimated", contentHash: "one", lastUsedAt: now }], now });
+    await t.mutation(internal.snapshots.failRun, { keyHash, runId: "partial-legacy", failureCode: "network_interrupted", now: now + 1 });
+    await t.mutation(internal.snapshots.beginRun, { keyHash, runId: "partial-retry", mode: "full", requestedBaselineMode: "adopt-current", sourceCount: 1, partitionCount: 1, inventoryComplete: true, inventoryErrors: 0, inventoryTruncated: false, now: now + 2 });
+    const committed = await t.mutation(internal.snapshots.commitPartition, { keyHash, runId: "partial-retry", partitionId: "partial-retry:p", payloadHash: "two", revision: 2, source: "codex", day: "2026-09-14", complete: true, rows: [{ provider: "openai", model: "gpt-test", previous: counters(100), current: counters(90), costBasis: "estimated", contentHash: "two", lastUsedAt: now + 2 }], now: now + 2 });
+    expect(committed).toMatchObject({ changedRows: 0, correctionRows: 0 });
+    const state = await t.run(async (ctx) => ({
+      stats: await ctx.db.query("profileStats").filter((q) => q.eq(q.field("profileId"), profileId)).unique(),
+      snapshot: await ctx.db.query("collectorUsageSnapshots").first(),
+    }));
+    expect(state.stats?.totalTokens).toBe(80);
+    expect(state.snapshot?.totalTokens).toBe(90);
+  });
 });
