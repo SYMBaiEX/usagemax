@@ -37,7 +37,7 @@ export const UsageTrend = memo(function UsageTrend({ rows }: { rows: UsageDay[] 
 
 export const HeroSparkline = memo(function HeroSparkline({ rows }: { rows: UsageDay[] }) {
   const data = useMemo(() => usageSeries(rows, 30), [rows]);
-  return <div className={styles.heroSpark}><div><span>Daily tokens</span><span>Last 30 days</span></div><ResponsiveContainer width="100%" height={88} debounce={80}><AreaChart data={data} margin={{ top: 8, right: 0, left: 0, bottom: 0 }} accessibilityLayer><YAxis hide domain={[0, "auto"]} /><XAxis hide dataKey="date" /><Tooltip content={<ChartTooltip />} isAnimationActive={false} /><Area dataKey="tokens" name="Tokens" stroke="#da623c" fill="#da623c" fillOpacity={.14} strokeWidth={2} type="linear" connectNulls={false} isAnimationActive={false} /></AreaChart></ResponsiveContainer></div>;
+  return <div className={styles.heroSpark}><div><span>Daily tokens</span><span>Last 30 days</span></div><ResponsiveContainer width="100%" height={88} debounce={80}><AreaChart data={data} margin={{ top: 8, right: 0, left: 0, bottom: 0 }} accessibilityLayer><YAxis hide domain={[0, "auto"]} /><XAxis hide dataKey="date" /><Tooltip content={<ChartTooltip />} isAnimationActive={false} /><Area dataKey="tokens" name="Tokens" stroke="#f6a078" fill="#f6a078" fillOpacity={.14} strokeWidth={2} type="linear" connectNulls={false} isAnimationActive={false} /></AreaChart></ResponsiveContainer></div>;
 });
 
 export const ModelFlow = memo(function ModelFlow({ rows }: { rows: ModelDay[] }) {

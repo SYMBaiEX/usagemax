@@ -44,7 +44,7 @@ export function SiteFooter() {
               Usage<span>Max</span>
             </span>
           </Link>
-          <p className="footer-statement">Keep building.<br />We’ll keep count.</p>
+          <p className="footer-statement">Make the work visible.</p>
           <p>Private by default. Public by choice.</p>
         </div>
         <div className="footer-links">
@@ -67,13 +67,14 @@ export function SiteFooter() {
           </div>
         </div>
       </div>
+      <div className="shell footer-wordmark" aria-hidden="true">UsageMax<span>↗</span></div>
       <div className="shell footer-bottom">
         <span>© 2026 UsageMax</span>
         <span className="footer-status">
           <span className="live-dot" />
           First-party usage analytics
         </span>
-        <span>Make the work visible</span>
+        <a href="https://github.com/SYMBaiEX/usagemax" target="_blank" rel="noreferrer">Built in the open ↗</a>
       </div>
     </footer>
   );

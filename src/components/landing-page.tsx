@@ -11,6 +11,7 @@ import { AuthNavigation } from "./auth-navigation";
 import { ArrowRight, ArrowUpRight, LockClosed, UsageMark } from "./icons";
 import styles from "./landing-page.module.css";
 import { CopyButton } from "./copy-button";
+import { TokenInstrument } from "./token-instrument";
 
 type Network = FunctionReturnType<typeof api.public.network>;
 type Ranking = FunctionReturnType<typeof api.public.leaderboard>;
@@ -23,30 +24,15 @@ const sources = ["Claude Code", "Codex", "Gemini CLI", "OpenCode", "Copilot CLI"
 
 function NetworkRecord({ network, connected }: { network?: Network; connected: boolean }) {
   return (
-    <figure className={styles.record} aria-label="Live UsageMax network totals">
-      <div className={styles.recordBacking} aria-hidden="true"><span>EVERY TOKEN HAS A STORY.</span></div>
-      <div className={styles.recordPaper}>
-        <div className={styles.recordHeading}>
-          <span><UsageMark size={23} /> Usage record</span>
-          <span className={styles.recordEdition}>UM / 001</span>
-        </div>
-        <div className={styles.recordTotal}>
-          <span>Tokens counted</span>
-          <strong>{network ? compactNumber(network.totalTokens, 2) : "—"}</strong>
-          <small>Across connected accounts · all time</small>
-        </div>
-        <dl className={styles.recordDetails}>
-          <div><dt>Tracked cost¹</dt><dd>{network ? currencyFromMicros(network.totalCostMicros) : "—"}</dd></div>
-          <div><dt>Sessions recorded</dt><dd>{network ? network.totalSessions.toLocaleString("en-US") : "—"}</dd></div>
-          <div><dt>Connected profiles</dt><dd>{network ? network.profiles.toLocaleString("en-US") : "—"}</dd></div>
-        </dl>
-        <div className={styles.recordFoot}>
-          <span className={styles.status}><i data-ready={Boolean(network)} />{network ? "First-party data" : connected ? "Connecting to network" : "Network unavailable"}</span>
-          <span className={styles.recordBars} aria-hidden="true" />
-        </div>
-        <p className={styles.costNote}>¹ Reported or API-equivalent estimates.<br />Not an invoice. <Link href="/methodology">How we count <ArrowUpRight size={11} /></Link></p>
-      </div>
-    </figure>
+    <section className={`${styles.wrap} ${styles.network}`} aria-label="Live UsageMax network totals">
+      <div className={styles.networkLabel}><UsageMark size={24} /><div><strong>The UsageMax network</strong><span className={styles.status}><i data-ready={Boolean(network)} />{network ? "First-party data" : connected ? "Connecting to network" : "Network unavailable"}</span></div></div>
+      <dl className={styles.networkStats}>
+        <div><dt>Tokens counted</dt><dd>{network ? compactNumber(network.totalTokens, 2) : "—"}</dd></div>
+        <div><dt>Sessions recorded</dt><dd>{network ? compactNumber(network.totalSessions) : "—"}</dd></div>
+        <div><dt>Tracked cost¹</dt><dd>{network ? currencyFromMicros(network.totalCostMicros) : "—"}</dd></div>
+      </dl>
+      <p className={styles.costNote}>Across connected accounts · all time.<br />¹ Reported or API-equivalent estimates. Not an invoice. <Link href="/methodology">How we count <ArrowUpRight size={11} /></Link></p>
+    </section>
   );
 }
 
@@ -61,10 +47,8 @@ function PublicLedger({ rows, period, metric, setPeriod, setMetric, connected }:
   return (
     <section className={`${styles.wrap} ${styles.ledger}`} aria-labelledby="public-ledger-title">
       <div className={styles.ledgerIntro}>
-        <span className={styles.eyebrow}>The public ledger</span>
-        <h2 id="public-ledger-title">Meet the people<br /> putting AI to work.</h2>
-        <p>Real usage. Open profiles.<br /> A little friendly competition.</p>
-        <Link className={styles.textLink} href="/leaderboard">Explore everyone <ArrowUpRight size={15} /></Link>
+        <div><span className={styles.eyebrow}>The public ledger</span><h2 id="public-ledger-title">Good company.<br /><span>Great numbers.</span></h2></div>
+        <div><p>Behind every number, a builder.<br />Explore their models, habits, and milestones.</p><Link className={styles.textLink} href="/leaderboard">Meet the builders <ArrowUpRight size={15} /></Link></div>
       </div>
       <div className={styles.board}>
         <div className={styles.boardControls}>
@@ -122,19 +106,24 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
 }) {
   return (
     <div className={styles.page}>
-      <section className={`${styles.wrap} ${styles.hero}`} aria-labelledby="landing-title">
+      <section className={styles.hero} aria-labelledby="landing-title">
+        <div className={`${styles.wrap} ${styles.heroInner}`}>
         <div className={styles.heroCopy}>
-          <span className={styles.eyebrow}><span className={styles.plus} aria-hidden="true">+</span> A clearer picture of your AI usage</span>
-          <h1 id="landing-title">You build.<br />We keep <span>count.</span></h1>
-          <p>Your tokens, models, and costs. Across your agents and machines. Finally, in one place.</p>
+          <span className={styles.eyebrow}><span className={styles.plus} aria-hidden="true">↗</span> For the ones building with AI</span>
+          <h1 id="landing-title">Your AI work.<br /><span>On the record.</span></h1>
+          <p>All your tokens, models, and machines.<br />One picture of what you’re putting into the world.</p>
           <div className={styles.heroActions}>
-            <AuthNavigation className={styles.primaryButton} href="/sign-up">Start your record <ArrowUpRight size={17} /></AuthNavigation>
-            <Link className={styles.textLink} href="/leaderboard">Explore the leaderboard <ArrowRight size={16} /></Link>
+            <AuthNavigation className={styles.primaryButton} href="/sign-up">Start tracking <ArrowUpRight size={17} /></AuthNavigation>
+            <Link className={styles.textLink} href="/leaderboard">Look around <ArrowRight size={16} /></Link>
           </div>
           <span className={styles.privacy}><LockClosed size={13} /> Private by default. Public when you choose.</span>
         </div>
-        <NetworkRecord network={network} connected={connected} />
+        <TokenInstrument totals={network} />
+        </div>
+        <div className={styles.heroCoordinates} aria-hidden="true"><span>USAGE, WITHOUT THE GUESSWORK</span><span>ONE RECORD. EVERY MACHINE.</span></div>
       </section>
+
+      <NetworkRecord network={network} connected={connected} />
 
       <div className={`${styles.wrap} ${styles.sources}`}>
         <span>Works where you work</span>
@@ -147,30 +136,30 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
       <section className={styles.connectBand} aria-labelledby="connect-title">
         <div className={`${styles.wrap} ${styles.connect}`}>
           <div className={styles.connectCopy}>
-            <span className={styles.eyebrow}>Your history. Not your prompts.</span>
-            <h2 id="connect-title">Less setup.<br /> More perspective.</h2>
+            <span className={styles.eyebrow}>A small command. A bigger picture.</span>
+            <h2 id="connect-title">Plug in.<br /><span>Zoom out.</span></h2>
             <p>Link your computers to one account. See your model mix, spending, and activity without uploading the work itself.</p>
             <Link className={styles.textLink} href="/security">See what stays private <ArrowUpRight size={15} /></Link>
           </div>
           <div className={styles.setup}>
+            <div className={styles.command}>
+              <div className={styles.terminalTop}><span><i /><i /><i /></span><span>usagemax / terminal</span></div>
+              <div className={styles.commandBody}><code><span aria-hidden="true">↳ </span>bunx usagemax</code><CopyButton value="bunx usagemax" /></div>
+              <p>Already linked? One command syncs your retained usage.</p>
+            </div>
             <ol className={styles.steps}>
               <li><span>01</span><div><h3>Make it yours.</h3><p>Sign in with GitHub or Google. Your profile starts private.</p></div></li>
               <li><span>02</span><div><h3>Link a machine.</h3><p>Copy a one-time command from your account. Repeat on your other computers.</p></div></li>
               <li><span>03</span><div><h3>See the whole picture.</h3><p>Sync retained usage. Compare models and costs. Publish your profile only if you want to.</p></div></li>
             </ol>
-            <div className={styles.command}>
-              <div><span>Already connected? Sync again with</span><code><span aria-hidden="true">$ </span>bunx usagemax</code></div>
-              <CopyButton value="bunx usagemax" />
-            </div>
             <p className={styles.resourceNote}>One-shot syncs. No always-running background scanner.</p>
           </div>
         </div>
       </section>
 
       <section className={`${styles.wrap} ${styles.teams}`} aria-labelledby="teams-title">
-        <span className={styles.eyebrow}>For teams</span>
-        <div><h2 id="teams-title">Same clarity. At company scale.</h2><p>Private workspaces, scoped access, and a shared view of AI usage.</p></div>
-        <Link className={styles.teamLink} href="/enterprise">UsageMax for teams <ArrowUpRight size={17} /></Link>
+        <div className={styles.teamArt} aria-hidden="true"><span>UM</span><i /><i /><i /><small>CONNECTED. NOT EXPOSED.</small></div>
+        <div><span className={styles.eyebrow}>Independent builders. Entire teams.</span><h2 id="teams-title">Big picture.<br />Tight boundaries.</h2><p>Understand AI usage across your organization. Keep the work itself where it belongs.</p><Link className={styles.teamLink} href="/enterprise">Meet UsageMax for teams <ArrowUpRight size={17} /></Link></div>
       </section>
     </div>
   );
