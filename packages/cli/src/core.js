@@ -332,7 +332,16 @@ export function buildSnapshotPlan(report, priorSnapshots, {
     const changed = partitionRows.some((row) => !sameCounters(row.previous, row.current));
     if (!bootstrap && !full && !changed) continue;
     partitionRows.sort((left, right) => `${left.provider}/${left.model}`.localeCompare(`${right.provider}/${right.model}`));
-    const payloadHash = sha256(JSON.stringify({ source, day, complete, pricingVersion, rows: partitionRows }));
+    const wireRows = partitionRows.map(({ provider, model, previous, current, costBasis, contentHash, lastUsedAt }) => ({
+      provider,
+      model,
+      previous,
+      current,
+      costBasis,
+      contentHash,
+      lastUsedAt,
+    }));
+    const payloadHash = sha256(JSON.stringify({ source, day, complete, pricingVersion, rows: wireRows }));
     partitions.push({
       partitionId: `${runId}:${sha256(partitionKey).slice(0, 24)}`,
       payloadHash,
@@ -341,11 +350,7 @@ export function buildSnapshotPlan(report, priorSnapshots, {
       day,
       complete,
       pricingVersion,
-      rows: partitionRows.map((row) => {
-        const wireRow = { ...row };
-        delete wireRow.snapshotKey;
-        return wireRow;
-      }),
+      rows: wireRows,
     });
   }
   partitions.sort((left, right) => left.day === right.day ? left.source.localeCompare(right.source) : left.day.localeCompare(right.day));

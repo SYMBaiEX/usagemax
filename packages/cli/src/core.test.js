@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test from "node:test";
 
 import { batchId, buildDeltaPlan, buildSessionPlan, buildSnapshotPlan, normalizeLinkCode, sourceSummary, validHttpsUrl } from "./core.js";
@@ -147,6 +148,17 @@ test("classifies prefixed and bracketed model providers without changing model i
 test("builds authoritative partitions for decreases, deletions, and provider identity", () => {
   const first = buildSnapshotPlan(report, {}, { bootstrap: true, full: true, runId: "run-1", revision: 1 });
   assert.equal(first.partitions.length, 1);
+  assert.equal("snapshotKey" in first.partitions[0].rows[0], false);
+  assert.equal(
+    first.partitions[0].payloadHash,
+    createHash("sha256").update(JSON.stringify({
+      source: first.partitions[0].source,
+      day: first.partitions[0].day,
+      complete: first.partitions[0].complete,
+      pricingVersion: first.partitions[0].pricingVersion,
+      rows: first.partitions[0].rows,
+    })).digest("hex"),
+  );
   const previous = first.nextSnapshots;
   const changed = structuredClone(report);
   changed.daily[0].modelBreakdowns[0].inputTokens = 80;
