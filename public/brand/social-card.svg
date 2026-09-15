@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#0c0d0f"/>
+  <rect x="70" y="68" width="50" height="50" rx="10" fill="#ed8252"/>
+  <path transform="translate(76 74) scale(1.05)" fill="#fff8ed" d="M5 7h6v15c0 2 1.7 2.6 2.8.6L23 7h8v22h-6V14.6L19 25c-4.5 7.7-14 5.8-14-3V7Z"/>
+  <text x="139" y="103" fill="#eeefeb" font-size="30" font-weight="600" font-family="Helvetica,Arial,sans-serif">UsageMax</text>
+  <text x="70" y="265" fill="#eeefeb" font-size="84" font-weight="600" letter-spacing="-4" font-family="Helvetica,Arial,sans-serif">Your AI work.</text>
+  <text x="70" y="359" fill="#ff9a66" font-size="84" font-weight="600" letter-spacing="-4" font-family="Helvetica,Arial,sans-serif">On the record.</text>
+  <text x="74" y="425" fill="#a7afb2" font-size="24" font-family="Helvetica,Arial,sans-serif">Every model. Every machine. One clear picture.</text>
+  <text x="74" y="552" fill="#a7afb2" font-size="17" font-family="Menlo,monospace">PRIVATE BY DEFAULT. PUBLIC BY CHOICE.</text>
+  <text x="942" y="552" fill="#eeefeb" font-size="18" font-family="Menlo,monospace">usagemax.com</text>
+  <path transform="translate(794 165) scale(8)" fill="#e98051" d="M5 7h6v15c0 2 1.7 2.6 2.8.6L23 7h8v22h-6V14.6L19 25c-4.5 7.7-14 5.8-14-3V7Z"/>
+</svg>

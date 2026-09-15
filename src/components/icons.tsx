@@ -31,12 +31,7 @@ export function UsageMark({ size = 32, className }: { size?: number; className?:
       width={size}
       xmlns="http://www.w3.org/2000/svg"
     >
-      <path d="M7 8.5V27.5" stroke="currentColor" strokeLinecap="round" strokeWidth="3" />
-      <path d="M15 14V27.5" stroke="currentColor" strokeLinecap="round" strokeWidth="3" />
-      <path d="M23 8.5V27.5" stroke="currentColor" strokeLinecap="round" strokeWidth="3" />
-      <path d="M31 4.5V27.5" stroke="currentColor" strokeLinecap="round" strokeWidth="3" />
-      <path d="M5 31.5H33" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
-      <path d="M7 8.5L15 14L23 8.5L31 4.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+      <path fill="currentColor" d="M5 7h6v15c0 2 1.7 2.6 2.8.6L23 7h8v22h-6V14.6L19 25c-4.5 7.7-14 5.8-14-3V7Z" />
     </svg>
   );
 }

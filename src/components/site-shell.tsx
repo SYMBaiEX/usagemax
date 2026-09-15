@@ -1,23 +1,25 @@
 import Link from "next/link";
 
 import { HeaderAuthControls } from "./auth-controls";
-import { ArrowUpRight, UsageMark } from "./icons";
+import { ArrowUpRight } from "./icons";
 import { SiteNavigation } from "./site-navigation";
+import { SystemThemeButton, ThemeControls } from "./theme-controls";
+import { CodeField } from "./code-field";
+import { BrandIcon } from "./brand-icon";
 
 export function SiteHeader() {
   return (
     <header className="site-header">
         <div className="shell header-inner">
         <Link aria-label="UsageMax home" className="brand" href="/">
-          <span className="brand-mark">
-            <UsageMark size={27} />
-          </span>
+          <BrandIcon />
           <span className="brand-wordmark">
             Usage<span>Max</span>
           </span>
         </Link>
 
         <SiteNavigation />
+        <ThemeControls />
 
         <div className="header-actions">
           <HeaderAuthControls />
@@ -34,12 +36,11 @@ export function SiteHeader() {
 export function SiteFooter() {
   return (
     <footer className="site-footer">
+      <CodeField variant="footer" />
       <div className="shell footer-main">
         <div className="footer-brand-block">
           <Link aria-label="UsageMax home" className="brand" href="/">
-            <span className="brand-mark">
-              <UsageMark size={25} />
-            </span>
+            <BrandIcon />
             <span className="brand-wordmark">
               Usage<span>Max</span>
             </span>
@@ -70,6 +71,7 @@ export function SiteFooter() {
       <div className="shell footer-wordmark" aria-hidden="true">UsageMax<span>↗</span></div>
       <div className="shell footer-bottom">
         <span>© 2026 UsageMax</span>
+        <SystemThemeButton />
         <span className="footer-status">
           <span className="live-dot" />
           First-party usage analytics
@@ -93,6 +95,7 @@ export function PageIntro({
 }) {
   return (
     <section className="page-intro shell">
+      <div className="intro-ambient"><CodeField /></div>
       <div className="eyebrow">
         <span className="eyebrow-line" />
         {eyebrow}

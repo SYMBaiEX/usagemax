@@ -4,6 +4,12 @@ import { describe, expect, test } from "vitest";
 import { TokenInstrument } from "./token-instrument";
 
 describe("UsageMax physical counter", () => {
+  test.each([100_000_000_000, 123_450_000_000, 999_990_000_000, 1_000_000_000_000, 999_990_000_000_000])("retains every reel for triple-digit and trillion totals: %s", (totalTokens) => {
+    const formatted = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 }).format(totalTokens);
+    const html = renderToStaticMarkup(<TokenInstrument totals={{ totalTokens, totalSessions: 123_450, totalCostMicros: 999_990_000_000 }} />);
+    expect(html).toContain(`aria-label="Tokens: ${formatted}"`);
+    expect(html.match(/<b>/g)).toHaveLength(formatted.length);
+  });
   test("shows an unknown counter until real totals arrive", () => {
     const html = renderToStaticMarkup(<TokenInstrument />);
     expect(html).toContain('aria-label="Tokens: —"');

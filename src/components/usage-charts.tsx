@@ -8,7 +8,7 @@ import styles from "./usage-charts.module.css";
 
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(value);
 const dateLabel = (value: string) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${value}T00:00:00Z`));
-const axis = { axisLine: false, tickLine: false, tick: { fontSize: 11, fill: "#676c63" }, tickMargin: 10 };
+const axis = { axisLine: false, tickLine: false, tick: { fontSize: 11, fill: "var(--chart-axis)" }, tickMargin: 10 };
 
 function ChartTooltip({ active, payload, label, metric = "tokens" }: { active?: boolean; payload?: readonly { name?: string; value?: number | string; color?: string }[]; label?: string | number; metric?: "tokens" | "cost" }) {
   if (!active || !payload?.length) return null;
@@ -26,7 +26,7 @@ export const UsageTrend = memo(function UsageTrend({ rows }: { rows: UsageDay[] 
   const data = useMemo(() => usageSeries(rows, days), [rows, days]);
   const sum = data.reduce((total, day) => total + (day[metric] ?? 0), 0);
   const available = data.filter(day => day[metric] !== null).length;
-  const color = metric === "tokens" ? "#ca512b" : "#397d86";
+  const color = metric === "tokens" ? "var(--chart-token)" : "var(--chart-cost)";
   return <figure className={styles.trend} id="usage-trend" aria-labelledby="usage-trend-title">
     <figcaption className={styles.heading}><div><span className={styles.kicker}>The shape of your work</span><h2 id="usage-trend-title">Your usage.<br /><em>In perspective.</em></h2></div><div className={styles.periods} role="group" aria-label="Usage time range">{([30, 90, 365] as const).map(value => <button key={value} type="button" aria-pressed={days === value} onClick={() => setDays(value)}>{value === 365 ? "1 year" : `${value} days`}</button>)}</div></figcaption>
     <div className={styles.readout}><strong>{metric === "tokens" ? compactNumber(sum, 2) : money(sum)}</strong><div className={styles.metricTabs} role="group" aria-label="Usage metric"><button type="button" aria-pressed={metric === "tokens"} onClick={() => setMetric("tokens")}>Tokens</button><button type="button" aria-pressed={metric === "cost"} onClick={() => setMetric("cost")}>Tracked cost</button></div><span>{available} reported days · UTC</span></div>

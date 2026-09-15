@@ -12,6 +12,9 @@ import { ArrowRight, ArrowUpRight, LockClosed, UsageMark } from "./icons";
 import styles from "./landing-page.module.css";
 import { CopyButton } from "./copy-button";
 import { TokenInstrument } from "./token-instrument";
+import { ProfileAvatar } from "./profile-avatar";
+import { CtaArtwork } from "./cta-artwork";
+import { CodeField } from "./code-field";
 
 type Network = FunctionReturnType<typeof api.public.network>;
 type Ranking = FunctionReturnType<typeof api.public.leaderboard>;
@@ -73,7 +76,7 @@ function PublicLedger({ rows, period, metric, setPeriod, setMetric, connected }:
                 <tr key={row.handle}>
                   <td className={styles.rank}>{String(index + 1).padStart(2, "0")}</td>
                   <td><Link className={styles.person} href={`/${row.handle}`}>
-                    <span className={styles.avatar} aria-hidden="true">{(row.displayName || row.handle).slice(0, 2).toUpperCase()}</span>
+                    <ProfileAvatar handle={row.handle} />
                     <span><strong>{row.displayName || row.handle}{row.verification === "verified" ? <span className={styles.verified} aria-label="Verified account">✓</span> : null}</strong><small>@{row.handle}</small></span>
                     <ArrowUpRight size={13} />
                   </Link></td>
@@ -118,7 +121,12 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
           </div>
           <span className={styles.privacy}><LockClosed size={13} /> Private by default. Public when you choose.</span>
         </div>
-        <TokenInstrument totals={network} />
+        <div className={styles.instrumentStage}>
+          <CodeField />
+          <div className={styles.stageLabel} aria-hidden="true"><span>USAGEMAX / NETWORK RECORD</span><span>READ-ONLY INSTRUMENT</span></div>
+          <TokenInstrument totals={network} />
+          <div className={styles.stageReadout}><code><span>usage.network</span> {"{"} tokens: <b>{network ? compactNumber(network.totalTokens, 2) : "null"}</b>, sessions: <b>{network ? compactNumber(network.totalSessions, 2) : "null"}</b> {"}"}</code><span>Source: connected accounts</span></div>
+        </div>
         </div>
         <div className={styles.heroCoordinates} aria-hidden="true"><span>USAGE, WITHOUT THE GUESSWORK</span><span>ONE RECORD. EVERY MACHINE.</span></div>
       </section>
@@ -158,7 +166,7 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
       </section>
 
       <section className={`${styles.wrap} ${styles.teams}`} aria-labelledby="teams-title">
-        <div className={styles.teamArt} aria-hidden="true"><span>UM</span><i /><i /><i /><small>CONNECTED. NOT EXPOSED.</small></div>
+        <div className={styles.teamArt}><CtaArtwork /><CodeField /></div>
         <div><span className={styles.eyebrow}>Independent builders. Entire teams.</span><h2 id="teams-title">Big picture.<br />Tight boundaries.</h2><p>Understand AI usage across your organization. Keep the work itself where it belongs.</p><Link className={styles.teamLink} href="/enterprise">Meet UsageMax for teams <ArrowUpRight size={17} /></Link></div>
       </section>
     </div>

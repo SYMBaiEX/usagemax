@@ -63,6 +63,26 @@
 .months i { height: 10px; background: #f1eee6; border-radius: 3px; overflow: hidden; }
 .months b { display: block; height: 100%; background: #ca512b; border-radius: 3px; }
 .months strong { font-weight: 550; text-align: right; font-variant-numeric: tabular-nums; }
+:global([data-theme="dark"]) :is(.trend, .composition, .rhythm > figure, .rhythm > figure:last-child) { background: #171a1c; border-radius: 4px; }
+:global([data-theme="dark"]) :is(.kicker, .readout > span, .chartFoot, .data, .empty, .note, .legend small, .calendarFoot p, .heatLegend, .heroSpark > div:first-child) { color: #a1aaad; }
+:global([data-theme="dark"]) .heading h2 em { color: #a6bbaa; }
+:global([data-theme="dark"]) .periods { background: #282e31; border-radius: 3px; }
+:global([data-theme="dark"]) :is(.periods button, .metricTabs button) { color: #abb5b8; border-radius: 2px; }
+:global([data-theme="dark"]) :is(.periods button[aria-pressed="true"], .metricTabs button[aria-pressed="true"]) { color: #171a1b; background: #e6ece5; }
+:global([data-theme="dark"]) .data tbody tr:nth-child(odd) { background: #22272a; }
+:global([data-theme="dark"]) .data summary:hover { color: #ff9a66; }
+:global([data-theme="dark"]) .tooltip { background: #30393d; border-radius: 4px; }
+:global([data-theme="dark"]) .cell { border-radius: 1px; }
+:global([data-theme="dark"]) .level0 { background: #2b3235; }
+:global([data-theme="dark"]) .level1 { background: #624332; }
+:global([data-theme="dark"]) .level2 { background: #a75b34; }
+:global([data-theme="dark"]) .level3 { background: #db8149; }
+:global([data-theme="dark"]) .level4 { background: #ffb577; }
+:global([data-theme="dark"]) .unreported { background: repeating-linear-gradient(135deg, transparent 0 3px, #343e42 3px 4px); }
+:global([data-theme="dark"]) .cell[aria-pressed="true"] { outline-color: #f4e6d4; }
+:global([data-theme="dark"]) .calendarFoot strong { color: #e2e8e3; }
+:global([data-theme="dark"]) .months i { background: #2b3438; }
+:global([data-theme="dark"]) .months b { background: #ff945f; }
 @media (max-width: 700px) {
   .trend, .composition, .rhythm > figure { padding: 22px 16px; border-radius: 14px; }
   .heading { flex-direction: column; gap: 18px; }.heading h2 { font-size: 28px; }.heading h3 { font-size: 23px; }

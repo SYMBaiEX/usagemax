@@ -1,9 +1,11 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Instrument_Sans } from "next/font/google";
 
 import { Providers } from "@/components/providers";
 import { SiteFooter, SiteHeader } from "@/components/site-shell";
 import "./globals.css";
+import "./themes.css";
+import { themeBootstrap } from "@/lib/theme";
 
 const instrumentSans = Instrument_Sans({
   variable: "--font-instrument-sans",
@@ -29,6 +31,7 @@ export const metadata: Metadata = {
   publisher: "UsageMax",
   alternates: { canonical: "https://usagemax.com" },
   openGraph: {
+    images: [{ url: "/brand/social-card.png", width: 1200, height: 630, alt: "UsageMax — Your AI work, on the record." }],
     type: "website",
     url: "https://usagemax.com",
     siteName: "UsageMax",
@@ -36,6 +39,7 @@ export const metadata: Metadata = {
     description: "Track your AI usage, compare stats, and share your public profile.",
   },
   twitter: {
+    images: ["/brand/social-card.png"],
     card: "summary_large_image",
     title: "UsageMax — Your AI work, made visible",
     description: "Track your AI usage, compare stats, and share your public profile.",
@@ -43,9 +47,14 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
+export const viewport: Viewport = {
+  themeColor: [{ media: "(prefers-color-scheme: light)", color: "#f6f5f1" }, { media: "(prefers-color-scheme: dark)", color: "#0c0d0f" }],
+};
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${instrumentSans.variable} ${geistMono.variable}`}>
+    <html lang="en" className={`${instrumentSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: themeBootstrap }} /></head>
       <body className="site-body">
         <Providers>
           <a className="skip-link" href="#main-content">Skip to main content</a>

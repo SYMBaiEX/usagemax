@@ -9,7 +9,9 @@
 .caption { font: 600 8px var(--font-mono); color: #3b2219; letter-spacing: .04em; }
 .digits { display: flex; gap: 3px; height: 93px; margin-block: 15px 14px; }
 .digits > span { min-width: 0; flex: 1; position: relative; display: grid; place-items: center; border-radius: 5px; overflow: hidden; background: linear-gradient(#25282a 49%, #101416 50%, #333735 52%, #292d2c); box-shadow: inset 0 1px 3px #050707, 0 1px 1px #fcac89; color: #f3f3df; }
-.digits b { display: block; font: 500 clamp(30px, 4.8vw, 61px)/1 var(--font-mono); letter-spacing: -.075em; padding-right: 3px; animation: count 300ms ease-out; }
+.digits > span { container-type: inline-size; }
+.digits b { display: block; font: 500 min(61px, 155cqi)/1 var(--font-mono); letter-spacing: -.075em; padding-right: 1px; animation: count 300ms ease-out; }
+.digits > .punctuation b { font-size: min(34px, 155cqi); padding: 0; }
 .digits > .punctuation { flex: .32; background: transparent; box-shadow: none; color: #242820; align-items: end; padding-bottom: 5px; }
 .faceFoot { color: #482418; font: 500 7px var(--font-mono); letter-spacing: .06em; }
 .signal { width: 6px; height: 6px; border-radius: 50%; background: #97452f; box-shadow: 0 0 0 3px #9a35182b; }.signal[data-ready="true"] { background: #edffc8; }
@@ -27,3 +29,29 @@
 @media (max-width: 1100px) { .machine { padding: 20px; }.digits { height: 78px; }.scene { height: 390px; } }
 @media (max-width: 700px) { .scene { height: 340px; }.machine { width: 330px; padding: 18px; border-radius: 18px; }.top { margin-bottom: 18px; }.face { padding: 13px; }.digits { height: 72px; }.digits b { font-size: 43px; }.caption { font-size: 7px; }.faceFoot { font-size: 6px; }.controls { margin-top: 17px; }.bottom { margin-top: 17px; }.dial { width: 44px; height: 44px; }.dial i { width: 34px; height: 34px; }.dial i::after { left: 16px; height: 7px; }.modeGroup { gap: 5px; } }
 @media (prefers-reduced-motion: reduce) { .machine, .digits b { animation: none; }.modeGroup i { transition: none; } }
+
+/* Size each glyph from its own reel, including 100–999 and compact currency. */
+@media (max-width: 700px) { .digits b { font-size: min(43px, 155cqi); }.digits > .punctuation b { font-size: min(28px, 155cqi); } }
+:global([data-theme="dark"]) .scene { height: 356px; }
+:global([data-theme="dark"]) .machine { width: 460px; padding: 20px; background: linear-gradient(130deg,#3a4044,#202529); border-color: #596065; color: #f0ece4; border-radius: 12px; transform: rotateX(6deg) rotateZ(-3deg); animation: signal-arrive 650ms ease-out both; box-shadow: 1px 2px #40464b, 4px 7px #22282b, 7px 12px #111518, 12px 22px 25px #0008, inset 0 1px #727a7f; }
+:global([data-theme="dark"]) .top { margin-bottom: 20px; }
+:global([data-theme="dark"]) .top > span:last-child, :global([data-theme="dark"]) .bottom { color: #b3babd; }
+:global([data-theme="dark"]) .face { background: #cb542c; border-radius: 5px; padding: 13px 16px; }
+:global([data-theme="dark"]) .digits { height: 77px; }
+:global([data-theme="dark"]) .digits > span { color: #ffc799; border-radius: 3px; }
+:global([data-theme="dark"]) .digits > .punctuation { color: #231b14; }
+:global([data-theme="dark"]) .modeGroup button { color: #d1d6d5; }
+:global([data-theme="dark"]) .modeGroup i { background: linear-gradient(#555e62,#333b3e); box-shadow: 0 3px #12181a, inset 0 1px #7b878c; border-radius: 3px; }
+:global([data-theme="dark"]) .modeGroup button[aria-pressed="true"] i { background: #ed925f; box-shadow: inset 0 2px 4px #8d421e; }
+:global([data-theme="dark"]) .controls { margin-top: 18px; }
+:global([data-theme="dark"]) .bottom { margin-top: 14px; }
+:global([data-theme="dark"]) .floor { opacity: .6; height: 25px; bottom: 10px; }
+@keyframes signal-arrive { from { opacity: 0; transform: translateY(10px) rotateX(6deg) rotateZ(-3deg); } to { opacity: 1; transform: rotateX(6deg) rotateZ(-3deg); } }
+@media (max-width: 700px) {
+  :global([data-theme="dark"]) .scene { height: 295px; }
+  :global([data-theme="dark"]) .machine { max-width: 95%; padding: 15px; }
+  :global([data-theme="dark"]) .face { padding: 12px; }
+  :global([data-theme="dark"]) .digits { height: 65px; }
+  :global([data-theme="dark"]) .top { margin-bottom: 16px; }
+}
+@media (prefers-reduced-motion: reduce) { :global([data-theme="dark"]) .machine { animation: none; } }
