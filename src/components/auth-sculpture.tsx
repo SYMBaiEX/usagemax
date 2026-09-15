@@ -33,9 +33,6 @@ export function AuthSculpture() {
       </defs>
       {ribbons.map((path, index) => <path key={index} d={path.d} stroke="url(#auth-ribbon)" strokeWidth="2.2" />)}
     </svg>
-    <span className={styles.core}><UsageMark size={31} /></span>
-    <span className={`${styles.orbitTag} ${styles.tagOne}`}>models</span>
-    <span className={`${styles.orbitTag} ${styles.tagTwo}`}>computers</span>
-    <span className={`${styles.orbitTag} ${styles.tagThree}`}>you<span>↗</span></span>
+    <span className={styles.core}><UsageMark size={64} /></span>
   </div>;
 }

@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
 import { AuthPage } from "./auth-page";
 import { SiteFrame } from "./site-frame";
+import { AuthSculpture } from "./auth-sculpture";
 const state = vi.hoisted(() => ({ path: "/sign-in" }));
 vi.mock("next/link", () => ({ default: (props: AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props} /> }));
 vi.mock("next/navigation", () => ({ usePathname: () => state.path }));
@@ -20,12 +21,20 @@ describe("UsageMax auth pages", () => {
     expect(html).toContain(`/auth/start?mode=${mode}&amp;provider=github`);
     expect(html).toContain("Switch to dark theme");
     expect(html).toContain("Pause ambient animation");
-    expect(html).toContain("UsageMax / Studio");
-    expect(html).toContain("UsageMax / Signal");
+    expect(html).not.toContain("UsageMax / Studio");
+    expect(html).not.toContain("UsageMax / Signal");
+    expect(html).not.toContain("001 — ∞");
+    expect(html).not.toContain("Built in the open.");
     expect(html).not.toContain("authkit.app");
     expect(html).not.toContain("<iframe");
     expect(html).not.toContain("<canvas");
     expect(html).not.toContain("type=\"password\"");
+  });
+  test("sculpture uses a larger center mark without floating tags", () => {
+    const html = renderToStaticMarkup(<AuthSculpture />);
+    expect(html).toContain('width="64"');
+    expect(html).toContain('height="64"');
+    expect(html).not.toMatch(/>models<|>computers<|>you</);
   });
   test("sign-up keeps clear privacy and legal links", () => {
     const html = renderToStaticMarkup(<AuthPage mode="sign-up" context={{ returnTo: "/account" }} />);
