@@ -2,10 +2,12 @@
 
 _Control record — updated September 15, 2026_
 
-New workspace features are implemented and locally verified on
-`codex/usagemax-readiness`, **not yet released to production**. See
+New workspace features are implemented and locally verified. Production WorkOS
+roles were explicitly approved, applied and verified; the matching Convex backend
+is deployed. Website rollout evidence is tracked in
+[PR #8](https://github.com/SYMBaiEX/usagemax/pull/8). See
 [the delivery record](enterprise-delivery-plan.md) for acceptance and remaining
-engineering gates. Production WorkOS role changes require explicit approval.
+engineering gates. This release does not close all enterprise-readiness requirements.
 
 This document separates implemented product controls from customer-specific
 onboarding and operational evidence. “Implemented” does not mean certified.
@@ -42,8 +44,9 @@ onboarding and operational evidence. “Implemented” does not mean certified.
 These controls require customer- or environment-specific configuration before an
 enterprise contract can claim them:
 
-1. Configure the UsageMax permission slugs in WorkOS and assign least-privilege
-   roles. Test one denied and one permitted operation per role in production.
+1. The production permission slugs and role defaults are configured. Assign
+   least-privilege customer roles and test one denied and one permitted operation
+   per role with fresh production sessions.
 2. Configure the customer’s SAML/OIDC connection and verified organization domains.
 3. Enable WorkOS Directory Provisioning for customers that require SCIM lifecycle
    management. Add and verify a signed webhook endpoint before claiming automatic
@@ -57,13 +60,16 @@ enterprise contract can claim them:
 
 - Immutable audit export to customer-owned object storage or SIEM.
 - Projects, cost centers, budgets, notifications and a separated financial ledger
-  are implemented in the pending release. Statistical anomaly policies, invoice
+  are implemented in PR #8. Statistical anomaly policies, invoice
   line matching, accounting close and verified source identity remain open.
 - Live provider contract tests with authorized customer credentials, broader
   provider coverage and independently verified-versus-self-reported trust tiers.
 - Production load evidence at agreed event rates, SLOs, alert thresholds, and
   documented capacity triggers.
 - Independent application security review and dependency/code scanning evidence.
+- Restore GitHub Actions budget availability so CI/security jobs can actually run,
+  and resolve the Convex Free-plan capacity warning. Neither billing nor protection
+  settings were changed as part of this release.
 - Regional data residency, customer-managed keys, and private network ingestion
   where contractually required.
 

@@ -20,7 +20,7 @@ existing public profiles, the low-overhead collector, and the separate screen pr
 
 | ID | Requirement | Acceptance | State |
 | --- | --- | --- | --- |
-| R1 | Organizations and invitations | Create/switch, invite/resend/revoke/reconcile, accept, membership/owner safeguards | Implemented; mocked orchestration tested; production roles blocked pending approval |
+| R1 | Organizations and invitations | Create/switch, invite/resend/revoke/reconcile, accept, membership/owner safeguards | Implemented; mocked orchestration tested; production roles approved, applied and verified; live invitation exercise remains |
 | R2 | Teams, projects, identities | Scoped management, membership history, own-device enrollment and offboarding | Implemented; tenant/ownership tests pass; richer identity attribution remains below |
 | R3 | Free personal quality of life | Private dashboard, dates/model/source filtering, timezone/default range, saved views, streaming exports, budgets | Implemented; >500-row export and privacy tests pass; production checks pending |
 | R4 | Financial ledger | Separate estimated/reported/billed, currencies, idempotency, allocation, monthly reconciliation | Implemented; monetary regression tests pass; not an invoice-close system |
@@ -29,7 +29,7 @@ existing public profiles, the low-overhead collector, and the separate screen pr
 | R7 | Agent economics | Private paginated parent/agent/model/tool/outcome observations | Implemented on existing metadata; no invented joins or totals; unit economics remains below |
 | R8 | Governance | Entitlement boundary, workspace retention, audit export, offboarding, deletion cleanup | Implemented/tested; customer configuration and procurement evidence gates remain |
 | R9 | Product surfaces | Real data bindings, both themes, responsive forms/tables, free/enterprise copy | Implemented; synthetic rendered checks at 1280px and 390px; live auth pending |
-| R10 | Verification and release | Regression/security tests, lint/types/build, scoped push and live verification | Local checks pass; production release intentionally held for role approval |
+| R10 | Verification and release | Regression/security tests, lint/types/build, scoped push and live verification | Local checks and production backend deployment pass; website rollout evidence tracked in PR #8; GitHub CI/security jobs blocked by Actions budget |
 
 ## Customer-specific gates
 
@@ -70,12 +70,29 @@ foundations, not proof of the above workflows. No production data changes at pla
 - Convex auth guidance drove server-side tenant/permission checks. The GPT Engineer
   acceptance-tracking workflow keeps implemented controls distinct from release
   and customer verification. Generic frontend-design skills were not used.
-- Production WorkOS role writes were rejected by automatic safety review as an
-  access expansion without explicit approval of the exact mapping. Do not retry
-  or bypass this gate. No roles, provider vault secret or production functions
-  were changed in this delivery. Local code generation is not a production deploy.
+- The initial WorkOS permission and backend-deployment safety holds were respected.
+  On September 15 the owner explicitly approved the exact role mapping, then the
+  separate production deployment and merge plan. All seven roles were applied and
+  verified through fresh WorkOS reads; unrelated widget permissions were preserved
+  and no memberships were reassigned.
+- Production Convex `rapid-rhinoceros-943` now runs backend commit `e77e2df` from
+  PR #8. Schema validation and strict backend TypeScript checking passed; deployment
+  added indexes and deleted none. The dedicated `convex/tsconfig.json` uses the
+  installed Convex template settings and the installed Node type definitions.
+- After deployment, `/api/health` and `/api/stats` returned HTTP 200 with the
+  unchanged 96,282,408,710-token total. Protected workspace, personal-summary and
+  connection reads returned structured `AUTH_REQUIRED` errors without a session.
+  This verifies the public/read boundary, not a complete signed-in customer journey.
+- Website merge/deployment evidence is tracked in
+  [PR #8](https://github.com/SYMBaiEX/usagemax/pull/8). GitHub CI, CodeQL and Copilot
+  review jobs did not start because of the Actions budget; local checks are not
+  substitutes for completed hosted security scanning. No checks were disabled.
+- Convex reported that the account exceeds Free-plan limits. Billing was not
+  changed. Resolve capacity/billing before promising availability or scale.
+- The provider vault remains unconfigured and real customer-provider tests remain
+  outstanding. No npm package was published in this release.
 
-## Exact WorkOS approval requested
+## Approved and applied WorkOS mapping
 
 Apply only to the existing UsageMax production WorkOS environment. Existing unrelated
 widget permissions are preserved. No customer memberships are reassigned by the
@@ -92,10 +109,12 @@ gain the additional team/finance/integration administration permissions below.
 | auditor | `audit:read`, `finance:read`, `data:export` |
 | viewer | Membership-level workspace metadata, no privileged operations |
 
-After approval, run `scripts/configure-enterprise.ts --apply` with the existing
-WorkOS API key injected through an operator environment, never command-line text
-or logs. Refresh sessions and prove both allowed and denied operations for each
-role. The script has a read-only default mode and preserves unrelated permissions.
+The approved mapping was applied with `scripts/configure-enterprise.ts --apply` and
+the existing WorkOS API key injected through an operator environment, never
+command-line text or logs. Fresh sessions and allowed/denied operation exercises
+for each customer role remain onboarding requirements. The script defaults to
+read-only mode and preserves unrelated permissions; future expansions require
+their own authorization.
 
 ## Provider implementation boundaries
 
@@ -121,9 +140,11 @@ role. The script has a read-only default mode and preserves unrelated permission
 
 ## Remaining engineering roadmap (not claimed shipped)
 
-1. Production role approval, vault setup, real login/invite/SSO/offboarding exercise,
-   exact-SHA deployment and live-path verification. Resolve GitHub Actions budget
-   restrictions if they still prevent CI/security jobs; do not disable checks.
+1. Vault setup, real login/invite/SSO/offboarding exercises, completed hosted
+   CI/security scanning, and ongoing live-path verification. Role configuration
+   and the production backend rollout are complete. Resolve the GitHub Actions
+   budget and Convex account capacity warning; do not disable checks or silently
+   change billing.
 2. Full provider identity reconciliation, multi-account connections, OpenAI admin
    costs, Claude Enterprise Analytics, Copilot per-person usage and billing, cloud
    provider imports, contract pricing/credits, invoice line matching and accounting
