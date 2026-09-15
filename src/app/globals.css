@@ -2616,6 +2616,16 @@ button {
   align-items: center;
 }
 
+.collector-state > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.collector-state > span > strong {
+  overflow-wrap: anywhere;
+}
+
 .collector-state > i {
   background: var(--green);
   border-radius: 50%;
@@ -3008,12 +3018,16 @@ button {
   display: grid;
 }
 
+.advanced-collector form > label {
+  grid-column: 1 / -1;
+}
+
 :where(a, button, input, textarea, summary):focus-visible {
   outline-offset: 3px;
   outline: 3px solid #ff4c006b;
 }
 
-input:focus, textarea:focus, .account-create label:focus-within, .device-link-form:focus-within, .profile-edit-form label:focus-within {
+input:focus, textarea:focus, .account-create label:focus-within {
   border-color: var(--orange);
   box-shadow: 0 0 0 3px #ff4c001f;
 }

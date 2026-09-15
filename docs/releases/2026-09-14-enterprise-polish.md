@@ -35,6 +35,9 @@
 
 - Local checks: 39 backend tests, 21 CLI tests, lint, typecheck, production build.
 - Browser: nine public routes at 1280px and 390px, with no document overflow.
+- Authenticated production account checked with six connected devices. Device
+  names and sync metadata have separate lines; advanced collector labels span
+  the form row, and focus styling stays on the input rather than its container.
 - Convex team dashboard warns that the free plan limits are exceeded. Capacity
   and billing decisions remain with the owner; no paid plan was selected.
 - GitHub Actions runners remain blocked by the account's Actions budget. Do not
