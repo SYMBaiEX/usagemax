@@ -19,7 +19,7 @@ export function HeaderAuthControls() {
   if (loading) return <span aria-hidden="true" className="header-auth-loading" />;
   if (user) {
     return (
-      <Link className="header-login" href="/account">
+      <Link className="header-login" href="/workspace">
         {user.firstName || user.email || "Account"}
       </Link>
     );
@@ -35,7 +35,7 @@ export function MobileAuthLink() {
   const { user, loading } = useAuth();
   if (loading) return null;
   return user ? (
-    <Link href="/account">Account <ArrowUpRight size={14} /></Link>
+    <Link href="/workspace">Workspace <ArrowUpRight size={14} /></Link>
   ) : (
     <AuthNavigation href="/sign-in">Sign in <GitHubMark size={14} /></AuthNavigation>
   );

@@ -1,10 +1,13 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { productTables } from "./productSchema";
 
 export default defineSchema({
+  ...productTables,
   users: defineTable({
     workosUserId: v.string(),
     authIdentityKey: v.optional(v.string()),
+    preferPersonalWorkspace: v.optional(v.boolean()),
     name: v.optional(v.string()),
     email: v.optional(v.string()),
     avatarUrl: v.optional(v.string()),
@@ -21,6 +24,9 @@ export default defineSchema({
     workosOrganizationId: v.optional(v.string()),
     workosUpdatedAt: v.optional(v.number()),
     accessDisabledAt: v.optional(v.number()),
+    contractReference: v.optional(v.string()),
+    enterpriseActivatedAt: v.optional(v.number()),
+    companyDataPrivate: v.optional(v.boolean()),
     slug: v.string(),
     name: v.string(),
     plan: v.union(v.literal("free"), v.literal("pro"), v.literal("team"), v.literal("enterprise")),
@@ -73,6 +79,8 @@ export default defineSchema({
   collectors: defineTable({
     workspaceId: v.id("workspaces"),
     profileId: v.id("profiles"),
+    ownerUserId: v.optional(v.id("users")),
+    projectId: v.optional(v.id("projects")),
     name: v.string(),
     keyHash: v.string(),
     keyPrefix: v.string(),
@@ -113,6 +121,7 @@ export default defineSchema({
     rotatedAt: v.optional(v.number()),
     revokedAt: v.optional(v.number()),
   })
+    .index("by_workspaceId_and_ownerUserId", ["workspaceId", "ownerUserId"])
     .index("by_keyHash", ["keyHash"])
     .index("by_workspaceId", ["workspaceId"])
     .index("by_workspaceId_and_revokedAt", ["workspaceId", "revokedAt"])
@@ -323,6 +332,7 @@ export default defineSchema({
     .index("by_workspaceId_and_eventKey", ["workspaceId", "eventKey"])
     .index("by_collectorId_and_eventKey", ["collectorId", "eventKey"])
     .index("by_profileId_and_occurredAt", ["profileId", "occurredAt"])
+    .index("by_workspaceId_and_receivedAt", ["workspaceId", "receivedAt"])
     .index("by_receivedAt", ["receivedAt"]),
 
   ingestReceipts: defineTable({

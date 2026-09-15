@@ -10,6 +10,16 @@ const rateLimiter = new RateLimiter(components.rateLimiter, {
   collectorItems: { kind: "token bucket", rate: 20_000, period: MINUTE, capacity: 50_000 },
   linkAttemptsGlobal: { kind: "fixed window", rate: 3_000, period: MINUTE, shards: 20 },
   linkAttemptsPerCode: { kind: "token bucket", rate: 3, period: MINUTE, capacity: 10 },
+  management: { kind: "token bucket", rate: 10, period: MINUTE, capacity: 20 },
+});
+
+export const consumeManagementAttempt = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new ConvexError("AUTH_REQUIRED");
+    await rateLimiter.limit(ctx, "management", { key: identity.tokenIdentifier, throws: true });
+  },
 });
 
 export async function enforceCollectorRateLimit(ctx: MutationCtx, collectorId: string, items = 1) {

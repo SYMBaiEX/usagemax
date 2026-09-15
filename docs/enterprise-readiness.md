@@ -1,6 +1,13 @@
 # UsageMax enterprise readiness
 
-_Control record — September 14, 2026_
+_Control record — updated September 15, 2026_
+
+New workspace features are implemented and locally verified. Production WorkOS
+roles were explicitly approved, applied and verified; the matching Convex backend
+is deployed. Website rollout evidence is tracked in
+[PR #8](https://github.com/SYMBaiEX/usagemax/pull/8). See
+[the delivery record](enterprise-delivery-plan.md) for acceptance and remaining
+engineering gates. This release does not close all enterprise-readiness requirements.
 
 This document separates implemented product controls from customer-specific
 onboarding and operational evidence. “Implemented” does not mean certified.
@@ -37,8 +44,9 @@ onboarding and operational evidence. “Implemented” does not mean certified.
 These controls require customer- or environment-specific configuration before an
 enterprise contract can claim them:
 
-1. Configure the UsageMax permission slugs in WorkOS and assign least-privilege
-   roles. Test one denied and one permitted operation per role in production.
+1. The production permission slugs and role defaults are configured. Assign
+   least-privilege customer roles and test one denied and one permitted operation
+   per role with fresh production sessions.
 2. Configure the customer’s SAML/OIDC connection and verified organization domains.
 3. Enable WorkOS Directory Provisioning for customers that require SCIM lifecycle
    management. Add and verify a signed webhook endpoint before claiming automatic
@@ -51,17 +59,23 @@ enterprise contract can claim them:
 ## Remaining engineering gates
 
 - Immutable audit export to customer-owned object storage or SIEM.
-- Workspace projects, cost centers, budgets, anomaly policies, and notifications.
-- Provider billing reconciliation and a verified-versus-self-reported trust tier.
+- Projects, cost centers, budgets, notifications and a separated financial ledger
+  are implemented in PR #8. Statistical anomaly policies, invoice
+  line matching, accounting close and verified source identity remain open.
+- Live provider contract tests with authorized customer credentials, broader
+  provider coverage and independently verified-versus-self-reported trust tiers.
 - Production load evidence at agreed event rates, SLOs, alert thresholds, and
   documented capacity triggers.
 - Independent application security review and dependency/code scanning evidence.
+- Restore GitHub Actions budget availability so CI/security jobs can actually run,
+  and resolve the Convex Free-plan capacity warning. Neither billing nor protection
+  settings were changed as part of this release.
 - Regional data residency, customer-managed keys, and private network ingestion
   where contractually required.
 
 ## Go-to-market language
 
-UsageMax can accurately claim an enterprise-ready identity, authorization,
-ingestion, audit, and data-boundary foundation. Do not claim SSO, SCIM lifecycle,
+UsageMax has an enterprise-oriented identity, authorization, ingestion, audit,
+and data-boundary foundation. Do not claim SSO, SCIM lifecycle,
 compliance certification, immutable audit storage, regional residency, or a tested
 SLA for a customer until the corresponding onboarding or evidence gate is closed.

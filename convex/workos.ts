@@ -124,6 +124,7 @@ export const applyLifecycleEvent = internalMutation({
             createdAt: args.now,
             ...values,
           });
+          if (status !== "active") await ctx.scheduler.runAfter(0, internal.workspaces.offboardDevices, { workspaceId: workspace._id, userId: user._id });
           await ctx.db.insert("auditEvents", {
             workspaceId: workspace._id,
             actorUserId: user._id,

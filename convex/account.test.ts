@@ -241,7 +241,7 @@ describe("WorkOS-backed accounts", () => {
     });
     expect((await member.query(api.account.current, {}))?.capabilities["profile:manage"]).toBe(false);
     await expect(member.mutation(api.account.updateProfile, { displayName: "Escalated", bio: "" })).rejects.toThrow("FORBIDDEN");
-    await expect(member.action(api.account.createCollector, { name: "Unauthorized" })).rejects.toThrow("FORBIDDEN");
+    await expect(member.action(api.account.createCollector, { name: "My device" })).resolves.toHaveProperty("token");
     await expect(member.query(api.account.auditLog, { paginationOpts: { numItems: 25, cursor: null } })).rejects.toThrow("FORBIDDEN");
 
     const delegated = t.withIdentity({
