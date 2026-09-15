@@ -58,7 +58,7 @@ describe("site design and behavior boundaries", () => {
 
   test.each([
     [DocsView, "Documentation"], [EnterpriseView, "UsageMax for teams"],
-    [MethodologyView, "Methodology"], [SecurityView, "Security"],
+    [MethodologyView, "How we count"], [SecurityView, "Security"],
     [PrivacyView, "Privacy policy"], [TermsView, "Terms of service"],
   ] as const)("content pages use a direct title without an introductory pitch (%#)", (View, title) => {
     const html = renderToStaticMarkup(<View />);

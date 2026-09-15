@@ -13,7 +13,7 @@ import styles from "./landing-page.module.css";
 import { CopyButton } from "./copy-button";
 import { TokenInstrument } from "./token-instrument";
 import { ProfileAvatar } from "./profile-avatar";
-import { CtaArtwork } from "./cta-artwork";
+import { TeamsShowcase } from "./teams-showcase";
 import { CodeField } from "./code-field";
 
 type Network = FunctionReturnType<typeof api.public.network>;
@@ -161,10 +161,7 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
         </div>
       </section>
 
-      <section className={`${styles.wrap} ${styles.teams}`} aria-labelledby="teams-title">
-        <div className={styles.teamArt}><CtaArtwork /><CodeField /></div>
-        <div><h2 id="teams-title">UsageMax for teams</h2><p>Private workspaces, role-based access, and usage tracking.</p><Link className={styles.teamLink} href="/enterprise">Explore team features <ArrowUpRight size={17} /></Link></div>
-      </section>
+      <div className={styles.wrap}><TeamsShowcase /></div>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { MethodologyView } from "@/components/content-pages";
 
 export const metadata: Metadata = {
-  title: "Methodology",
+  title: "How we count",
   description: "How UsageMax counts events, aggregates usage, and keeps public metrics bounded.",
 };
 

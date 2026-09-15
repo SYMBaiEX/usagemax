@@ -3,16 +3,16 @@ import type { ReactNode } from "react";
 
 import { PageIntro, TextLink } from "./site-shell";
 import { CopyButton } from "./copy-button";
+import { TeamsShowcase } from "./teams-showcase";
+import { CountingWorkbench } from "./counting-workbench";
+import stories from "./product-stories.module.css";
 import {
   ArrowRight,
   ArrowUpRight,
   BookOpen,
-  ChartLine,
   CodeBrackets,
   DatabaseIcon,
-  LayersIcon,
   LockClosed,
-  PulseIcon,
   ShieldCheck,
 } from "./icons";
 
@@ -53,25 +53,18 @@ export function EnterpriseView() {
       </PageIntro>
 
 
-      <section className="shell content-section">
-        <div className="section-heading"><h2>Workspace controls</h2></div>
-        <div className="detail-grid detail-grid-three">
-          <DetailCard accent="acid" icon={<PulseIcon size={21} />} index="01" title="One telemetry layer"><p>Ingest model requests, tool calls, state changes, and outcomes through one versioned, idempotent API.</p></DetailCard>
-          <DetailCard accent="cyan" icon={<LayersIcon size={21} />} index="02" title="Organization control"><p>WorkOS organizations and role-based permissions control access to profiles, collectors, exports, deletion, and audit logs.</p></DetailCard>
-          <DetailCard accent="orange" icon={<LockClosed size={21} />} index="03" title="Collector security"><p>Hashed, revocable collector keys with rate limits and replay protection. Sensitive actions are audited; prompts, completions, source code, and provider keys are excluded.</p></DetailCard>
-        </div>
-      </section>
-
-      <section className="shell content-section enterprise-steps">
-        <div className="section-heading"><h2>Setup</h2></div>
-        <div className="steps-list">
-          <div className="step-row"><span className="step-number">01</span><div><h3>Connect telemetry</h3><p>Send events through the native API or OpenTelemetry endpoint.</p></div><CodeBrackets size={21} /></div>
-          <div className="step-row"><span className="step-number">02</span><div><h3>Map your dimensions</h3><p>Include source, model, agent, project, and cost-center fields.</p></div><ChartLine size={21} /></div>
-          <div className="step-row"><span className="step-number">03</span><div><h3>Choose visibility</h3><p>Keep workspace data private. Publish aggregate profiles only when needed.</p></div><ArrowUpRight size={21} /></div>
-        </div>
-      </section>
-
-      <section className="shell content-section final-band"><TextLink href="/security">Security</TextLink></section>
+      <div className="shell">
+        <TeamsShowcase variant="page" />
+        <section className={stories.setup} aria-labelledby="team-setup-title">
+          <div className={stories.sectionHeading}><h2 id="team-setup-title">Connect your team</h2><span>Three steps to connect</span></div>
+          <div className={stories.setupFlow}>
+            <article><div className={stories.stepVisual} aria-hidden="true"><CodeBrackets size={20} /><code>bunx usagemax</code><ArrowRight size={16} /><DatabaseIcon size={20} /></div><h3><small>01</small>Connect your sources</h3><p>Link each computer, or send model and tool events through the native API or OpenTelemetry endpoint.</p></article>
+            <article><div className={stories.stepVisual} aria-hidden="true"><span>model</span><span>project</span><span>cost center</span></div><h3><small>02</small>Keep the context</h3><p>Attach source, model, agent, project, and cost-center fields to custom telemetry. Export data with its attribution intact.</p></article>
+            <article><div className={stories.stepVisual} aria-hidden="true"><LockClosed size={20} /><span>Private workspace</span></div><h3><small>03</small>Set the boundaries</h3><p>WorkOS organizations and role-based permissions scope access. Publish an aggregate profile only when you choose.</p></article>
+          </div>
+        </section>
+        <div className={stories.teamTrust}><p>Counts and context. No prompt content.<small>Hashed collector keys, replay protection, rate limits, and an audit trail for sensitive actions.</small></p><Link className={stories.storyLink} href="/docs">Read the integration guide <ArrowUpRight size={16} /></Link></div>
+      </div>
     </div>
   );
 }
@@ -169,15 +162,32 @@ export function MethodologyView() {
   return (
     <div className="page-surface content-page methodology-page">
       <PageIntro
-        title="Methodology"
+        title="How we count"
       >
         <Link className="button button-acid" href="/docs">Event contract <ArrowUpRight size={16} /></Link>
       </PageIntro>
 
-      <section className="shell content-section methodology-intro"><div className="methodology-facts"><div><span className="metric-label">Aggregation unit</span><strong>Profile × day × model</strong></div><div><span className="metric-label">Rank windows</span><strong>7d / 30d / all time</strong></div><div><span className="metric-label">Live window</span><strong>Latest 100 / profile</strong></div></div></section>
-
-
-      <section className="shell content-section methodology-table-section"><div className="section-heading"><h2>Metric definitions</h2></div><div className="methodology-table"><div className="methodology-table-head"><span>Metric</span><span>Definition</span><span>Surface</span></div><div><strong>Total tokens</strong><span>The source-reported total, or input plus output when no total is supplied. Cache and reasoning are shown only when the source exposes those dimensions; the remainder stays unclassified.</span><code>profile / daily</code></div><div><strong>Tracked cost</strong><span>Provider-reported spend or a labeled API-equivalent estimate. Missing prices remain unknown and are never presented as zero-cost usage.</span><code>network / profile</code></div><div><strong>Active agent</strong><span>A live agent row whose heartbeat has not passed its expiry window. Observability-only heartbeats do not alter accounting totals.</span><code>profile / live</code></div><div><strong>Leaderboard rank</strong><span>The selected leaderboard metric for the chosen period, ordered descending.</span><code>leaderboard</code></div></div></section>
+      <div className="shell">
+        <CountingWorkbench />
+        <dl className={stories.methodFacts}><div><dt><span>Aggregation</span></dt><dd><strong>Profile × day × model</strong></dd></div><div><dt><span>Ranking windows</span></dt><dd><strong>7d / 30d / all time</strong></dd></div><div><dt><span>Visibility</span></dt><dd><strong>Public profiles only</strong></dd></div></dl>
+        <section aria-labelledby="counting-rules-title">
+          <div className={stories.sectionHeading}><h2 id="counting-rules-title">The rules behind the numbers</h2></div>
+          <div className={stories.principles}>
+            <article><span>01</span><div><h3>A total, not a guess</h3><p>The source-reported total, or input plus output when no total is supplied. Cache and reasoning are shown only when the source exposes those dimensions; the remainder stays unclassified.</p></div></article>
+            <article><span>02</span><div><h3>Same record, counted once</h3><p>Stable event keys protect against event replays. Re-running the collector reconciles stored snapshots instead of adding the same history again. Renaming a linked computer does not create new usage.</p></div></article>
+            <article><span>03</span><div><h3>Activity is not accounting</h3><p>An active agent has a heartbeat within its expiry window. Observability-only heartbeats do not alter accounting totals.</p></div></article>
+            <article><span>04</span><div><h3>Ranked within the window</h3><p>Public profiles are ordered by the selected metric—tokens or tracked cost—for 7 days, 30 days, or all time. Private workspace usage stays off the leaderboard.</p></div></article>
+          </div>
+        </section>
+        <section className={stories.costGuide} aria-labelledby="cost-basis-title">
+          <div className={stories.sectionHeading}><h2 id="cost-basis-title">Cost has a source, too.</h2><span>Tracked cost ≠ an invoice</span></div>
+          <div className={stories.costGrid}>
+            <article><b>Reported</b><p>Spend supplied by the provider or a billing export. Retained as reported, not recalculated from a generic rate.</p></article>
+            <article><b>Estimated</b><p>A labeled API-equivalent calculation. Subscription allowances, discounts, and actual invoices can differ.</p></article>
+            <article><b>Unknown</b><p>Missing prices remain unknown and are never presented as zero-cost usage. Combined totals can contain mixed cost bases.</p></article>
+          </div>
+        </section>
+      </div>
       <section className="shell content-section final-band"><TextLink href="/leaderboard">Leaderboard</TextLink></section>
     </div>
   );

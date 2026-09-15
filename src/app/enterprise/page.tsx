@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import { EnterpriseView } from "@/components/content-pages";
 
 export const metadata: Metadata = {
-  title: "Enterprise observability",
-  description: "A shared operating picture for teams running models, tools, and autonomous systems.",
+  title: "For teams",
+  description: "Track AI usage across connected computers with private workspaces, role-based access, and scoped collector keys.",
 };
 
 export default function EnterprisePage() {
