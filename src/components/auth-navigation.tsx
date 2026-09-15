@@ -5,8 +5,8 @@ type AuthNavigationProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href">
 };
 
 /**
- * AuthKit routes redirect to WorkOS. They must use a document navigation rather
- * than Next's RSC client navigation, which would fetch the cross-origin redirect.
+ * Keep authentication entry as document navigation. Provider initiation also
+ * uses plain anchors: RSC/prefetch must never follow an OAuth redirect.
  */
 export function AuthNavigation({ href, ...props }: AuthNavigationProps) {
   return <a href={href} {...props} />;

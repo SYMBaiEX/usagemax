@@ -3,6 +3,7 @@ import { Geist_Mono, Instrument_Sans } from "next/font/google";
 
 import { Providers } from "@/components/providers";
 import { SiteFooter, SiteHeader } from "@/components/site-shell";
+import { SiteFrame } from "@/components/site-frame";
 import "./globals.css";
 import "./themes.css";
 import { themeBootstrap } from "@/lib/theme";
@@ -58,9 +59,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className="site-body">
         <Providers>
           <a className="skip-link" href="#main-content">Skip to main content</a>
-          <SiteHeader />
-          <main className="site-main" id="main-content">{children}</main>
-          <SiteFooter />
+          <SiteFrame header={<SiteHeader />} footer={<SiteFooter />}>{children}</SiteFrame>
         </Providers>
       </body>
     </html>
