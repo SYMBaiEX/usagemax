@@ -97,6 +97,10 @@ connector. UsageMax never invents usage that the source did not retain.
   `unattributed` rather than silently discarded.
 - The collector key is written with user-only permissions where the operating
   system supports them.
+- The package contains no shared service credential or private deployment URL.
+  It talks to the versioned `https://usagemax.com/api` contract. The random
+  per-installation write token is the only local secret; the service stores only
+  its hash and applies device binding, replay checks, payload caps, and quotas.
 - A private random installation ID survives collector rotation, relinking, and
   display-name changes. It is not a hardware fingerprint; the server stores only
   its SHA-256 hash. Concurrent and repeated syncs are idempotent.

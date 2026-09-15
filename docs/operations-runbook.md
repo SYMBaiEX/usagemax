@@ -3,8 +3,8 @@
 ## Service boundaries
 
 - WorkOS owns user authentication, session rotation, OAuth, SSO, and organization identity.
-- Convex owns authorization, collector credentials, authoritative usage snapshots, recent telemetry, projections, and realtime subscriptions.
-- Vercel serves the Next.js product and read-only public API facade.
+- Convex owns authorization, hashed collector credentials, authoritative usage snapshots, recent telemetry, projections, and realtime subscriptions.
+- Vercel serves the Next.js product and the stable `usagemax.com/api` facade. Public clients never depend on a deployment-provider hostname.
 - The npm collector is one-shot. It is not a resident daemon and does not send a network request when its source fingerprint is unchanged.
 
 ## Release gates
@@ -22,6 +22,11 @@ Alert on sustained HTTP 5xx, authentication failure spikes, snapshot conflicts,
 projection underflow, rate-limit saturation, failed snapshot runs, and stale
 production deployments. Never include collector tokens, OAuth codes, prompts,
 paths, or event payloads in alert text.
+
+Use Vercel WAF rate limits on `/api/v1/devices/link`, `/api/v1/telemetry/llm`,
+`/api/v1/traces`, and `/api/v2/usage/snapshots` for IP-level abuse control.
+Convex independently enforces transactional per-collector request and item
+budgets, so bypassing or discovering the facade does not bypass authorization.
 
 ## Ingestion incident
 

@@ -17,7 +17,8 @@ import { CCUSAGE_VERSION, ccusageEnvironment, ccusageHome, discoverProviderArchi
 const require = createRequire(import.meta.url);
 const executeFile = promisify(execFile);
 const VERSION = "0.3.0";
-const DEFAULT_LINK_ENDPOINT = "https://terrific-bobcat-522.convex.site/v1/devices/link";
+const PUBLIC_API_ORIGIN = "https://usagemax.com/api";
+const DEFAULT_LINK_ENDPOINT = `${PUBLIC_API_ORIGIN}/v1/devices/link`;
 const CONFIG_FILE = "config.json";
 const MAX_REPORT_BYTES = 100 * 1024 * 1024;
 const FULL_RECONCILE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -32,6 +33,18 @@ function configPath() {
   return join(configDirectory(), CONFIG_FILE);
 }
 
+function isLegacyDirectApi(config) {
+  try {
+    const ingest = new URL(config.ingestUrl);
+    const profile = new URL(config.profileUrl || "https://usagemax.com");
+    return profile.hostname === "usagemax.com"
+      && ingest.hostname.endsWith(".convex.site")
+      && ingest.pathname === "/v1/telemetry/llm";
+  } catch {
+    return false;
+  }
+}
+
 async function readConfig() {
   try {
     const parsed = JSON.parse(await readFile(configPath(), "utf8"));
@@ -39,6 +52,12 @@ async function readConfig() {
     if (!validHttpsUrl(parsed.ingestUrl, { allowLocalhost: true })) return null;
     if (typeof parsed.deviceId !== "string" || !parsed.deviceId) return null;
     parsed.snapshots = parsed.snapshots && typeof parsed.snapshots === "object" ? parsed.snapshots : {};
+    if (isLegacyDirectApi(parsed)) {
+      parsed.ingestUrl = `${PUBLIC_API_ORIGIN}/v1/telemetry/llm`;
+      parsed.snapshotUrl = `${PUBLIC_API_ORIGIN}/v2/usage/snapshots`;
+      parsed.revokeUrl = `${PUBLIC_API_ORIGIN}/v1/devices/revoke`;
+      await writeConfig(parsed);
+    }
     parsed.snapshotUrl = validHttpsUrl(parsed.snapshotUrl, { allowLocalhost: true })
       || parsed.ingestUrl.replace(/\/v1\/telemetry\/llm$/, "/v2/usage/snapshots");
     parsed.revokeUrl = validHttpsUrl(parsed.revokeUrl, { allowLocalhost: true })

@@ -10,9 +10,9 @@ Neither path accepts prompts, completions, files, or tool payloads.
 
 ## Authoritative snapshot endpoint
 
-`POST /v2/usage/snapshots` on the linked Convex deployment accepts a small
-operation envelope. The link response supplies the exact `snapshotUrl`; clients
-must not derive it.
+`POST https://usagemax.com/api/v2/usage/snapshots` accepts a small operation
+envelope. The link response supplies the exact `snapshotUrl`; clients must not
+derive it or depend on an infrastructure-provider hostname.
 
 A run follows this sequence:
 
@@ -78,9 +78,10 @@ Useful optional fields:
 - `state`, `task`, `traceId`, `spanId`
 - `completeness`: `reported`, `estimated`, or `unknown`
 
-One request accepts 1–100 events and at most 1 MB of JSON. Collector limits are
-120 requests and 5,000 events per minute. Timestamps before 2024 or more than five
-minutes in the future are rejected.
+One request accepts 1–100 events and at most 1 MB of JSON. Across event and
+snapshot APIs, each collector is limited to 180 operations and 20,000 accepted
+items per minute, with bounded burst capacity. Timestamps before 2024 or more
+than five minutes in the future are rejected.
 
 For event schema v2, token categories follow the current OpenTelemetry GenAI convention:
 
@@ -123,6 +124,11 @@ The allowlist intentionally excludes prompts, completions, source code, file
 paths, tool arguments, tool output, environment variables, and free-form OTLP
 attributes. API keys are SHA-256 hashed before storage. Public profiles are
 separate from workspace telemetry and are designed to be opt-in.
+The public API location and client source are not secrets. Each installation
+receives a random 256-bit, write-only collector credential that is shown once,
+stored only in that installation's user-private config, bound to its stable
+installation identity, rate-limited, and independently revocable. UsageMax does
+not place shared backend credentials in the CLI or browser bundle.
 Imported device names are salted and hashed before persistence. Public grouped
 data uses stable labels such as `Device 1`; hostnames never enter the public
 projection.

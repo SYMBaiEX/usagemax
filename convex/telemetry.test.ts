@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, test } from "vitest";
+import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { convexTest } from "convex-test";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
@@ -92,6 +93,7 @@ describe("telemetry ingestion", () => {
 
   beforeEach(async () => {
     t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
     await seedCollector(t, Date.now());
   });
 

@@ -4,6 +4,7 @@ import type { Doc } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { internalMutation } from "./_generated/server";
 import { DAY_MS, dayFromTimestamp } from "./lib";
+import { enforceCollectorRateLimit } from "./rateLimits";
 
 const costBasisValidator = v.union(
   v.literal("reported"),
@@ -232,6 +233,7 @@ export const beginRun = internalMutation({
       .withIndex("by_collectorId_and_runId", (q) => q.eq("collectorId", collector._id).eq("runId", args.runId))
       .unique();
     if (prior) return { replay: true, status: prior.status, acceptedPartitions: prior.acceptedPartitions };
+    await enforceCollectorRateLimit(ctx, String(collector._id));
     await ctx.db.insert("snapshotRuns", {
       workspaceId: collector.workspaceId,
       profileId: collector.profileId,
@@ -271,6 +273,7 @@ export const commitSessions = internalMutation({
   },
   handler: async (ctx, args) => {
     const collector = await collectorForKey(ctx, args.keyHash, args.installationIdHash);
+    await enforceCollectorRateLimit(ctx, String(collector._id), args.sessions.length);
     const run = await ctx.db.query("snapshotRuns").withIndex("by_collectorId_and_runId", (q) =>
       q.eq("collectorId", collector._id).eq("runId", args.runId),
     ).unique();
@@ -335,6 +338,7 @@ export const commitPartition = internalMutation({
       if (receipt.payloadHash !== args.payloadHash) throw new ConvexError("IDEMPOTENCY_CONFLICT");
       return { replay: true, changedRows: receipt.changedRows, correctionRows: receipt.correctionRows };
     }
+    await enforceCollectorRateLimit(ctx, String(collector._id), args.rows.length);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(args.day) || args.rows.length > 100) throw new ConvexError("INVALID_SNAPSHOT_PARTITION");
     const uniqueRows = new Map<string, (typeof args.rows)[number]>();
     for (const row of args.rows) {
@@ -624,6 +628,7 @@ export const completeRun = internalMutation({
     ).unique();
     if (!run) throw new ConvexError("SNAPSHOT_RUN_NOT_FOUND");
     if (run.status === "complete") return { replay: true, changedRows: run.changedRows, correctionRows: run.correctionRows };
+    await enforceCollectorRateLimit(ctx, String(collector._id));
     if (run.acceptedPartitions !== run.partitionCount) throw new ConvexError("SNAPSHOT_RUN_INCOMPLETE");
     const stats = await ctx.db.query("profileStats").withIndex("by_profileId", (q) => q.eq("profileId", collector.profileId)).unique();
     const profile = await ctx.db.get(collector.profileId);
@@ -719,6 +724,7 @@ export const failRun = internalMutation({
   args: { keyHash: v.string(), runId: v.string(), failureCode: v.string(), now: v.number() },
   handler: async (ctx, args) => {
     const collector = await collectorForKey(ctx, args.keyHash);
+    await enforceCollectorRateLimit(ctx, String(collector._id));
     const run = await ctx.db.query("snapshotRuns").withIndex("by_collectorId_and_runId", (q) =>
       q.eq("collectorId", collector._id).eq("runId", args.runId),
     ).unique();
@@ -737,6 +743,7 @@ export const revokeSelf = internalMutation({
   args: { keyHash: v.string(), installationIdHash: v.optional(v.string()), now: v.number() },
   handler: async (ctx, args) => {
     const collector = await collectorForKey(ctx, args.keyHash, args.installationIdHash);
+    await enforceCollectorRateLimit(ctx, String(collector._id));
     await ctx.db.patch(collector._id, {
       revokedAt: args.now,
       lastSeenAt: args.now,

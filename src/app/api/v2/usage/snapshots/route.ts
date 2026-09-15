@@ -4,8 +4,8 @@ export const dynamic = "force-dynamic";
 
 export function POST(request: Request) {
   return forwardCollectorRequest(request, {
-    path: "/v1/traces",
-    maxBytes: 1_000_000,
+    path: "/v2/usage/snapshots",
+    maxBytes: 2_000_000,
     auth: "required",
     device: "required",
     requireJson: true,

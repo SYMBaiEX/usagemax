@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
 import { DAY_MS, dayFromTimestamp } from "./lib";
+import { enforceCollectorRateLimit } from "./rateLimits";
 
 export const telemetryEventValidator = v.object({
   eventKey: v.string(),
@@ -161,16 +162,7 @@ export const commitBatch = internalMutation({
       return { accepted: priorReceipt.accepted, duplicates: priorReceipt.duplicates, conflicts: 0, replay: true };
     }
 
-    const bucketStart = Math.floor(args.receivedAt / 60_000) * 60_000;
-    const rateBucket = await ctx.db
-      .query("ingestRateBuckets")
-      .withIndex("by_collectorId_and_bucketStart", (q) => q.eq("collectorId", collector._id).eq("bucketStart", bucketStart))
-      .unique();
-    const nextRequests = (rateBucket?.requests ?? 0) + 1;
-    const nextEvents = (rateBucket?.events ?? 0) + args.events.length;
-    if (nextRequests > 120 || nextEvents > 5_000) throw new ConvexError("RATE_LIMITED");
-    if (rateBucket) await ctx.db.patch(rateBucket._id, { requests: nextRequests, events: nextEvents });
-    else await ctx.db.insert("ingestRateBuckets", { collectorId: collector._id, bucketStart, requests: 1, events: args.events.length });
+    await enforceCollectorRateLimit(ctx, String(collector._id), args.events.length);
 
     const acceptedEvents: Event[] = [];
     let duplicates = 0;

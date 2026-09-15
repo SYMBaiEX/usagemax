@@ -42,6 +42,7 @@ Native normalized events:
 ```bash
 curl https://usagemax.com/api/v1/telemetry/llm \
   -H "Authorization: Bearer $USAGEMAX_COLLECTOR_TOKEN" \
+  -H "X-UsageMax-Device-ID: $USAGEMAX_INSTALLATION_ID" \
   -H "Idempotency-Key: example-batch-1" \
   -H "Content-Type: application/json" \
   --data '{"schemaVersion":1,"events":[{"eventKey":"request-1","eventType":"model_request","provider":"openai","model":"gpt-5.6-sol","inputTokens":1200,"outputTokens":240,"totalTokens":1440,"costMicros":8200,"costBasis":"reported","status":"ok","occurredAt":"2026-09-13T12:00:00Z"}]}'
@@ -57,6 +58,12 @@ Create dedicated collector keys from `/account`. Plaintext keys are returned
 once; Convex stores only their SHA-256 hashes. Keys can be rotated or revoked
 without changing a profile. Public daily data supports `groupBy=model`,
 `groupBy=source`, and privacy-safe `groupBy=device`.
+
+The open-source client uses only the stable `https://usagemax.com/api` contract;
+it contains no deployment credential or private infrastructure address. The
+per-installation collector token is a user credential, not an application
+secret: it is device-bound, write-only, rate-limited, locally protected, and
+never persisted server-side in plaintext.
 
 See [the research and roadmap](docs/research-and-roadmap.md),
 [the collector coverage audit](docs/collector-coverage-audit.md), and

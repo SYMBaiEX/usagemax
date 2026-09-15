@@ -353,13 +353,15 @@ const linkDevice = httpAction(async (ctx, request) => {
   if (!/^UMX-[A-HJ-NP-Z2-9]{4}(?:-[A-HJ-NP-Z2-9]{4}){3}$/.test(code)) {
     return jsonResponse({ error: "invalid_or_expired_link_code" }, 400);
   }
-  const token = newCollectorToken();
   try {
+    const codeHash = await sha256(code);
+    await ctx.runMutation(internal.rateLimits.consumeDeviceLinkAttempt, { codeHash });
+    const token = newCollectorToken();
     const id = deviceId(body?.deviceId);
     const priorAuthorization = request.headers.get("authorization") ?? "";
     const priorToken = priorAuthorization.startsWith("Bearer ") ? priorAuthorization.slice(7).trim() : "";
     const result = await ctx.runMutation(internal.account.redeemDeviceLink, {
-      codeHash: await sha256(code),
+      codeHash,
       keyHash: await sha256(token),
       keyPrefix: token.slice(0, 12),
       name: cleanText(body?.name, "My computer", 80),
@@ -381,6 +383,7 @@ const linkDevice = httpAction(async (ctx, request) => {
     });
   } catch (error) {
     const message = String(error);
+    if (message.includes("RATE_LIMITED")) return jsonResponse({ error: "rate_limited" }, 429, { "retry-after": "60" });
     if (message.includes("COLLECTOR_LIMIT_REACHED")) return jsonResponse({ error: "collector_limit_reached" }, 409);
     if (message.includes("INVALID_LINK_CODE")) return jsonResponse({ error: "invalid_or_expired_link_code" }, 400);
     if (message.includes("INVALID_DEVICE_ID")) return jsonResponse({ error: "invalid_device_id" }, 400);
@@ -517,6 +520,7 @@ const snapshots = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "unknown_operation" }, 400);
   } catch (error) {
     const message = String(error);
+    if (message.includes("RATE_LIMITED")) return jsonResponse({ error: "rate_limited" }, 429, { "retry-after": "60" });
     if (message.includes("INVALID_COLLECTOR")) return jsonResponse({ error: "unauthorized" }, 401);
     if (message.includes("DEVICE_ID_MISMATCH")) return jsonResponse({ error: "device_identity_mismatch" }, 409);
     if (message.includes("IDEMPOTENCY_CONFLICT") || message.includes("STALE_SNAPSHOT_REVISION")) return jsonResponse({ error: "snapshot_conflict" }, 409);
@@ -533,19 +537,28 @@ const revokeDevice = httpAction(async (ctx, request) => {
     const result = await ctx.runMutation(internal.snapshots.revokeSelf, { ...auth, now: Date.now() });
     return jsonResponse({ ok: true, ...result });
   } catch (error) {
-    return jsonResponse({ error: String(error).includes("INVALID_COLLECTOR") || String(error).includes("UNAUTHORIZED") ? "unauthorized" : "revoke_failed" }, String(error).includes("INVALID_COLLECTOR") || String(error).includes("UNAUTHORIZED") ? 401 : 500);
+    const message = String(error);
+    if (message.includes("RATE_LIMITED")) return jsonResponse({ error: "rate_limited" }, 429, { "retry-after": "60" });
+    return jsonResponse({ error: message.includes("INVALID_COLLECTOR") || message.includes("UNAUTHORIZED") ? "unauthorized" : "revoke_failed" }, message.includes("INVALID_COLLECTOR") || message.includes("UNAUTHORIZED") ? 401 : 500);
   }
 });
 
 const http = httpRouter();
-const cors = httpAction(async () => new Response(null, {
-  status: 204,
-  headers: {
-    "access-control-allow-origin": "*",
-    "access-control-allow-headers": "authorization, content-type, idempotency-key, x-usagemax-device-id",
-    "access-control-allow-methods": "POST, OPTIONS",
-  },
-}));
+const cors = httpAction(async (_ctx, request) => {
+  const origin = request.headers.get("origin");
+  const allowed = origin === "https://usagemax.com"
+    || /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/.test(origin ?? "");
+  return new Response(null, {
+    status: 204,
+    headers: allowed ? {
+      "access-control-allow-origin": origin!,
+      "access-control-allow-headers": "authorization, content-type, idempotency-key, x-usagemax-device-id",
+      "access-control-allow-methods": "POST, OPTIONS",
+      "access-control-max-age": "86400",
+      vary: "Origin",
+    } : {},
+  });
+});
 
 http.route({ path: "/health", method: "GET", handler: httpAction(async () => jsonResponse({ ok: true, service: "usagemax-ingest", storage: "convex", protocol: 2, recommendedCliVersion: RECOMMENDED_CLI_VERSION })) });
 http.route({ path: "/v1/devices/link", method: "POST", handler: linkDevice });
