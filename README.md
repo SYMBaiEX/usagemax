@@ -137,8 +137,8 @@ JSON
 ```
 
 The expected success response is HTTP 202 with `accepted: 1` and zero
-accounting contribution. A 401 means the server could not recognize the key;
-run the read-only diagnostic above before creating another credential.
+accounting contribution. A 401 means the write path could not authorize the
+credential; run the read-only diagnostic above before creating another key.
 
 ## Data and privacy
 
