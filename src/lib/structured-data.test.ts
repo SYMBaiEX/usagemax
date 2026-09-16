@@ -32,13 +32,14 @@ describe("UsageMax structured data", () => {
       codeRepository: "https://github.com/SYMBaiEX/usagemax",
       downloadUrl: "https://www.npmjs.com/package/usagemax",
       softwareHelp: { "@id": "https://usagemax.com/docs" },
+      featureList: expect.arrayContaining(["Read-only MCP", "A2A agent", "Agent Skills"]),
     });
     expect(service).toMatchObject({ hasOfferCatalog: { url: "https://usagemax.com/pricing" } });
     expect(usageMaxStructuredData["@graph"]).toContainEqual(expect.objectContaining({
       "@type": "WebAPI",
       "@id": "https://usagemax.com/#api",
       url: "https://usagemax.com/openapi.json",
-      sameAs: expect.arrayContaining(["https://usagemax.com/.well-known/api-catalog"]),
+      sameAs: expect.arrayContaining(["https://usagemax.com/.well-known/api-catalog", "https://usagemax.com/.well-known/ai-catalog.json", "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest"]),
     }));
   });
 });

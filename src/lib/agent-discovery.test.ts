@@ -34,7 +34,13 @@ describe("agent resource links", () => {
       { name: "agentSkills", url: "https://usagemax.com/.well-known/agent-skills/index.json", mediaType: "application/json" },
       { name: "agentPlugin", url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/plugin.json", mediaType: "application/json" },
       { name: "cliGuide", url: "https://usagemax.com/cli.md", mediaType: "text/markdown" },
+      { name: "aiCatalog", url: "https://usagemax.com/.well-known/ai-catalog.json", mediaType: "application/json" },
+      { name: "apiCatalog", url: "https://usagemax.com/.well-known/api-catalog", mediaType: "application/linkset+json" },
+      { name: "schemaFeed", url: "https://usagemax.com/schema-feed.jsonl", mediaType: "application/jsonl" },
     ]));
     expect(index.discovery.plugin).toBe("https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/plugin.json");
+    expect(index.discovery.aiCatalog).toBe("https://usagemax.com/.well-known/ai-catalog.json");
+    expect(index.discovery.apiCatalog).toBe("https://usagemax.com/.well-known/api-catalog");
+    expect(index.discovery.schemaFeed).toBe("https://usagemax.com/schema-feed.jsonl");
   });
 });

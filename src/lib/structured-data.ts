@@ -17,6 +17,8 @@ export const usageMaxStructuredData = {
       codeRepository: repositoryUrl,
       downloadUrl: "https://www.npmjs.com/package/usagemax",
       softwareHelp: { "@id": "https://usagemax.com/docs" },
+      releaseNotes: "https://usagemax.com/api-versioning.md",
+      featureList: ["Public HTTP API", "Read-only MCP", "A2A agent", "WebMCP", "Agent Skills"],
       sameAs,
     },
     {
@@ -59,7 +61,7 @@ export const usageMaxStructuredData = {
       description: "Public read operations and content-free collector operations documented by the UsageMax OpenAPI contract.",
       documentation: "https://usagemax.com/docs",
       provider: { "@id": "https://usagemax.com/#organization" },
-      sameAs: ["https://usagemax.com/openapi.json", "https://usagemax.com/.well-known/api-catalog"],
+      sameAs: ["https://usagemax.com/openapi.json", "https://usagemax.com/.well-known/api-catalog", "https://usagemax.com/.well-known/ai-catalog.json", registryUrl],
     },
     {
       "@type": "WebSite",
