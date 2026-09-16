@@ -1,13 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { DOCS, DOC_TOOL_DEFINITIONS, handleMcp, MCP_APP_RESOURCE_URI, USAGEMAX_TOOLS } from "./server";
+import { DOCS, DOC_TOOL_DEFINITIONS, handleMcp, MCP_APP_RESOURCE_URI, MCP_SERVER_NAMES, MCP_SERVER_VERSION, USAGEMAX_TOOLS } from "./server";
 
 describe("UsageMax MCP", () => {
   it("supports initialize and lists only read tools", async () => {
     const init = await handleMcp({ jsonrpc: "2.0", id: 1, method: "initialize" });
-    expect("result" in init ? init.result : null).toMatchObject({ protocolVersion: "2025-06-18", capabilities: { tools: {} } });
+    expect("result" in init ? init.result : null).toMatchObject({ protocolVersion: "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: MCP_SERVER_NAMES.public, version: MCP_SERVER_VERSION } });
     expect("result" in init ? init.result : null).toMatchObject({ instructions: expect.stringContaining("read-only") });
     const list = await handleMcp({ jsonrpc: "2.0", id: 2, method: "tools/list" });
     expect(("result" in list ? list.result as { tools: { name: string }[] } : { tools: [] }).tools.map((tool) => tool.name)).toEqual(["public_profile", "leaderboard", "network_stats", "ask_site", "docs_search", "docs_get"]);
+  });
+  it("describes the docs surface without claiming product resources", async () => {
+    const init = await handleMcp({ jsonrpc: "2.0", id: 1, method: "initialize" }, undefined, "docs");
+    expect("result" in init ? init.result : null).toMatchObject({ serverInfo: { name: MCP_SERVER_NAMES.docs, version: MCP_SERVER_VERSION }, instructions: expect.stringContaining("documentation tools") });
+    expect("result" in init ? init.result : null).not.toMatchObject({ instructions: expect.stringContaining("MCP App resource") });
+    expect("result" in init ? init.result : null).toMatchObject({ capabilities: { tools: {} } });
   });
   it("annotates every live tool as bounded read-only", () => {
     for (const tool of [...USAGEMAX_TOOLS, ...DOC_TOOL_DEFINITIONS]) {
@@ -27,7 +33,7 @@ describe("UsageMax MCP", () => {
     const resources = await handleMcp({ jsonrpc: "2.0", id: 1, method: "resources/list" }, undefined, "public");
     expect("result" in resources ? resources.result : null).toMatchObject({ resources: [{ uri: MCP_APP_RESOURCE_URI, mimeType: "text/html;profile=mcp-app" }] });
     const view = await handleMcp({ jsonrpc: "2.0", id: 2, method: "resources/read", params: { uri: MCP_APP_RESOURCE_URI } }, undefined, "public");
-    expect("result" in view ? view.result : null).toMatchObject({ contents: [{ uri: MCP_APP_RESOURCE_URI, mimeType: "text/html;profile=mcp-app", text: expect.stringContaining("Content-Security-Policy") }] });
+    expect("result" in view ? view.result : null).toMatchObject({ contents: [{ uri: MCP_APP_RESOURCE_URI, mimeType: "text/html;profile=mcp-app", text: expect.stringContaining("connect-src https://usagemax.com") }] });
     const docs = await handleMcp({ jsonrpc: "2.0", id: 3, method: "resources/list" }, undefined, "docs");
     expect("result" in docs ? docs.result : null).toEqual({ resources: [] });
   });

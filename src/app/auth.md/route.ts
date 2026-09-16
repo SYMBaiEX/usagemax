@@ -1,4 +1,11 @@
-const markdown = `# UsageMax authentication
+const markdown = `---
+title: UsageMax authentication
+description: The credentials and supported authentication boundaries for UsageMax.
+canonical: https://usagemax.com/auth.md
+last-updated: 2026-09-16
+---
+
+# UsageMax authentication
 
 UsageMax separates public read access, website sign-in, and local collector uploads. This document describes the credentials that actually exist today; UsageMax does not expose a general OAuth token exchange for API delegation.
 
@@ -24,7 +31,7 @@ New collector keys are active as soon as the authenticated account action create
 
     printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" | bunx usagemax@latest token status --device-id "$USAGEMAX_INSTALLATION_ID"
 
-The diagnostic endpoint is read-only. It reports \`active\`, \`revoked\`, \`workspace_disabled\`, \`membership_inactive\`, or \`device_mismatch\` when the bearer token is recognized. An unrecognized token returns a generic 401 and never reveals whether another key exists. A collector created by the advanced flow starts unbound and adopts the first valid installation UUID on its first write; a linked CLI key is already bound.
+The diagnostic endpoint is read-only. It reports \`active\`, \`revoked\`, \`workspace_disabled\`, \`membership_inactive\`, \`device_mismatch\`, or \`scope_missing\` when the bearer token is recognized, and explicitly reports whether \`telemetry:write\` is authorized. An unrecognized token returns a generic 401 and never reveals whether another key exists. A collector created by the advanced flow starts unbound and adopts the first valid installation UUID on its first write; a linked CLI key is already bound.
 
 ## Exchange
 

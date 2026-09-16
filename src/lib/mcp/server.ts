@@ -5,6 +5,10 @@ import { answerForQuery } from "@/lib/nlweb";
 export const MCP_MAX_BODY_BYTES = 64 * 1024;
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 export const MCP_SERVER_VERSION = "1.0.0";
+export const MCP_SERVER_NAMES = {
+  public: "UsageMax public product MCP",
+  docs: "UsageMax documentation MCP",
+} as const;
 export const MCP_APP_RESOURCE_URI = "ui://usagemax/public-observability.html";
 export const MCP_APP_RESOURCE_MIME = "text/html;profile=mcp-app";
 const MCP_APP_UI_META = {
@@ -43,7 +47,7 @@ const MCP_APP_HTML = `<!doctype html>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src https://usagemax.com;">
     <title>UsageMax public observability</title>
     <style>
       :root { color-scheme: light dark; font: 14px/1.4 ui-sans-serif, system-ui, sans-serif; }
@@ -102,13 +106,19 @@ export const DOC_TOOL_DEFINITIONS = [
   { name: "docs_get", title: "Read UsageMax documentation", description: "Retrieve one bounded public UsageMax documentation resource.", inputSchema: { type: "object", properties: { id: { type: "string", enum: Object.keys(DOCS) } }, required: ["id"], additionalProperties: false }, annotations: readOnlyAnnotations },
 ];
 
+const instructionsFor = (surface: "all" | "public" | "docs") => surface === "docs"
+  ? "Use tools/list to discover bounded read-only documentation tools. This stateless server accepts JSON-RPC over POST only; it has no product actions, mutations, credentials, resources, or SSE stream."
+  : surface === "public"
+    ? "Use tools/list to discover bounded read-only public product tools. This stateless server accepts JSON-RPC over POST only; it has no mutations, credentials, prompts, or SSE stream. The network statistics tool offers one optional read-only MCP App resource."
+    : "Use tools/list to discover bounded read-only public product and documentation tools. This stateless server accepts JSON-RPC over POST only; it has no mutations, credentials, prompts, or SSE stream. The product surface offers one optional read-only MCP App resource.";
+
 const error = (id: RpcRequest["id"], code: number, message: string) => ({ jsonrpc: "2.0", id: id ?? null, error: { code, message } });
 const result = (id: RpcRequest["id"], value: unknown) => ({ jsonrpc: "2.0", id: id ?? null, result: value });
 const textResult = (id: RpcRequest["id"], value: unknown) => result(id, { content: [{ type: "text", text: JSON.stringify(value) }], structuredContent: value });
 
 export async function handleMcp(request: RpcRequest, query: QueryFn = (q, args) => fetchQuery(q as never, args as never), surface: "all" | "public" | "docs" = "all") {
   if (request.jsonrpc !== "2.0" || typeof request.method !== "string") return error(request.id, -32600, "invalid_request");
-  if (request.method === "initialize") return result(request.id, { protocolVersion: MCP_PROTOCOL_VERSION, capabilities: { tools: {}, ...(surface === "docs" ? {} : { resources: { listChanged: false, subscribe: false } }) }, serverInfo: { name: surface === "docs" ? "UsageMax documentation MCP" : "UsageMax public product MCP", version: MCP_SERVER_VERSION }, instructions: "Use tools/list to discover bounded read-only tools. This stateless server accepts JSON-RPC over POST only; it has no prompts, actions, mutations, credentials, or SSE stream. The product surface also exposes one optional read-only MCP App resource." });
+  if (request.method === "initialize") return result(request.id, { protocolVersion: MCP_PROTOCOL_VERSION, capabilities: { tools: {}, ...(surface === "docs" ? {} : { resources: { listChanged: false, subscribe: false } }) }, serverInfo: { name: surface === "docs" ? MCP_SERVER_NAMES.docs : MCP_SERVER_NAMES.public, version: MCP_SERVER_VERSION }, instructions: instructionsFor(surface) });
   if (request.method === "tools/list") return result(request.id, { tools: surface === "docs" ? DOC_TOOL_DEFINITIONS : surface === "public" ? USAGEMAX_TOOLS : [...USAGEMAX_TOOLS, ...DOC_TOOL_DEFINITIONS] });
   if (request.method === "resources/list") return result(request.id, { resources: surface === "docs" ? [] : MCP_APP_RESOURCES });
   if (request.method === "resources/read") {

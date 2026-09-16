@@ -40,5 +40,7 @@ describe("UsageMax OpenAPI contract", () => {
     expect(document.paths["/api/v1/sandbox"].get.responses["200"]).toBeDefined();
     expect(document.components.schemas.SandboxDescriptor.properties.writes).toEqual({ const: false });
     expect(document.components.schemas.NativeTelemetryBatch.additionalProperties).toBe(false);
+    expect(document.components.schemas.Error.required).toEqual(expect.arrayContaining(["documentation"]));
+    expect(document.components.schemas.Error.properties.documentation).toMatchObject({ type: "string", format: "uri" });
   });
 });

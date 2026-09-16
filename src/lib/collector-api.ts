@@ -1,6 +1,7 @@
 const convexSiteUrl = process.env.NEXT_PUBLIC_CONVEX_SITE_URL;
 const TOKEN_PATTERN = /^Bearer umx_[a-f0-9]{64}$/;
 const DEVICE_PATTERN = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
+const API_DOCUMENTATION = "https://usagemax.com/docs";
 
 type ForwardOptions = {
   path: string;
@@ -21,7 +22,7 @@ const errorGuidance: Record<string, { message: string; hint: string }> = {
 
 function error(message: string, status: number, headers?: HeadersInit, rateLimitPolicy = "180;w=60") {
   const guidance = errorGuidance[message] ?? { message: "The collector request was rejected.", hint: "Check the response error code and the API documentation." };
-  return Response.json({ error: message, message: guidance.message, hint: guidance.hint }, {
+  return Response.json({ error: message, message: guidance.message, hint: guidance.hint, documentation: API_DOCUMENTATION }, {
     status,
     headers: { "cache-control": "no-store", "x-request-id": crypto.randomUUID(), "x-api-version": "1", ...rateLimitHeaders(rateLimitPolicy), ...headers },
   });

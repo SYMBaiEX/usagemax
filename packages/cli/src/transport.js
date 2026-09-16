@@ -11,7 +11,7 @@ function record(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
 }
 
-const collectorStates = new Set(["active", "revoked", "workspace_disabled", "membership_inactive", "device_mismatch"]);
+const collectorStates = new Set(["active", "revoked", "workspace_disabled", "membership_inactive", "device_mismatch", "scope_missing"]);
 const deviceBindings = new Set(["unbound", "bound", "matched", "mismatch"]);
 const collectorTokenPattern = /umx_[a-f0-9]{64}/gi;
 
@@ -42,6 +42,8 @@ export function collectorStatusView(httpStatus, value, secret) {
   if (body.activation === "not_required") view.activation = body.activation;
   if (body.expiresAt === null) view.expiresAt = null;
   if (Array.isArray(body.scopes)) view.scopes = body.scopes.filter((scope) => typeof scope === "string").slice(0, 16);
+  if (body.scopeStatus === "valid" || body.scopeStatus === "missing_telemetry_write") view.scopeStatus = body.scopeStatus;
+  if (typeof body.ingestAuthorized === "boolean") view.ingestAuthorized = body.ingestAuthorized;
   if (typeof body.deviceBinding === "string" && deviceBindings.has(body.deviceBinding)) view.deviceBinding = body.deviceBinding;
   for (const key of ["profileHandle", "deviceName", "platform", "cliVersion", "lastFailureCode"]) {
     if (typeof body[key] === "string") view[key] = safeText(body[key], secret);

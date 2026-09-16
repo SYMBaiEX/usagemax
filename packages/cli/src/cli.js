@@ -380,6 +380,7 @@ function printRemoteStatus(view) {
   if (view.reason) process.stdout.write(`${view.reason}\n`);
   if (view.credentialType) process.stdout.write(`Type: ${view.credentialType}${view.writeOnly ? "; write-only" : ""}\n`);
   if (view.scopes?.length) process.stdout.write(`Scopes: ${view.scopes.join(", ")}\n`);
+  if (view.scopeStatus) process.stdout.write(`Ingest scope: ${view.scopeStatus === "valid" ? "authorized" : "missing telemetry:write"}\n`);
   if (view.deviceBinding) process.stdout.write(`Device binding: ${view.deviceBinding}\n`);
   if (view.profileHandle) process.stdout.write(`Profile: @${view.profileHandle}\n`);
   if (view.deviceName) process.stdout.write(`Computer: ${view.deviceName}\n`);

@@ -441,11 +441,12 @@ export const inspectCollector = internalQuery({
       membershipActive = member?.status === "active";
     }
 
-    let status: "active" | "revoked" | "workspace_disabled" | "membership_inactive" | "device_mismatch" = "active";
+    let status: "active" | "revoked" | "workspace_disabled" | "membership_inactive" | "device_mismatch" | "scope_missing" = "active";
     if (collector.revokedAt) status = "revoked";
     else if (!workspace || workspace.accessDisabledAt) status = "workspace_disabled";
     else if (!membershipActive) status = "membership_inactive";
     else if (collector.installationIdHash && args.installationIdHash && collector.installationIdHash !== args.installationIdHash) status = "device_mismatch";
+    else if (!collector.scopes.includes("telemetry:write")) status = "scope_missing";
 
     const deviceBinding = !collector.installationIdHash
       ? "unbound" as const
@@ -460,6 +461,8 @@ export const inspectCollector = internalQuery({
       activation: "not_required" as const,
       expiresAt: null,
       scopes: collector.scopes,
+      scopeStatus: collector.scopes.includes("telemetry:write") ? "valid" as const : "missing_telemetry_write" as const,
+      ingestAuthorized: status === "active",
       deviceBinding,
       profileHandle: profile?.handle ?? null,
       deviceName: collector.name,

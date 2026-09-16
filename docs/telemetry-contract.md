@@ -5,7 +5,7 @@ UsageMax has two deliberately separate ingestion paths:
 ## HTTP API policy
 
 The public `/api` namespace currently serves API version 1 and identifies it
-with `X-API-Version: 1`. Errors use `{ error, message, hint }`. Rate-limit
+with `X-API-Version: 1`. Errors use `{ error, message, hint, documentation }`. Rate-limit
 responses include `Retry-After` only when the server has a bounded retry value;
 there are no fabricated remaining-quota headers. The retired screen route
 returns `Deprecation: true` and a `Sunset` date. `POST /api/v1/sandbox/validate`
@@ -19,8 +19,10 @@ key in `Authorization: Bearer …` and, when checking a particular installation,
 send `x-usagemax-device-id`. The response never includes the token, its hash, or
 the raw authorized UUID. A recognized key reports its collector type, write
 scopes, profile/name, activation state, and one of `active`, `revoked`,
-`workspace_disabled`, `membership_inactive`, or `device_mismatch`. A key created
-through the advanced account flow is active immediately and remains unbound
+`workspace_disabled`, `membership_inactive`, `device_mismatch`, or `scope_missing`.
+The response also reports whether the `telemetry:write` scope is present through
+`scopeStatus` and `ingestAuthorized`. A key created through the advanced account
+flow is active immediately and remains unbound
 until its first valid write; linked CLI keys are bound during link exchange.
 
 - **Snapshot v2** is the recommended path for local coding-agent history. It is

@@ -56,6 +56,8 @@ test("collector status sends the credential only as a bearer header", async () =
         activation: "not_required",
         expiresAt: null,
         scopes: ["telemetry:write"],
+        scopeStatus: "valid",
+        ingestAuthorized: true,
         deviceBinding: "matched",
         profileHandle: `relay-${token}`,
       }), { status: 200, headers: { "content-type": "application/json" } });
@@ -70,6 +72,8 @@ test("collector status sends the credential only as a bearer header", async () =
   assert.equal(result.httpStatus, 200);
   const view = collectorStatusView(result.httpStatus, result.body, token);
   assert.equal(view.status, "active");
+  assert.equal(view.scopeStatus, "valid");
+  assert.equal(view.ingestAuthorized, true);
   assert.equal(JSON.stringify(view).includes(token), false);
   assert.equal(view.profileHandle, "relay-[redacted]");
   assert.equal("keyHash" in view, false);
