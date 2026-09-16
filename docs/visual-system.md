@@ -1,6 +1,6 @@
 # UsageMax visual system
 
-Two compositions share one semantic contract: warm ivory/forest/vermilion in light mode, graphite/cyan/amber in dark mode. Depth comes from material, lighting and type hierarchy—not separator lines around every section.
+Two compositions share one semantic contract: warm ivory and vermilion in light mode, charcoal and luminous orange in dark mode. Neutral surfaces keep orange as the brand accent; green is reserved for status. Depth comes from hierarchy and restrained elevation—not separator lines or ornamental frames. Teams leads with an interactive product preview, not a decorative pedestal.
 
 ## Ownership
 
@@ -16,6 +16,6 @@ Meaningful captions have an 11px floor; labels and controls use 12px where space
 
 ## Motion and accessibility
 
-There is no global play/pause control. Decorative entrance motion settles within five seconds; interactions may animate briefly. Existing saved motion-off preferences remain honored, and OS reduced-motion overrides all animation. No new render loop, canvas, polling or dependency is needed for the material treatment.
+There is no global play/pause control. Ambient code scrolls continuously while visible; the auth ribbon floats slowly. Obsolete saved pause settings are ignored. OS reduced-motion disables these effects. MotionSurface reveals a section once on intersection and uses native scroll timelines for subtle desktop parallax where supported. Content remains visible without JavaScript. There is no animation dependency, polling, or per-frame React rendering.
 
-`src/lib/visual-contract.test.ts` checks core text/button/chart contrast pairs and finite ambient motion. Browser acceptance must still cover both themes, mobile layout, keyboard focus, real populated charts and the interactive teams/accounting previews. Static tests are not a substitute for rendered review.
+`src/lib/visual-contract.test.ts` checks core text/button/chart contrast pairs and continuous, reduced-motion-aware animation. Numeric rows use tabular figures, right-aligned dedicated columns, and inset padding. Summary type scales to its container. Browser acceptance must still cover both themes, mobile layout, keyboard focus, real populated charts and the interactive teams/accounting previews. Static tests are not a substitute for rendered review.

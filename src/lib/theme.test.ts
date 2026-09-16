@@ -15,6 +15,6 @@ describe("appearance preferences", () => {
     });
     expect(root.dataset.theme).toBe(blocked ? "dark" : "light");
     expect(root.style.colorScheme).toBe(root.dataset.theme);
-    expect(root.dataset.motion).toBe(blocked ? "on" : "off");
+    expect(root.dataset.motion).toBe("on"); // An old saved pause must not freeze ambient motion.
   });
 });

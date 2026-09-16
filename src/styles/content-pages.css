@@ -27,12 +27,12 @@
 .docs-index-label { font: var(--text-micro) var(--font-mono); color: var(--ink-faint); text-transform: uppercase; margin-bottom: 3px; }.docs-index > a { font-size: 12px; }.docs-index a:hover { color: var(--orange); }
 .docs-index-card { background: var(--surface-tint); border-radius: 16px; padding: 20px; margin-top: 24px; display: grid; gap: 8px; font-size: 11px; padding-top: 20px; }.docs-index-card > svg { color: var(--orange); }.docs-index-card a { display: flex; align-items: center; gap: 8px; color: var(--ink-soft); }
 .docs-article { min-width: 0; }.docs-section { padding-block: 26px 36px; }.docs-section h2 { margin-block: 12px 14px; font-size: 28px; line-height: 1.15; letter-spacing: -.04em; font-weight: 600; }.docs-section > p { color: var(--ink-soft); font-size: 13px; line-height: 1.8; max-width: 740px; }.docs-section > p + p { margin-top: 12px; }
-.code-block { background: linear-gradient(135deg, #223e32, #152b23); color: #f6f5f1; border-radius: var(--radius-panel); margin-block: 22px; overflow: hidden; box-shadow: var(--shadow-card), inset 0 1px 0 #ffffff25; }
-.code-block-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 18px; color: #c0c4b5; font: var(--text-micro) var(--font-mono); }
+.code-block { background: linear-gradient(135deg, #393735, #282624); color: #f6f5f1; border-radius: var(--radius-panel); margin-block: 22px; overflow: hidden; box-shadow: var(--shadow-card), inset 0 1px 0 #ffffff25; }
+.code-block-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 18px; color: #c4c2c0; font: var(--text-micro) var(--font-mono); }
 .code-block pre { margin: 0; padding: 20px; overflow-x: auto; font-size: 11px; line-height: 1.8; }
 .copy-control { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.copy-control button { border: 1px solid #69705d; background: transparent; color: inherit; border-radius: 3px; padding: 6px 9px; min-height: 32px; font: var(--text-micro) var(--font-mono); display: flex; align-items: center; gap: 6px; }
-.copy-control button:hover { background: #414738; }.copy-control [role="status"] { font-size: var(--text-micro); }
+.copy-control button { border: 1px solid #6f6d6b; background: transparent; color: inherit; border-radius: 3px; padding: 6px 9px; min-height: 32px; font: var(--text-micro) var(--font-mono); display: flex; align-items: center; gap: 6px; }
+.copy-control button:hover { background: #474543; }.copy-control [role="status"] { font-size: var(--text-micro); }
 .contract-table, .endpoint-list { margin-top: 24px; }
 .contract-table > div:nth-child(odd), .endpoint-list > div:nth-child(odd) { background: var(--surface-tint); border-radius: 8px; }
 .contract-table > div, .endpoint-list > div { padding-inline: 12px; }
@@ -57,15 +57,15 @@
 .legal-index > a { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-micro); color: var(--ink-faint); }
 
 /* Each page has its own composition, while controls and data stay consistent. */
-.enterprise-page .page-intro { width: calc(100% - 40px); max-width: 1320px; padding: 28px max(28px, calc((100vw - 1184px)/2 - 20px)); margin: 8px auto 32px; background: #283a31; border-radius: 16px; color: #f2f4e9; }
-.enterprise-page .page-intro .button-primary { background: #c3deb1; color: #1a3526; }
-.enterprise-page .page-intro .button-primary:hover { background: #daedce; }
-.enterprise-page .page-intro .button-outline { background: #ffffff09; border-color: #d1dfd345; color: inherit; box-shadow: inset 0 1px 0 #ffffff17; }
+.enterprise-page .page-intro { width: calc(100% - 40px); max-width: 1320px; padding: 28px max(28px, calc((100vw - 1184px)/2 - 20px)); margin: 8px auto 32px; background: #383634; border-radius: 16px; color: #f5f3f1; }
+.enterprise-page .page-intro .button-primary { background: #d7d5d3; color: #302e2c; }
+.enterprise-page .page-intro .button-primary:hover { background: #e9e7e5; }
+.enterprise-page .page-intro .button-outline { background: #ffffff09; border-color: #dddbd945; color: inherit; box-shadow: inset 0 1px 0 #ffffff17; }
 .enterprise-page .page-intro .button-outline:hover { background: #ffffff17; }
-.enterprise-page .page-intro .eyebrow { color: #b5c6b6; }.enterprise-page .page-intro .text-accent { color: #b6cea9; }.enterprise-page .page-intro-description p { color: #c6d2c3; }.enterprise-page .page-intro .button-acid { background: #c2d6b0; color: #22302a; border-color: transparent; }
+.enterprise-page .page-intro .eyebrow { color: #c3c1bf; }.enterprise-page .page-intro .text-accent { color: #c8c6c4; }.enterprise-page .page-intro-description p { color: #d0cecc; }.enterprise-page .page-intro .button-acid { background: #d1cfcd; color: #2f2d2b; border-color: transparent; }
 .enterprise-signal-band { border-radius: 10px; background: var(--surface-tint); }.enterprise-signal-readout strong { font-weight: 600; }
 .docs-page .page-intro { padding-block: 30px 20px; }.docs-page .page-intro-layout { grid-template-columns: 1.2fr 1fr; gap: 45px; }.docs-page .page-intro h1 { font-size: 36px; }.docs-index { padding: 18px; background: var(--surface-tint); border-radius: 9px; }.docs-index-card { background: var(--positive-soft); border-radius: 6px; padding: 14px; }.docs-index > a { min-height: 24px; }
-.security-page .page-intro { position: relative; }.security-principles { background: var(--surface-tint); padding: 24px 28px; border-radius: 10px; }.security-lock-icon { background: #d0ddcb; color: #304e3e; }
+.security-page .page-intro { position: relative; }.security-principles { background: var(--surface-tint); padding: 24px 28px; border-radius: 10px; }.security-lock-icon { background: #dbd9d7; color: #484644; }
 .methodology-quote p { font-size: 23px; line-height: 1.4; font-weight: 500; letter-spacing: -.03em; }.methodology-facts { grid-template-columns: repeat(3,minmax(0,1fr)); background: var(--surface-tint); border-radius: 10px; padding: 20px; }.methodology-facts > div { padding-bottom: 0; }.methodology-table { border-radius: 10px; }
 .legal-page .page-intro-layout h1 { font-size: 44px; }.legal-index nav a[aria-current="page"] { color: var(--orange-dark); }.legal-article { padding-top: 24px; }
 .enterprise-page .page-intro { --focus-ring: var(--focus-ring-inverse); }

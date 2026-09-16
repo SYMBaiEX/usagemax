@@ -24,7 +24,7 @@
 .mobile-nav nav { position: absolute; right: 0; top: 44px; width: 245px; padding: 8px; background: var(--paper-raised); border: 1px solid var(--line); box-shadow: var(--shadow-float); border-radius: var(--radius-control); }
 .mobile-nav nav a { display: flex; align-items: center; justify-content: space-between; padding: 12px; font-size: 12px; }
 .mobile-nav nav a:hover, .mobile-nav a[aria-current="page"] { background: var(--paper-deep); color: var(--orange-dark); }
-.site-footer { background: radial-gradient(ellipse at 0 100%, #476b452b, transparent 60%), var(--footer-bg); color: var(--footer-ink); box-shadow: inset 0 1px 0 #ffffff10; border-radius: 16px 16px 0 0; margin: 20px 20px 0; }
+.site-footer { background: radial-gradient(ellipse at 0 100%, #63615f2b, transparent 60%), var(--footer-bg); color: var(--footer-ink); box-shadow: inset 0 1px 0 #ffffff10; border-radius: 16px 16px 0 0; margin: 20px 20px 0; }
 .footer-main { display: flex; justify-content: space-between; gap: 64px; padding-block: 40px; }
 .footer-brand-block p { color: var(--footer-muted); font-size: 11px; margin-top: 12px; max-width: 300px; }
 .footer-brand-block .footer-statement { color: var(--footer-ink); font-size: 20px; line-height: 1.12; letter-spacing: -.04em; font-weight: 600; margin-top: 20px; }

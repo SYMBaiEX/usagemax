@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
-import { motionStorageKey, resolveTheme, themeStorageKey, type ThemePreference } from "@/lib/theme";
+import { resolveTheme, themeStorageKey, type ThemePreference } from "@/lib/theme";
 
 const changeEvent = "usagemax:appearance";
 function subscribe(update: () => void) {
@@ -35,7 +35,7 @@ export function ThemeControls() {
       const resolved = resolveTheme(readPreference(), media.matches);
       document.documentElement.dataset.theme = resolved;
       document.documentElement.style.colorScheme = resolved;
-      try { document.documentElement.dataset.motion = localStorage.getItem(motionStorageKey) === "off" ? "off" : "on"; } catch { /* Keep the in-memory preference. */ }
+      document.documentElement.dataset.motion = "on";
       window.dispatchEvent(new Event(changeEvent));
     };
     media.addEventListener("change", sync);
