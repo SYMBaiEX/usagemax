@@ -9,15 +9,15 @@ import { promisify } from "node:util";
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL("../packages/cli/", import.meta.url));
 const pkg = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
-const readPackResult = (stdout) => {
+const readPackResult = (stdout, packageName) => {
   const result = JSON.parse(stdout);
-  return Array.isArray(result) ? result[0] : result;
+  return Array.isArray(result) ? result[0] : result?.[packageName] ?? result;
 };
 const directory = await mkdtemp(join(tmpdir(), "usagemax-registry-check-"));
 try {
   const args = ["pack", "--ignore-scripts", "--json", "--cache", join(directory, "cache"), "--pack-destination", directory];
-  const local = readPackResult((await exec("npm", args, { cwd: root })).stdout);
-  const published = readPackResult((await exec("npm", [...args, `usagemax@${pkg.version}`], { cwd: directory })).stdout);
+  const local = readPackResult((await exec("npm", args, { cwd: root })).stdout, pkg.name);
+  const published = readPackResult((await exec("npm", [...args, `usagemax@${pkg.version}`], { cwd: directory })).stdout, pkg.name);
   assert.equal(published.shasum, local.shasum, "Registry artifact differs from tested source");
   const archive = join(directory, published.filename);
   const files = (await exec("tar", ["-tzf", archive])).stdout.trim().split("\n");
