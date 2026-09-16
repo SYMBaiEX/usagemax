@@ -157,6 +157,11 @@ printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
   | jq -r '[.httpStatus, (if .ingestAuthorized then 1 else 0 end)] | @tsv'
 ```
 
+`token status` is included in CLI `0.3.6`. Check the npm `latest` tag before
+using it in a fresh environment; if it still points to an older release, run
+the same command with `node packages/cli/src/cli.js` from this repository until
+the new package is published.
+
 The numeric projection is deliberately small:
 
 | Result | Meaning |

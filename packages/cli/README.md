@@ -98,6 +98,10 @@ printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
       --json
 ```
 
+The `token status` command is included in CLI `0.3.6`. If the npm `latest` tag
+still points to an older release, run `node packages/cli/src/cli.js token
+status` from the UsageMax repository until `0.3.6` is published.
+
 The response is read-only and contains only status, type, scopes, profile/name,
 activation state, and a binding result of `unbound`, `bound`, `matched`, or
 `mismatch`. It never returns the token, hash, or raw authorized UUID.
