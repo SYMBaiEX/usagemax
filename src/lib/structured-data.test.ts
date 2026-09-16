@@ -34,5 +34,11 @@ describe("UsageMax structured data", () => {
       softwareHelp: { "@id": "https://usagemax.com/docs" },
     });
     expect(service).toMatchObject({ hasOfferCatalog: { url: "https://usagemax.com/pricing" } });
+    expect(usageMaxStructuredData["@graph"]).toContainEqual(expect.objectContaining({
+      "@type": "WebAPI",
+      "@id": "https://usagemax.com/#api",
+      url: "https://usagemax.com/openapi.json",
+      sameAs: expect.arrayContaining(["https://usagemax.com/.well-known/api-catalog"]),
+    }));
   });
 });

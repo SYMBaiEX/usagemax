@@ -25,3 +25,16 @@ describe("agent authentication metadata", () => {
     });
   });
 });
+
+describe("agent resource links", () => {
+  it("exposes predictable first-party and source-controlled developer resources", () => {
+    const index = agentHomepage();
+    expect(index.developerResources).toEqual(expect.arrayContaining([
+      { name: "agentResourceDiscovery", url: "https://usagemax.com/.well-known/ard.json", mediaType: "application/json" },
+      { name: "agentSkills", url: "https://usagemax.com/.well-known/agent-skills/index.json", mediaType: "application/json" },
+      { name: "agentPlugin", url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/plugin.json", mediaType: "application/json" },
+      { name: "cliGuide", url: "https://usagemax.com/cli.md", mediaType: "text/markdown" },
+    ]));
+    expect(index.discovery.plugin).toBe("https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/plugin.json");
+  });
+});

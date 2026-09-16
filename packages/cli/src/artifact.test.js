@@ -8,6 +8,16 @@ import { promisify } from "node:util";
 import test from "node:test";
 
 const exec = promisify(execFile);
+test("package metadata identifies a CLI package without an import SDK surface", async () => {
+  const root = dirname(dirname(fileURLToPath(import.meta.url)));
+  const metadata = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+  assert.equal(metadata.name, "usagemax");
+  assert.equal(metadata.bin.usagemax, "src/cli.js");
+  assert.equal(metadata.repository.directory, "packages/cli");
+  assert.ok(!metadata.exports);
+  assert.ok(!metadata.types);
+});
+
 test("offline packed artifact includes scheduler and emits midnight timestamps before noon", async () => {
   const temporary = await mkdtemp(join(tmpdir(), "usagemax-artifact-"));
   try {
