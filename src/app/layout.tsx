@@ -30,7 +30,7 @@ export const metadata: Metadata = {
   authors: [{ name: "UsageMax" }],
   creator: "UsageMax",
   publisher: "UsageMax",
-  alternates: { canonical: "https://usagemax.com" },
+  alternates: { canonical: "https://usagemax.com", types: { "text/plain": "https://usagemax.com/llms.txt", "application/json": "https://usagemax.com/.well-known/ard.json" } },
   openGraph: {
     images: [{ url: "/brand/social-card.png", width: 1200, height: 630, alt: "UsageMax — Your AI work, on the record." }],
     type: "website",
@@ -59,6 +59,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
         <script id="usagemax-structured-data" type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(usageMaxStructuredData) }} />
         <link rel="ard" href="/.well-known/ard.json" />
+        <link rel="alternate" type="application/json" href="/.well-known/ai-catalog.json" title="UsageMax AI Catalog" />
+        <link rel="alternate" type="text/plain" href="/llms.txt" title="UsageMax agent guide" />
+        <link rel="alternate" type="application/json" href="/.well-known/agent-skills/index.json" title="UsageMax agent skills" />
+        <link rel="alternate" type="application/json" href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest" title="UsageMax MCP Registry listing" />
         <link rel="nlweb" href="/ask" title="Ask UsageMax" />
       </head>
       <body className="site-body">

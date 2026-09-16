@@ -80,6 +80,9 @@ export function agentHomepage() {
       { name: "documentation", url: "https://usagemax.com/docs", mediaType: "text/html" },
       { name: "agentGuide", url: "https://usagemax.com/llms.txt", mediaType: "text/plain" },
       { name: "agentResourceDiscovery", url: "https://usagemax.com/.well-known/ard.json", mediaType: "application/json" },
+      { name: "aiCatalog", url: "https://usagemax.com/.well-known/ai-catalog.json", mediaType: "application/json" },
+      { name: "apiCatalog", url: "https://usagemax.com/.well-known/api-catalog", mediaType: "application/linkset+json" },
+      { name: "schemaFeed", url: "https://usagemax.com/schema-feed.jsonl", mediaType: "application/jsonl" },
       { name: "agentCard", url: "https://usagemax.com/.well-known/agent-card.json", mediaType: "application/json" },
       { name: "agentSkills", url: "https://usagemax.com/.well-known/agent-skills/index.json", mediaType: "application/json" },
       { name: "authentication", url: "https://usagemax.com/auth.md", mediaType: "text/markdown" },
@@ -120,6 +123,9 @@ export function agentHomepage() {
       pricing: "/pricing",
       botAuthDirectory: "/.well-known/http-message-signatures-directory",
       mcpRegistry: "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest",
+      aiCatalog: "https://usagemax.com/.well-known/ai-catalog.json",
+      apiCatalog: "https://usagemax.com/.well-known/api-catalog",
+      schemaFeed: "https://usagemax.com/schema-feed.jsonl",
     },
     discovery: {
       llms: "https://usagemax.com/llms.txt",
@@ -132,6 +138,9 @@ export function agentHomepage() {
       plugin: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/plugin.json",
       webmcp: "https://usagemax.com/webmcp",
       mcpRegistry: "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest",
+      aiCatalog: "https://usagemax.com/.well-known/ai-catalog.json",
+      apiCatalog: "https://usagemax.com/.well-known/api-catalog",
+      schemaFeed: "https://usagemax.com/schema-feed.jsonl",
     },
   };
 }
