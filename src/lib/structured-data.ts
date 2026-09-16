@@ -52,6 +52,16 @@ export const usageMaxStructuredData = {
       },
     },
     {
+      "@type": "WebAPI",
+      "@id": "https://usagemax.com/#api",
+      name: "UsageMax HTTP API",
+      url: "https://usagemax.com/openapi.json",
+      description: "Public read operations and content-free collector operations documented by the UsageMax OpenAPI contract.",
+      documentation: "https://usagemax.com/docs",
+      provider: { "@id": "https://usagemax.com/#organization" },
+      sameAs: ["https://usagemax.com/openapi.json", "https://usagemax.com/.well-known/api-catalog"],
+    },
+    {
       "@type": "WebSite",
       "@id": "https://usagemax.com/#website",
       name: "UsageMax",

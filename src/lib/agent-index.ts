@@ -79,10 +79,15 @@ export function agentHomepage() {
     developerResources: [
       { name: "documentation", url: "https://usagemax.com/docs", mediaType: "text/html" },
       { name: "agentGuide", url: "https://usagemax.com/llms.txt", mediaType: "text/plain" },
+      { name: "agentResourceDiscovery", url: "https://usagemax.com/.well-known/ard.json", mediaType: "application/json" },
+      { name: "agentCard", url: "https://usagemax.com/.well-known/agent-card.json", mediaType: "application/json" },
+      { name: "agentSkills", url: "https://usagemax.com/.well-known/agent-skills/index.json", mediaType: "application/json" },
       { name: "authentication", url: "https://usagemax.com/auth.md", mediaType: "text/markdown" },
       { name: "pricing", url: "https://usagemax.com/pricing.md", mediaType: "text/markdown" },
+      { name: "cliGuide", url: "https://usagemax.com/cli.md", mediaType: "text/markdown" },
       { name: "webmcp", url: "https://usagemax.com/webmcp", mediaType: "text/html" },
       { name: "webmcpMarkdown", url: "https://usagemax.com/webmcp.md", mediaType: "text/markdown" },
+      { name: "agentPlugin", url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/plugin.json", mediaType: "application/json" },
       { name: "mcpRegistry", url: "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest", mediaType: "application/json" },
     ],
     resources: [
@@ -124,6 +129,7 @@ export function agentHomepage() {
       authorizationServer: "https://usagemax.com/.well-known/oauth-authorization-server",
       protectedResource: "https://usagemax.com/.well-known/oauth-protected-resource",
       skills: "https://usagemax.com/.well-known/agent-skills/index.json",
+      plugin: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/plugin.json",
       webmcp: "https://usagemax.com/webmcp",
       mcpRegistry: "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest",
     },
