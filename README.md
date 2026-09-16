@@ -74,6 +74,14 @@ documentation:
 
 ![UsageMax counting methodology](docs/screenshots/methodology.png)
 
+## MCP Registry
+
+The repository includes [server.json](server.json), the official MCP Registry
+metadata for the public remote server. It points to the production
+Streamable HTTP endpoint and contains no credentials or private configuration.
+Validate it with the official `mcp-publisher validate server.json` command
+before publishing a new version.
+
 ## Safe zero-token observability test
 
 The sandbox validator accepts one content-free event, requires no
