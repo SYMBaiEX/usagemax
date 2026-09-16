@@ -1,4 +1,11 @@
-const markdown = `# UsageMax API versioning and deprecation policy
+const markdown = `---
+title: UsageMax API versioning and deprecation policy
+description: Compatibility and retirement signals for UsageMax API clients.
+canonical: https://usagemax.com/api-versioning.md
+last-updated: 2026-09-16
+---
+
+# UsageMax API versioning and deprecation policy
 
 UsageMax uses URL versioning for collector contracts and keeps the public read surface backwards compatible within a major API version.
 

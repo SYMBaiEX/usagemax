@@ -1,4 +1,11 @@
-const markdown = `# UsageMax sandbox
+const markdown = `---
+title: UsageMax sandbox
+description: Validate content-free UsageMax telemetry without writing production data.
+canonical: https://usagemax.com/sandbox
+last-updated: 2026-09-16
+---
+
+# UsageMax sandbox
 
 The UsageMax sandbox is a no-write validator for content-free telemetry. Use it to exercise your serializer and field limits before sending a linked collector request to production.
 

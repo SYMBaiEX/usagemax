@@ -1,6 +1,11 @@
-const markdown = `# UsageMax API catalog
+const markdown = `---
+title: UsageMax API catalog
+description: Machine-readable links to the UsageMax API and collector contracts.
+canonical: https://usagemax.com/.well-known/api-catalog
+last-updated: 2026-09-16
+---
 
-<!-- title: UsageMax API catalog; canonical: https://usagemax.com/.well-known/api-catalog; last-updated: 2026-09-16 -->
+# UsageMax API catalog
 
 - [Documentation](https://usagemax.com/docs)
 - [OpenAPI contract](https://usagemax.com/openapi.json)

@@ -1,4 +1,11 @@
-const markdown = `# UsageMax CLI
+const markdown = `---
+title: UsageMax CLI
+description: Install, link, sync, and schedule the lightweight UsageMax collector.
+canonical: https://usagemax.com/cli.md
+last-updated: 2026-09-16
+---
+
+# UsageMax CLI
 
 The UsageMax CLI is a short-lived, one-shot collector for supported local AI usage histories. It reads provider files locally, sends bounded aggregate snapshots over HTTPS, and exits. It does not run a filesystem watcher or resident telemetry daemon.
 
