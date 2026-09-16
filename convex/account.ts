@@ -1045,7 +1045,7 @@ const deletionStages = [
   "privacy", "leaderboard", "telemetry", "outcomes", "agents", "dailyUsage",
   "dailyTotals", "dimensions", "devices", "models", "snapshots",
   "collectorSessions", "ingestReceipts", "rateBuckets", "sessionReceipts",
-  "snapshotRuns", "snapshotReceipts", "deviceLinks", "collectors", "stats",
+  "snapshotRuns", "snapshotReceipts", "snapshotChunkGroups", "snapshotPartitionHeads", "deviceLinks", "collectors", "stats",
   "productData", "audits", "memberships", "profile", "workspace", "user", "complete",
 ] as const;
 
@@ -1115,7 +1115,7 @@ export const processAccountDeletion = internalMutation({
     if (stage === "snapshots") return finishRows(profileId ? await ctx.db.query("collectorUsageSnapshots").withIndex("by_profileId_and_day", (q) => q.eq("profileId", profileId)).take(100) : []);
     if (stage === "collectorSessions") return finishRows(profileId ? await ctx.db.query("collectorSessions").withIndex("by_profileId_and_lastActivityAt", (q) => q.eq("profileId", profileId)).take(100) : []);
 
-    if (["ingestReceipts", "rateBuckets", "sessionReceipts", "snapshotRuns", "snapshotReceipts"].includes(stage)) {
+    if (["ingestReceipts", "rateBuckets", "sessionReceipts", "snapshotRuns", "snapshotReceipts", "snapshotChunkGroups", "snapshotPartitionHeads"].includes(stage)) {
       for (const collector of await collectors()) {
         const rows = stage === "ingestReceipts"
           ? await ctx.db.query("ingestReceipts").withIndex("by_collectorId_and_batchId", (q) => q.eq("collectorId", collector._id)).take(100)
@@ -1125,7 +1125,11 @@ export const processAccountDeletion = internalMutation({
               ? await ctx.db.query("sessionReceipts").withIndex("by_collectorId_and_source_and_sessionId", (q) => q.eq("collectorId", collector._id)).take(100)
               : stage === "snapshotRuns"
                 ? await ctx.db.query("snapshotRuns").withIndex("by_collectorId_and_updatedAt", (q) => q.eq("collectorId", collector._id)).take(100)
-                : await ctx.db.query("snapshotReceipts").withIndex("by_collectorId_and_partitionId", (q) => q.eq("collectorId", collector._id)).take(100);
+                : stage === "snapshotChunkGroups"
+                  ? await ctx.db.query("snapshotChunkGroups").withIndex("by_collectorId_and_runId_and_source_and_day", q => q.eq("collectorId", collector._id)).take(100)
+                  : stage === "snapshotPartitionHeads"
+                    ? await ctx.db.query("snapshotPartitionHeads").withIndex("by_collectorId_and_source_and_day", q => q.eq("collectorId", collector._id)).take(100)
+                    : await ctx.db.query("snapshotReceipts").withIndex("by_collectorId_and_partitionId", (q) => q.eq("collectorId", collector._id)).take(100);
         if (rows.length) {
           for (const row of rows) await ctx.db.delete(row._id);
           const processed = (request.processedRows ?? 0) + rows.length;

@@ -65,6 +65,10 @@ export const connect = action({
   },
 });
 
+class ProviderRequestError extends Error {
+  constructor(readonly status: number, readonly retryAfterMs: number) { super(`PROVIDER_HTTP_${status}`); }
+}
+
 async function providerJson(
   url: string,
   init: RequestInit,
@@ -72,7 +76,13 @@ async function providerJson(
 ): Promise<Record<string, unknown>> {
   // URLs are built from fixed provider origins, never supplied by users or response data.
   const response = await fetch(url, { ...init, redirect: "error", signal });
-  if (!response.ok) throw new Error(`PROVIDER_HTTP_${response.status}`);
+  if (!response.ok) {
+    const header = response.headers.get("retry-after");
+    const seconds = header ? Number(header) : NaN;
+    const delay = Number.isFinite(seconds) ? seconds * 1000 : header ? Date.parse(header) - Date.now() : 0;
+    await response.body?.cancel();
+    throw new ProviderRequestError(response.status, Number.isFinite(delay) ? Math.max(0, delay) : 0);
+  }
   if (Number(response.headers.get("content-length") ?? 0) > 4_000_000)
     throw new Error("PROVIDER_RESPONSE_TOO_LARGE");
   const reader = response.body?.getReader();
@@ -252,6 +262,10 @@ export const sync = internalAction({
         ...args,
         day,
         error: safeError,
+        retryable: error instanceof ProviderRequestError
+          ? error.status === 429 || error.status >= 500
+          : error instanceof TypeError || (error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name)),
+        retryAfterMs: error instanceof ProviderRequestError ? error.retryAfterMs : undefined,
       });
     }
   },

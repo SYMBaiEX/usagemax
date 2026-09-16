@@ -10,18 +10,19 @@ import process from "node:process";
 import { promisify } from "node:util";
 
 import { prepareArchiveRecovery } from "./archives.js";
-import { buildSessionPlan, buildSnapshotPlan, normalizeLinkCode, sourceSummary, validHttpsUrl } from "./core.js";
+import { buildSessionPlan, buildSnapshotPlan, normalizeLinkCode, scanPolicy, sourceSummary, validHttpsUrl } from "./core.js";
 import { stableInstallationId } from "./installation.js";
+import { requestSnapshot } from "./transport.js";
+import { resumeUpload, restartExpiredUpload, withConfigLock } from "./resume.js";
 import { CCUSAGE_VERSION, ccusageEnvironment, ccusageHome, discoverProviderArchives, SOURCE_INVENTORY_VERSION, sourceInventory, SUPPORTED_SOURCES } from "./sources.js";
 
 const require = createRequire(import.meta.url);
 const executeFile = promisify(execFile);
-const VERSION = "0.3.0";
+const VERSION = "0.3.1";
 const PUBLIC_API_ORIGIN = "https://usagemax.com/api";
 const DEFAULT_LINK_ENDPOINT = `${PUBLIC_API_ORIGIN}/v1/devices/link`;
 const CONFIG_FILE = "config.json";
 const MAX_REPORT_BYTES = 100 * 1024 * 1024;
-const FULL_RECONCILE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 
 function configDirectory() {
   if (process.env.USAGEMAX_CONFIG_DIR) return process.env.USAGEMAX_CONFIG_DIR;
@@ -103,7 +104,7 @@ function help() {
   process.stdout.write("  usagemax                         Sync changed local usage\n");
   process.stdout.write("  usagemax link <one-use-code>     Link and sync this computer\n");
   process.stdout.write("           [--no-sync] [--name <name>]\n");
-  process.stdout.write("  usagemax sync [--full] [--archives] [--dry-run] [--explain] [--json]\n");
+  process.stdout.write("  usagemax sync [--full] [--archives] [--restart] [--dry-run] [--explain] [--json]\n");
   process.stdout.write("                                  Reconcile once; --archives performs one-time recovery\n");
   process.stdout.write("  usagemax status                  Show local link status\n");
   process.stdout.write("  usagemax doctor [--deep] [--json]\n");
@@ -142,22 +143,7 @@ function snapshotEndpoint(config) {
 }
 
 async function snapshotRequest(config, operation, payload, timeout = 30_000) {
-  const response = await fetch(snapshotEndpoint(config), {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${config.token}`,
-      "content-type": "application/json",
-      "x-usagemax-device-id": config.deviceId,
-    },
-    body: JSON.stringify({ operation, ...payload }),
-    signal: AbortSignal.timeout(timeout),
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    if (body?.error === "unauthorized") throw new Error("This collector key is no longer valid. Link the computer again.");
-    throw new Error(`UsageMax rejected ${operation} (${response.status}${body?.error ? `: ${body.error}` : ""}).`);
-  }
-  return body;
+  return requestSnapshot(snapshotEndpoint(config), config, operation, payload, { timeout });
 }
 
 function newerVersion(recommended) {
@@ -243,32 +229,44 @@ async function syncPrepared(args, suppliedConfig, recovery) {
   const dryRun = args.includes("--dry-run");
   const explain = args.includes("--explain");
   const json = args.includes("--json");
+  if (args.includes("--restart") && !dryRun) {
+    restartExpiredUpload(config);
+    await writeConfig(config);
+  }
+  if (config.pendingSync) {
+    if (dryRun) {
+      const result = { ...config.pendingSync.result, dryRun: true, pendingRunId: config.pendingSync.runId };
+      process.stdout.write(json ? `${JSON.stringify(result)}\n` : `Dry run: saved run ${config.pendingSync.runId} awaits resume; no upload.\n`);
+      return result;
+    }
+    const result = await resumeUpload(config, { save: writeConfig, request: snapshotRequest, warn: warnVersion });
+    process.stdout.write(json ? `${JSON.stringify(result)}\n` : "Resumed and completed the saved sync. Run sync again to scan newer local changes.\n");
+    return result;
+  }
   const inventory = await sourceInventory({ env: recovery.env, home: ccusageHome(recovery.env) });
   const today = new Date().toISOString().slice(0, 10);
   const knownSources = Array.isArray(config.knownSources) ? config.knownSources : [];
-  const foundNewSource = inventory.sources.some((source) => !knownSources.includes(source));
-  const lastFullSync = Date.parse(config.lastFullSyncAt || "");
-  const fullDue = config.snapshotProtocolVersion !== 2
-    || config.sourceInventoryVersion !== SOURCE_INVENTORY_VERSION
-    || !Number.isFinite(lastFullSync)
-    || Date.now() - lastFullSync >= FULL_RECONCILE_INTERVAL_MS
-    || foundNewSource;
-  const full = requestedFull || requestedArchives || fullDue;
-  if (!full && inventory.complete && config.lastSyncComplete && config.lastReconciledDay === today && config.sourceFingerprint === inventory.fingerprint) {
-    const result = { accepted: 0, changedRows: 0, sessions: 0, sources: inventory.sources, corrections: 0, scanned: false, full: false, coverage: inventory.complete ? "complete" : "partial" };
+  const { bootstrap, full, skip, inventoryStable } = scanPolicy(config, inventory, {
+    today, now: Date.now(), inventoryVersion: SOURCE_INVENTORY_VERSION, requestedFull, requestedArchives,
+  });
+  if (skip) {
+    const result = { accepted: 0, changedRows: 0, sessions: 0, sources: inventory.sources, corrections: 0, scanned: false, full: false, coverage: config.lastCoverage || "partial" };
     if (json) process.stdout.write(`${JSON.stringify(result)}\n`);
     else process.stdout.write("Already up to date. Local usage files have not changed; no logs were parsed or uploaded.\n");
     return;
   }
   const report = await ccusageJson(config, { env: recovery.env, full });
-  const legacySnapshotBootstrap = config.snapshotProtocolVersion !== 2
+  // ccusage v20 exposes aggregates, not proof that every discovered file was
+  // parsed. Inventory success alone cannot authorize destructive corrections.
+  const authoritative = false;
+  const legacySnapshotBootstrap = bootstrap
     && Object.keys(config.snapshots || {}).length > 0;
   const runId = randomUUID();
   const revision = Date.now();
   const pricingVersion = `ccusage@${CCUSAGE_VERSION}`;
   const { partitions, nextSnapshots, regressions } = buildSnapshotPlan(report, config.snapshots, {
-    bootstrap: config.snapshotProtocolVersion !== 2,
-    complete: inventory.complete,
+    bootstrap,
+    complete: authoritative,
     full,
     pricingVersion,
     revision,
@@ -280,15 +278,17 @@ async function syncPrepared(args, suppliedConfig, recovery) {
     ? report.daily.map((row) => row?.period).filter((day) => /^\d{4}-\d{2}-\d{2}$/.test(day || "")).sort()
     : [];
   const result = {
-    accepted: 0,
+    accepted: null,
     changedRows: partitions.reduce((sum, partition) => sum + partition.rows.filter((row) => JSON.stringify(row.previous) !== JSON.stringify(row.current)).length, 0),
     sessions: sessions.length,
     sources,
-    corrections: regressions.length,
+    corrections: authoritative ? regressions.length : 0,
+    protectedRegressions: authoritative ? 0 : regressions.length,
     partitions: partitions.length,
     scanned: true,
     full,
-    coverage: inventory.complete && !inventory.truncated && inventory.errors === 0 ? "complete" : "partial",
+    coverage: authoritative ? "complete" : "partial",
+    coverageReason: "Parser does not certify complete source/day coverage; decreases and deletions are protected.",
     range: { from: days[0], to: days.at(-1) },
   };
   if (requestedArchives) {
@@ -299,60 +299,52 @@ async function syncPrepared(args, suppliedConfig, recovery) {
     if (json) process.stdout.write(`${JSON.stringify({ ...result, dryRun: true })}\n`);
     else {
       process.stdout.write(`Dry run: ${partitions.length} partition(s), ${result.changedRows} changed row(s), ${sessions.length} private session identifiers, no upload.\n`);
-      if (explain) process.stdout.write(`Coverage ${result.coverage}; ${sources.length} source(s); ${days[0] || "unknown"} to ${days.at(-1) || "unknown"}; ${regressions.length} downward correction(s).\n`);
+      if (explain) process.stdout.write(`Coverage ${result.coverage}; ${sources.length} source(s); ${days[0] || "unknown"} to ${days.at(-1) || "unknown"}; ${regressions.length} protected regression(s). ${result.coverageReason}\n`);
     }
     return result;
   }
-  config.lastSyncComplete = false;
-  await writeConfig(config);
-  try {
-    const begin = await snapshotRequest(config, "begin", {
+  const requests = [{ operation: "begin", payload: {
       runId,
       mode: requestedArchives ? "archives" : full ? "full" : "incremental",
       baselineMode: legacySnapshotBootstrap ? "adopt-current" : "apply",
       sourceCount: sources.length,
       partitionCount: partitions.length,
-      inventoryComplete: inventory.complete,
+      inventoryComplete: authoritative,
       inventoryErrors: inventory.errors,
       inventoryTruncated: inventory.truncated,
       coverageStartDay: days[0],
       coverageEndDay: days.at(-1),
-    });
-    warnVersion(begin);
-    for (let offset = 0; offset < sessions.length; offset += 100) {
-      await snapshotRequest(config, "sessions", { runId, sessions: sessions.slice(offset, offset + 100) });
-    }
-    for (let offset = 0; offset < partitions.length; offset += 10) {
-      const response = await snapshotRequest(config, "partitions", { runId, partitions: partitions.slice(offset, offset + 10) }, 60_000);
-      result.accepted += Number(response.changedRows || 0);
-      if (!json && process.stderr.isTTY && partitions.length > 10) {
-        process.stderr.write(`UsageMax: uploaded ${Math.min(offset + 10, partitions.length)}/${partitions.length} history partitions\r`);
-      }
-    }
-    if (!json && process.stderr.isTTY && partitions.length > 10) process.stderr.write("\n");
-    const completed = await snapshotRequest(config, "complete", { runId });
-    warnVersion(completed);
-    config.snapshots = nextSnapshots;
-    config.snapshotProtocolVersion = 2;
-    config.lastSyncAt = new Date().toISOString();
-    config.lastReconciledDay = today;
-    config.lastSyncComplete = true;
-    config.sourceInventoryVersion = SOURCE_INVENTORY_VERSION;
-    config.knownSources = [...new Set([...knownSources, ...inventory.sources, ...sources])].sort();
-    if (inventory.complete) config.sourceFingerprint = inventory.fingerprint;
-    else delete config.sourceFingerprint;
-    if (full) config.lastFullSyncAt = config.lastSyncAt;
-    await writeConfig(config);
-  } catch (error) {
-    await snapshotRequest(config, "fail", { runId, failureCode: error instanceof Error ? error.message.slice(0, 80) : "sync_failed" }).catch(() => undefined);
-    throw error;
+    } }];
+  for (let offset = 0; offset < sessions.length; offset += 100) {
+    requests.push({ operation: "sessions", payload: { runId, sessions: sessions.slice(offset, offset + 100) } });
   }
+  for (let offset = 0; offset < partitions.length; offset += 10) {
+    requests.push({ operation: "partitions", payload: { runId, partitions: partitions.slice(offset, offset + 10) } });
+  }
+  requests.push({ operation: "complete", payload: { runId } });
+  const syncedAt = new Date().toISOString();
+  config.pendingSync = {
+    version: 1, runId, cursor: 0, requests, result,
+    checkpoint: {
+      snapshots: nextSnapshots, snapshotProtocolVersion: 2,
+      lastSyncAt: syncedAt, lastReconciledDay: today, lastSyncComplete: authoritative,
+      lastScanSucceeded: true, lastCoverage: result.coverage,
+      sourceInventoryVersion: SOURCE_INVENTORY_VERSION,
+      knownSources: [...new Set([...knownSources, ...inventory.sources, ...sources])].sort(),
+      sourceFingerprint: inventoryStable ? inventory.fingerprint : null,
+      ...(full ? { lastFullSyncAt: syncedAt } : {}),
+    },
+  };
+  config.lastSyncComplete = false;
+  await writeConfig(config);
+  await resumeUpload(config, { save: writeConfig, request: snapshotRequest, warn: warnVersion });
   if (json) process.stdout.write(`${JSON.stringify(result)}\n`);
   else {
     process.stdout.write(partitions.length || sessions.length
-      ? `Reconciled ${result.accepted} changed usage row(s) and ${sessions.length} session identifier(s) from ${sources.join(", ") || "local agents"}${full ? " across retained history" : ""}.\n`
+      ? `Completed ${partitions.length} usage chunk(s) and ${sessions.length} session identifier(s) from ${sources.join(", ") || "local agents"}${full ? " across retained history" : ""}.\n`
       : `Already up to date. No usage rows changed${full ? " after a full-history reconciliation" : ""}.\n`);
-    if (regressions.length) process.stdout.write(`${regressions.length} local row(s) moved backward and were submitted as authoritative corrections.\n`);
+    if (regressions.length) process.stdout.write(`${regressions.length} local row(s) moved backward; prior counter dimensions were preserved because coverage is incomplete.\n`);
+    if (!authoritative) process.stdout.write(`${result.coverageReason}\n`);
     if (explain) process.stdout.write(`Coverage ${result.coverage}; ${sources.length} source(s); ${days[0] || "unknown"} to ${days.at(-1) || "unknown"}; ${partitions.length} atomic partition(s).\n`);
   }
   return result;
@@ -372,6 +364,7 @@ async function status() {
   process.stdout.write(`Linked: ${config.deviceName || deviceLabel()}${config.profileHandle ? ` → @${config.profileHandle}` : ""}\n`);
   process.stdout.write(`Last sync: ${config.lastSyncAt || "never"}\n`);
   process.stdout.write(`Last full reconciliation: ${config.lastFullSyncAt || "never"}\n`);
+  if (config.pendingSync) process.stdout.write(`Pending sync: ${config.pendingSync.runId}; rerun sync to resume\n`);
   process.stdout.write(`Profile: ${config.profileUrl || "https://usagemax.com/account"}\n`);
 }
 
@@ -458,12 +451,16 @@ async function main() {
   const command = args[0] || "sync";
   if (["--help", "-h", "help"].includes(command)) return help();
   if (["--version", "-v"].includes(command)) return process.stdout.write(`${VERSION}\n`);
-  if (command === "link") return link(args.slice(1));
-  if (command === "sync") return sync(args.slice(1));
-  if (command === "status") return status();
-  if (command === "doctor") return doctor(args.slice(1));
   if (command === "report") return report(args.slice(1));
-  if (command === "unlink") return removeLink(args.slice(1));
+  if (["link", "sync", "status", "doctor", "unlink"].includes(command)) {
+    return withConfigLock(configDirectory(), async () => {
+      if (command === "link") return link(args.slice(1));
+      if (command === "sync") return sync(args.slice(1));
+      if (command === "status") return status();
+      if (command === "doctor") return doctor(args.slice(1));
+      return removeLink(args.slice(1));
+    });
+  }
   throw new Error(`Unknown command: ${command}. Run usagemax --help.`);
 }
 

@@ -267,6 +267,7 @@ export const productTables = {
     lastAttemptAt: v.optional(v.number()),
     nextSyncAt: v.number(),
     syncLeaseUntil: v.optional(v.number()),
+    consecutiveFailures: v.optional(v.number()),
     syncLeaseId: v.optional(v.string()),
     lastError: v.optional(v.string()),
     coverageStartDay: v.optional(v.string()),
@@ -276,7 +277,8 @@ export const productTables = {
     createdAt: v.number(),
   })
     .index("by_workspaceId", ["workspaceId"])
-    .index("by_state_and_nextSyncAt", ["state", "nextSyncAt"]),
+    .index("by_state_and_nextSyncAt", ["state", "nextSyncAt"])
+    .index("by_state_and_syncLeaseUntil", ["state", "syncLeaseUntil"]),
   providerDailyUsage: defineTable({
     workspaceId: v.id("workspaces"),
     connectionId: v.id("providerConnections"),

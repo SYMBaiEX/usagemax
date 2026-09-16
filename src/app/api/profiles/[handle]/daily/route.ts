@@ -5,6 +5,26 @@ import { apiResponse } from "@/lib/api-response";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request, context: { params: Promise<{ handle: string }> }) {
+  try {
+    return await dailyResponse(request, context);
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "data" in error && typeof error.data === "object" && error.data !== null && "code" in error.data && error.data.code === "PUBLIC_DETAIL_LIMIT") {
+      const { handle } = await context.params;
+      const requestedGroup = new URL(request.url).searchParams.get("groupBy");
+      const groupBy = requestedGroup === "source" || requestedGroup === "device" ? requestedGroup : "model";
+      const response = apiResponse({
+        error: "PUBLIC_DETAIL_LIMIT",
+        message: "Use the linked endpoint with inclusive from and through dates (YYYY-MM-DD). Follow continueCursor until isDone, summing additive rows across all pages.",
+        pagination: { href: `/api/profiles/${encodeURIComponent(handle)}/daily/detail?groupBy=${groupBy}`, requiredParameters: ["from", "through"] },
+      }, { status: 422 });
+      response.headers.set("cache-control", "no-store");
+      return response;
+    }
+    throw error;
+  }
+}
+
+async function dailyResponse(request: Request, context: { params: Promise<{ handle: string }> }) {
   const { handle } = await context.params;
   const searchParams = new URL(request.url).searchParams;
   const requestedDays = Number(searchParams.get("days") ?? 365);

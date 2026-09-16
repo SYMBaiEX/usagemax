@@ -1,8 +1,19 @@
-import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
+import { ConvexError, v } from "convex/values";
 import { query } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
 
 type CostBasis = "reported" | "estimated" | "api-equivalent" | "mixed" | "unknown";
+
+export const collectorCapabilities = query({
+  args: {},
+  handler: async () => ({
+    snapshotProtocol: 2,
+    snapshotChunks: true,
+    maxChunkRows: 100,
+    recommendedCliVersion: "0.3.1",
+  }),
+});
 
 function mergeCostBasis(left: CostBasis | undefined, right: CostBasis | undefined): CostBasis | undefined {
   if (!right) return left;
@@ -37,14 +48,14 @@ export const profile = query({
 });
 
 /**
- * One reactive read for the complete public profile surface. Keeping the
- * dependency set server-side avoids five independent websocket subscriptions
- * and guarantees every chart in a rendered frame came from one Convex snapshot.
+ * Historical charts share one transaction. New clients opt out of live reads;
+ * the default preserves the original combined contract for existing clients.
  */
 export const profileSnapshot = query({
   args: {
     handle: v.string(),
     days: v.optional(v.number()),
+    includeLive: v.optional(v.boolean()),
     agentLimit: v.optional(v.number()),
     eventLimit: v.optional(v.number()),
   },
@@ -56,10 +67,11 @@ export const profileSnapshot = query({
       ctx.db.query("profileStats").withIndex("by_profileId", (q) => q.eq("profileId", profile._id)).unique(),
       ctx.db.query("modelTotals").withIndex("by_profileId_and_costMicros", (q) => q.eq("profileId", profile._id)).order("desc").take(12),
       ctx.db.query("profileDailyTotals").withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id)).order("desc").take(dayLimit),
-      ctx.db.query("agentLiveStats").withIndex("by_profileId_and_updatedAt", (q) => q.eq("profileId", profile._id)).order("desc").take(Math.min(50, Math.max(1, Math.round(args.agentLimit ?? 12)))),
-      ctx.db.query("telemetryEvents").withIndex("by_profileId_and_occurredAt", (q) => q.eq("profileId", profile._id)).order("desc").take(Math.min(50, Math.max(1, Math.round(args.eventLimit ?? 24)))),
+      args.includeLive === false ? Promise.resolve([]) : ctx.db.query("agentLiveStats").withIndex("by_profileId_and_updatedAt", (q) => q.eq("profileId", profile._id)).order("desc").take(Math.min(50, Math.max(1, Math.round(args.agentLimit ?? 12)))),
+      args.includeLive === false ? Promise.resolve([]) : ctx.db.query("telemetryEvents").withIndex("by_profileId_and_occurredAt", (q) => q.eq("profileId", profile._id)).order("desc").take(Math.min(50, Math.max(1, Math.round(args.eventLimit ?? 24)))),
     ]);
 
+    const coverage: Record<"daily" | "dailyModels" | "sources" | "devices", "complete" | "truncated"> = { daily: "complete", dailyModels: "complete", sources: "complete", devices: "complete" };
     let daily: Array<{
       date: string;
       totalTokens: number;
@@ -99,7 +111,11 @@ export const profileSnapshot = query({
         errors: row.errors,
       })).reverse();
     } else {
-      fallbackRows = await ctx.db.query("dailyUsage").withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id)).order("desc").take(4000);
+      fallbackRows = await ctx.db.query("dailyUsage").withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id)).order("desc").take(4001);
+      if (fallbackRows.length > 4000) {
+        coverage.daily = coverage.dailyModels = coverage.sources = coverage.devices = "truncated";
+        fallbackRows = [];
+      }
       const groupedDays = new Map<string, (typeof daily)[number]>();
       for (const row of fallbackRows) {
         const current = groupedDays.get(row.day) ?? { date: row.day, totalTokens: 0, outputTokens: 0, unclassifiedTokens: 0, costMicros: 0, costBasis: undefined, sessions: 0, requests: 0, errors: 0 };
@@ -122,14 +138,17 @@ export const profileSnapshot = query({
       ? await Promise.all([
           fallbackRows.length
             ? Promise.resolve(fallbackRows.filter((row) => row.day >= cutoffDay))
-            : ctx.db.query("dailyUsage").withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id).gte("day", cutoffDay)).order("desc").take(5000),
-          ctx.db.query("dailyDimensions").withIndex("by_profileId_and_dimension_and_day", (q) => q.eq("profileId", profile._id).eq("dimension", "source").gte("day", cutoffDay)).order("desc").take(5000),
-          ctx.db.query("dailyDimensions").withIndex("by_profileId_and_dimension_and_day", (q) => q.eq("profileId", profile._id).eq("dimension", "device").gte("day", cutoffDay)).order("desc").take(5000),
+            : ctx.db.query("dailyUsage").withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id).gte("day", cutoffDay)).order("desc").take(5001),
+          ctx.db.query("dailyDimensions").withIndex("by_profileId_and_dimension_and_day", (q) => q.eq("profileId", profile._id).eq("dimension", "source").gte("day", cutoffDay)).order("desc").take(5001),
+          ctx.db.query("dailyDimensions").withIndex("by_profileId_and_dimension_and_day", (q) => q.eq("profileId", profile._id).eq("dimension", "device").gte("day", cutoffDay)).order("desc").take(5001),
         ])
       : [[], [], []];
 
+    if (usageRows.length > 5000) coverage.dailyModels = "truncated";
+    if (sourceRows.length > 5000) coverage.sources = "truncated";
+    if (deviceRows.length > 5000) coverage.devices = "truncated";
     const dailyModelMap = new Map<string, { date: string; model: string; provider: string; totalTokens: number; costMicros: number; costBasis?: CostBasis }>();
-    for (const row of usageRows) {
+    for (const row of coverage.dailyModels === "complete" ? usageRows : []) {
       const key = `${row.day}\u0000${row.provider}\u0000${row.model}`;
       const current = dailyModelMap.get(key) ?? { date: row.day, model: row.model, provider: row.provider, totalTokens: 0, costMicros: 0, costBasis: undefined };
       current.totalTokens += row.totalTokens;
@@ -153,8 +172,9 @@ export const profileSnapshot = query({
       stats,
       models,
       daily,
+      coverage,
       dailyModels: [...dailyModelMap.values()].sort((left, right) => left.date === right.date ? right.totalTokens - left.totalTokens : left.date.localeCompare(right.date)),
-      breakdowns: { sources: summarize(sourceRows), devices: summarize(deviceRows) },
+      breakdowns: { sources: coverage.sources === "complete" ? summarize(sourceRows) : [], devices: coverage.devices === "complete" ? summarize(deviceRows) : [] },
       live: {
         agents: agents.map((agent) => ({
           externalId: agent.externalId,
@@ -205,7 +225,8 @@ export const daily = query({
         .query("dailyUsage")
         .withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id))
         .order("desc")
-        .take(4000);
+        .take(4001);
+      assertComplete(legacyRows, 4000);
       const days = new Map<string, { date: string; totalTokens: number; outputTokens: number; unclassifiedTokens: number; costMicros: number; costBasis?: CostBasis; sessions: number; requests: number; errors: number }>();
       for (const row of legacyRows) {
         const current = days.get(row.day) ?? { date: row.day, totalTokens: 0, outputTokens: 0, unclassifiedTokens: 0, costMicros: 0, costBasis: undefined, sessions: 0, requests: 0, errors: 0 };
@@ -254,7 +275,8 @@ export const dailyModels = query({
         .query("dailyUsage")
         .withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id))
         .order("desc")
-        .take(4000);
+        .take(4001);
+      assertComplete(legacyRows, 4000);
       cutoffDay = [...new Set(legacyRows.map((row) => row.day))]
         .sort((a, b) => b.localeCompare(a))
         .slice(0, limit)
@@ -265,7 +287,8 @@ export const dailyModels = query({
       .query("dailyUsage")
       .withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id).gte("day", cutoffDay))
       .order("desc")
-      .take(10_000);
+      .take(10_001);
+    assertComplete(queriedRows, 10_000);
     const grouped = new Map<string, {
       date: string;
       model: string;
@@ -318,7 +341,8 @@ export const dailyBreakdown = query({
         q.eq("profileId", profile._id).eq("dimension", args.groupBy).gte("day", cutoffDay),
       )
       .order("desc")
-      .take(10_000);
+      .take(10_001);
+    assertComplete(rows, 10_000);
     return rows
       .map((row) => ({
         date: row.day,
@@ -355,14 +379,16 @@ export const breakdowns = query({
           q.eq("profileId", profile._id).eq("dimension", "source").gte("day", cutoff),
         )
         .order("desc")
-        .take(5000),
+        .take(5001),
       ctx.db.query("dailyDimensions")
         .withIndex("by_profileId_and_dimension_and_day", (q) =>
           q.eq("profileId", profile._id).eq("dimension", "device").gte("day", cutoff),
         )
         .order("desc")
-        .take(5000),
+        .take(5001),
     ]);
+    assertComplete(sourceRows, 5000);
+    assertComplete(deviceRows, 5000);
     const summarize = (rows: typeof sourceRows) => {
       const totals = new Map<string, { key: string; totalTokens: number; costMicros: number }>();
       for (const row of rows) {
@@ -385,15 +411,8 @@ export const leaderboard = query({
   },
   handler: async (ctx, args) => {
     const limit = Math.min(100, Math.max(1, Math.round(args.limit ?? 50)));
-    const rows = await ctx.db
-      .query("leaderboardEntries")
-      .withIndex("by_period_and_metric_and_score", (q) => q.eq("period", args.period).eq("metric", args.metric))
-      .filter((q) => q.neq(q.field("verification"), "imported"))
-      .order("desc")
-      .take(Math.min(300, limit * 3));
+    const rows = await publicRanking(ctx, args.period, args.metric, limit);
     return rows
-      .filter((row) => row.isPublic !== false)
-      .slice(0, limit)
       .map((row) => ({
         ...row,
         sessions: row.sessions ?? 0,
@@ -475,14 +494,8 @@ export const networkPulse = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
     const limit = Math.min(6, Math.max(1, Math.round(args.limit ?? 3)));
-    const rows = await ctx.db
-      .query("leaderboardEntries")
-      .withIndex("by_period_and_metric_and_score", (q) => q.eq("period", "all").eq("metric", "tokens"))
-      .order("desc")
-      .take(30);
+    const rows = await publicRanking(ctx, "all", "tokens", limit);
     return rows
-      .filter((row) => row.isPublic !== false && row.verification !== "imported")
-      .slice(0, limit)
       .map((row) => ({
         handle: row.handle,
         displayName: row.displayName,
@@ -492,5 +505,67 @@ export const networkPulse = query({
         sessions: row.sessions ?? 0,
         lastUploadAt: row.lastEventAt ?? row.updatedAt,
       }));
+  },
+});
+
+function assertComplete(rows: unknown[], limit: number) {
+  if (rows.length > limit) throw new ConvexError({
+    code: "PUBLIC_DETAIL_LIMIT",
+    message: "This range exceeds the summary limit. Use public.dailyDetail pagination.",
+  });
+}
+
+async function publicRanking(ctx: QueryCtx, period: "7d" | "30d" | "all", metric: "tokens" | "spend", limit: number) {
+  const branches = await Promise.all(([true, undefined] as const).flatMap((isPublic) =>
+    (["account", "collector", "verified"] as const).map((verification) =>
+      ctx.db.query("leaderboardEntries")
+        .withIndex("by_period_and_metric_and_isPublic_and_verification_and_score", q =>
+          q.eq("period", period).eq("metric", metric).eq("isPublic", isPublic).eq("verification", verification))
+        .order("desc").take(limit))));
+  // Hydrate bounded candidates; never refill a branch after rejecting stale privacy.
+  const checked = await Promise.all(branches.flat().map(async row => {
+    const profile = await ctx.db.get(row.profileId);
+    return profile?.isPublic && profile.verification !== "imported" ? row : null;
+  }));
+  return checked.filter(row => row !== null)
+    .sort((a, b) => b.score - a.score || b._creationTime - a._creationTime || b._id.localeCompare(a._id))
+    .slice(0, limit);
+}
+
+/** Raw additive detail rows: sum across every page before claiming range totals. */
+export const dailyDetail = query({
+  args: {
+    handle: v.string(),
+    groupBy: v.union(v.literal("model"), v.literal("source"), v.literal("device")),
+    from: v.string(),
+    through: v.string(),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    if (![args.from, args.through].every(day => /^\d{4}-\d{2}-\d{2}$/.test(day) &&
+      Number.isFinite(Date.parse(day)) && new Date(day).toISOString().slice(0, 10) === day) || args.from > args.through)
+      throw new ConvexError("INVALID_DATE_RANGE");
+    if (!Number.isInteger(args.paginationOpts.numItems) || args.paginationOpts.numItems < 1 || args.paginationOpts.numItems > 500)
+      throw new ConvexError("INVALID_PAGE_SIZE");
+    const profile = await profileByHandle(ctx, args.handle);
+    if (!profile?.isPublic) return { page: [], isDone: true, continueCursor: "", consistentSnapshot: false };
+    if (args.groupBy === "model") {
+      const result = await ctx.db.query("dailyUsage").withIndex("by_profileId_and_day", q =>
+        q.eq("profileId", profile._id).gte("day", args.from).lte("day", args.through))
+        .order("asc").paginate(args.paginationOpts);
+      return { ...result, consistentSnapshot: false, page: result.page.map(row => ({
+        date: row.day, key: row.model, provider: row.provider, totalTokens: row.totalTokens,
+        outputTokens: row.outputTokens, unclassifiedTokens: row.unclassifiedTokens ?? 0,
+        costMicros: row.costMicros, costBasis: row.costBasis ?? "unknown", sessions: row.sessions,
+      })) };
+    }
+    const result = await ctx.db.query("dailyDimensions").withIndex("by_profileId_and_dimension_and_day", q =>
+      q.eq("profileId", profile._id).eq("dimension", args.groupBy as "source" | "device")
+        .gte("day", args.from).lte("day", args.through)).order("asc").paginate(args.paginationOpts);
+    return { ...result, consistentSnapshot: false, page: result.page.map(row => ({
+      date: row.day, key: row.key, totalTokens: row.totalTokens, outputTokens: row.outputTokens,
+      unclassifiedTokens: row.unclassifiedTokens ?? 0, costMicros: row.costMicros,
+      costBasis: row.costBasis ?? "unknown", sessions: row.sessions,
+    })) };
   },
 });

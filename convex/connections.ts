@@ -121,6 +121,7 @@ export const store = internalMutation({
       syncSeen: undefined,
       syncExpected: undefined,
       nextSyncAt: Date.now(),
+      consecutiveFailures: 0,
       syncLeaseId: undefined,
       syncLeaseUntil: undefined,
       lastError: undefined,
@@ -185,12 +186,17 @@ export const disconnect = mutation({
 export const dispatch = internalMutation({
   args: {},
   handler: async (ctx) => {
+    const active = await ctx.db.query("providerConnections")
+      .withIndex("by_state_and_syncLeaseUntil", q => q.eq("state", "connected").gt("syncLeaseUntil", Date.now())).take(20);
+    const capacity = Math.min(10, 20 - active.length);
+    if (capacity === 0) return;
     const rows = await ctx.db
       .query("providerConnections")
       .withIndex("by_state_and_nextSyncAt", (q) =>
         q.eq("state", "connected").lte("nextSyncAt", Date.now()),
       )
-      .take(10);
+      // Bounded dispatch waves; leases protect overlapping cron/continuations.
+      .take(capacity);
     for (const row of rows) {
       const workspace = await ctx.db.get(row.workspaceId);
       if (
@@ -239,6 +245,8 @@ export const finish = internalMutation({
     hasMore: v.optional(v.boolean()),
     seats: v.optional(v.number()),
     error: v.optional(v.string()),
+    retryable: v.optional(v.boolean()),
+    retryAfterMs: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const row = await ctx.db.get(args.id);
@@ -252,9 +260,13 @@ export const finish = internalMutation({
     )
       return;
     if (args.error) {
-      // Pause on errors rather than retrying a bad credential indefinitely.
+      const attempts = (row.consecutiveFailures ?? 0) + 1;
+      const retry = args.retryable === true && attempts <= 8 && (args.retryAfterMs ?? 0) <= 86_400_000;
+      const backoff = Math.max(args.retryAfterMs ?? 0, Math.min(3_600_000, 30_000 * 2 ** Math.min(attempts - 1, 7)));
       await ctx.db.patch(row._id, {
-        state: "error",
+        state: retry ? "connected" : "error",
+        consecutiveFailures: attempts,
+        nextSyncAt: Date.now() + backoff + Math.floor(Math.random() * 5_000),
         lastError: args.error.slice(0, 100),
         syncLeaseId: undefined,
         syncLeaseUntil: undefined,
@@ -264,6 +276,8 @@ export const finish = internalMutation({
     if (args.page !== undefined && args.page !== (row.syncPage ?? 1)) return;
     if (args.hasMore) {
       await ctx.db.patch(row._id, {
+        consecutiveFailures: 0,
+        lastError: undefined,
         syncPage: (args.page ?? 1) + 1,
         syncAmountMicros: args.costMicros,
         syncSeen: args.seen,
@@ -305,6 +319,7 @@ export const finish = internalMutation({
       nextSyncAt: Date.now() + (caughtUp ? 15 * 60_000 : 60_000),
       lastSuccessAt: Date.now(),
       lastError: undefined,
+      consecutiveFailures: 0,
       reportedSeats: args.seats,
       coverageStartDay:
         !row.coverageStartDay || args.day < row.coverageStartDay

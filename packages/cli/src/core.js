@@ -262,7 +262,7 @@ export function buildDeltaPlan(report, priorSnapshots, deviceId, pricingVersion 
         pricingVersion,
         status: "ok",
         state: "synced",
-        occurredAt: `${row.period}T12:00:00.000Z`,
+        occurredAt: `${row.period}T00:00:00.000Z`,
         completeness: "estimated",
       },
     });
@@ -300,7 +300,9 @@ export function buildSnapshotPlan(report, priorSnapshots, {
   }
 
   const grouped = new Map();
-  const nextSnapshots = {};
+  // Carry forward history outside this scan's window. Only reconciled keys may
+  // replace or remove a checkpoint, including legacy three-part identities.
+  const nextSnapshots = Object.fromEntries([...priorRows].map(([key, row]) => [key, row.current]));
   const regressions = [];
   for (const key of allKeys) {
     const currentRow = rows.get(key);
@@ -308,9 +310,14 @@ export function buildSnapshotPlan(report, priorSnapshots, {
     const identity = currentRow || priorRow;
     if (!identity) continue;
     const previous = priorRow?.current ?? snapshotCounters();
-    const current = currentRow?.current ?? snapshotCounters();
-    if (snapshotCounterFields.some((field) => current[field] < previous[field])) regressions.push(key);
+    let current = currentRow?.current ?? snapshotCounters();
+    const regressed = snapshotCounterFields.some((field) => current[field] < previous[field]);
+    if (regressed) regressions.push(key);
+    // A larger total can conceal a missing dimension. Keep the coherent prior
+    // vector (including in the checkpoint) until coverage is authoritative.
+    if (!complete && regressed) current = { ...previous };
     if (!sameCounters(current, snapshotCounters())) nextSnapshots[key] = current;
+    else delete nextSnapshots[key];
     const partitionKey = `${identity.source}\u001f${identity.period}`;
     const rowsForPartition = grouped.get(partitionKey) ?? [];
     rowsForPartition.push({
@@ -343,17 +350,23 @@ export function buildSnapshotPlan(report, priorSnapshots, {
       contentHash,
       lastUsedAt,
     }));
-    const payloadHash = sha256(JSON.stringify({ source, day, complete, pricingVersion, rows: wireRows }));
-    partitions.push({
-      partitionId: `${runId}:${sha256(partitionKey).slice(0, 24)}`,
-      payloadHash,
-      revision,
-      source,
-      day,
-      complete,
-      pricingVersion,
-      rows: wireRows,
-    });
+    const chunkCount = Math.ceil(wireRows.length / 100);
+    for (let chunkIndex = 0; chunkIndex < chunkCount; chunkIndex += 1) {
+      const rows = wireRows.slice(chunkIndex * 100, (chunkIndex + 1) * 100);
+      const payloadHash = sha256(JSON.stringify({ source, day, complete, pricingVersion, chunkIndex, chunkCount, rows }));
+      partitions.push({
+        partitionId: `${runId}:${sha256(partitionKey).slice(0, 24)}:${chunkIndex}`,
+        payloadHash,
+        revision,
+        source,
+        day,
+        complete,
+        pricingVersion,
+        chunkIndex,
+        chunkCount,
+        rows,
+      });
+    }
   }
   partitions.sort((left, right) => left.day === right.day ? left.source.localeCompare(right.source) : left.day.localeCompare(right.day));
   return { partitions, nextSnapshots, regressions };
@@ -361,6 +374,22 @@ export function buildSnapshotPlan(report, priorSnapshots, {
 
 function randomPlanId() {
   return `run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+// Inventory stability certifies that repeating a successful parse is unnecessary;
+// it does not certify authority to remove server history. Bootstrap is separate.
+export function scanPolicy(config, inventory, { today, now, inventoryVersion, requestedFull = false, requestedArchives = false }) {
+  const knownSources = Array.isArray(config.knownSources) ? config.knownSources : [];
+  const lastFull = Date.parse(config.lastFullSyncAt || "");
+  const bootstrap = config.snapshotProtocolVersion !== 2;
+  const full = requestedFull || requestedArchives || bootstrap
+    || config.sourceInventoryVersion !== inventoryVersion
+    || !Number.isFinite(lastFull) || now - lastFull >= 7 * 24 * 60 * 60 * 1000
+    || inventory.sources.some((source) => !knownSources.includes(source));
+  const inventoryStable = inventory.complete && !inventory.truncated && inventory.errors === 0;
+  const skip = !config.pendingSync && !full && inventoryStable && config.lastScanSucceeded === true
+    && config.lastReconciledDay === today && config.sourceFingerprint === inventory.fingerprint;
+  return { bootstrap, full, skip, inventoryStable };
 }
 
 export function buildSessionPlan(report, deviceId) {

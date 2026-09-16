@@ -6,6 +6,7 @@ import { internalMutation } from "./_generated/server";
 import { DAY_MS, dayFromTimestamp } from "./lib";
 import { enforceCollectorRateLimit } from "./rateLimits";
 import { assertCollectorMembership } from "./collectorAccess";
+import { ensureProfileDevice } from "./devices";
 
 export const telemetryEventValidator = v.object({
   eventKey: v.string(),
@@ -367,35 +368,7 @@ export const commitBatch = internalMutation({
     }
 
     const deviceHash = args.installationIdHash ?? collector.installationIdHash ?? String(collector._id);
-    let existingDevice = await ctx.db
-      .query("profileDevices")
-      .withIndex("by_profileId_and_deviceHash", (q) => q.eq("profileId", collector.profileId).eq("deviceHash", deviceHash))
-      .unique();
-    if (!existingDevice && deviceHash !== String(collector._id)) {
-      const legacyDevice = await ctx.db
-        .query("profileDevices")
-        .withIndex("by_profileId_and_deviceHash", (q) => q.eq("profileId", collector.profileId).eq("deviceHash", String(collector._id)))
-        .unique();
-      if (legacyDevice) {
-        await ctx.db.patch(legacyDevice._id, { deviceHash });
-        existingDevice = legacyDevice;
-      }
-    }
-    let deviceLabel = existingDevice?.publicLabel;
-    if (existingDevice) {
-      await ctx.db.patch(existingDevice._id, { lastSeenAt: args.receivedAt });
-    } else {
-      const devices = await ctx.db.query("profileDevices").withIndex("by_profileId", (q) => q.eq("profileId", collector.profileId)).take(20);
-      deviceLabel = `Device ${devices.length + 1}`;
-      await ctx.db.insert("profileDevices", {
-        workspaceId: collector.workspaceId,
-        profileId: collector.profileId,
-        deviceHash,
-        publicLabel: deviceLabel,
-        firstSeenAt: args.receivedAt,
-        lastSeenAt: args.receivedAt,
-      });
-    }
+    const deviceLabel = await ensureProfileDevice(ctx, { ...collector, installationIdHash: args.installationIdHash ?? collector.installationIdHash }, args.receivedAt);
 
     for (const [key, rollup] of sourceRollups) {
       const [day, source] = key.split("\u001f");
@@ -501,10 +474,6 @@ export const commitBatch = internalMutation({
     const streaks = streakMetrics(activityRows.filter((row) => row.totalTokens > 0).map((row) => row.day), args.receivedAt);
     const bestRecentDay = [...activityRows].sort((left, right) => right.costMicros - left.costMicros)[0];
     const priorPeakWins = (stats?.peakDayCostMicros ?? -1) > (bestRecentDay?.costMicros ?? -1);
-    const activeDeviceCount = (await ctx.db
-      .query("profileDevices")
-      .withIndex("by_profileId", (q) => q.eq("profileId", collector.profileId))
-      .take(20)).length;
     const lastEventAt = acceptedEvents.reduce((max, event) => Math.max(max, event.occurredAt), stats?.lastEventAt ?? 0);
     const firstDay = [stats?.firstDay, eventDays[0]].filter((value): value is string => Boolean(value)).sort()[0];
     const lastDay = [stats?.lastDay, eventDays.at(-1)].filter((value): value is string => Boolean(value)).sort().at(-1);
@@ -531,7 +500,7 @@ export const commitBatch = internalMutation({
       activeDays: (stats?.activeDays ?? 0) + uniqueNewDays,
       currentStreakDays: streaks.current,
       longestStreakDays: Math.max(stats?.longestStreakDays ?? 0, streaks.longest),
-      deviceCount: activeDeviceCount,
+      deviceCount: stats?.deviceCount ?? 1,
       topModel: leadingModel?.model ?? stats?.topModel ?? modelRollups.keys().next().value ?? "unknown",
       topModelProvider: leadingModel?.provider,
       topModelMetric: ((leadingByCost?.costMicros ?? 0) > 0 ? "spend" : "tokens") as "spend" | "tokens",
@@ -653,6 +622,8 @@ export const deleteExpired = internalMutation({
   handler: async (ctx): Promise<{ events: number; receipts: number; snapshotReceipts: number; snapshotRuns: number; staleRuns: number; rateBuckets: number; liveAgents: number; quarantine: number; deviceLinks: number; workosReceipts: number }> => {
     const now = Date.now();
     const batchSize = 250;
+    const expiredGroups = await ctx.db.query("snapshotChunkGroups").withIndex("by_updatedAt", q => q.lt("updatedAt", now - 180 * DAY_MS)).take(batchSize);
+    for (const group of expiredGroups) await ctx.db.delete(group._id);
     const [events, receipts, snapshotReceipts, completedRuns, failedRuns, uploadingRuns, scanningRuns, rateBuckets, liveAgents, quarantine, deviceLinks, workosReceipts] = await Promise.all([
       // Workspace-aware retention runs separately; never override a contracted window.
       Promise.resolve([] as Doc<"telemetryEvents">[]),
@@ -674,11 +645,11 @@ export const deleteExpired = internalMutation({
         .take(batchSize),
       ctx.db
         .query("snapshotRuns")
-        .withIndex("by_status_and_updatedAt", (q) => q.eq("status", "uploading").lt("updatedAt", now - 6 * 60 * 60_000))
+        .withIndex("by_status_and_updatedAt", (q) => q.eq("status", "uploading").lt("updatedAt", now - 30 * DAY_MS))
         .take(batchSize),
       ctx.db
         .query("snapshotRuns")
-        .withIndex("by_status_and_updatedAt", (q) => q.eq("status", "scanning").lt("updatedAt", now - 6 * 60 * 60_000))
+        .withIndex("by_status_and_updatedAt", (q) => q.eq("status", "scanning").lt("updatedAt", now - 30 * DAY_MS))
         .take(batchSize),
       ctx.db
         .query("ingestRateBuckets")
@@ -719,7 +690,7 @@ export const deleteExpired = internalMutation({
     for (const receipt of workosReceipts) await ctx.db.delete(receipt._id);
     const snapshotRuns = completedRuns.length + failedRuns.length;
     const staleRuns = uploadingRuns.length + scanningRuns.length;
-    if ([events, receipts, snapshotReceipts, completedRuns, failedRuns, uploadingRuns, scanningRuns, rateBuckets, liveAgents, quarantine, deviceLinks, workosReceipts].some((rows) => rows.length === batchSize)) {
+    if ([expiredGroups, events, receipts, snapshotReceipts, completedRuns, failedRuns, uploadingRuns, scanningRuns, rateBuckets, liveAgents, quarantine, deviceLinks, workosReceipts].some((rows) => rows.length === batchSize)) {
       await ctx.scheduler.runAfter(0, internal.telemetry.deleteExpired, {});
     }
     return {

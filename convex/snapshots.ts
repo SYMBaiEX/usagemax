@@ -3,9 +3,11 @@ import { ConvexError, v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { internalMutation } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { DAY_MS, dayFromTimestamp } from "./lib";
 import { enforceCollectorRateLimit } from "./rateLimits";
 import { assertCollectorMembership } from "./collectorAccess";
+import { ensureProfileDevice } from "./devices";
 
 const costBasisValidator = v.union(
   v.literal("reported"),
@@ -132,40 +134,6 @@ async function collectorForKey(ctx: MutationCtx, keyHash: string, installationId
   return collector;
 }
 
-async function ensureDevice(ctx: MutationCtx, collector: Collector, now: number) {
-  const deviceHash = collector.installationIdHash ?? String(collector._id);
-  let device = await ctx.db
-    .query("profileDevices")
-    .withIndex("by_profileId_and_deviceHash", (q) => q.eq("profileId", collector.profileId).eq("deviceHash", deviceHash))
-    .unique();
-  if (!device && deviceHash !== String(collector._id)) {
-    const legacy = await ctx.db
-      .query("profileDevices")
-      .withIndex("by_profileId_and_deviceHash", (q) => q.eq("profileId", collector.profileId).eq("deviceHash", String(collector._id)))
-      .unique();
-    if (legacy) {
-      await ctx.db.patch(legacy._id, { deviceHash, collectorId: collector._id, lastSeenAt: now });
-      device = legacy;
-    }
-  }
-  if (device) {
-    await ctx.db.patch(device._id, { collectorId: collector._id, lastSeenAt: now });
-    return device.publicLabel;
-  }
-  const devices = await ctx.db.query("profileDevices").withIndex("by_profileId", (q) => q.eq("profileId", collector.profileId)).collect();
-  const label = `Device ${devices.length + 1}`;
-  await ctx.db.insert("profileDevices", {
-    workspaceId: collector.workspaceId,
-    profileId: collector.profileId,
-    collectorId: collector._id,
-    deviceHash,
-    publicLabel: label,
-    firstSeenAt: now,
-    lastSeenAt: now,
-  });
-  return label;
-}
-
 function streakMetrics(days: string[], now: number) {
   const ordered = [...new Set(days)].sort();
   let longest = 0;
@@ -235,11 +203,10 @@ export const beginRun = internalMutation({
       .query("snapshotRuns")
       .withIndex("by_collectorId_and_runId", (q) => q.eq("collectorId", collector._id).eq("runId", args.runId))
       .unique();
+    if (prior?.status === "failed") throw new ConvexError("SNAPSHOT_RUN_EXPIRED");
     if (prior) return { replay: true, status: prior.status, acceptedPartitions: prior.acceptedPartitions };
     await enforceCollectorRateLimit(ctx, String(collector._id));
-    const baselineMode = collector.snapshotBaselineMode === "legacy_adopted"
-      ? "adopt-current" as const
-      : collector.snapshotBaselineMode === "native"
+    const baselineMode = collector.snapshotBaselineMode !== undefined
         ? "apply" as const
         : args.requestedBaselineMode === "adopt-current"
           ? "adopt-current" as const
@@ -288,7 +255,7 @@ export const commitSessions = internalMutation({
     const run = await ctx.db.query("snapshotRuns").withIndex("by_collectorId_and_runId", (q) =>
       q.eq("collectorId", collector._id).eq("runId", args.runId),
     ).unique();
-    if (!run || run.status === "failed") throw new ConvexError("SNAPSHOT_RUN_NOT_FOUND");
+    if (!run || run.status === "failed") throw new ConvexError("SNAPSHOT_RUN_EXPIRED");
     let inserted = 0;
     for (const session of args.sessions) {
       const prior = await ctx.db.query("collectorSessions").withIndex("by_collectorId_and_source_and_sessionKey", (q) =>
@@ -333,6 +300,10 @@ export const commitPartition = internalMutation({
     day: v.string(),
     complete: v.boolean(),
     pricingVersion: v.optional(v.string()),
+    chunkIndex: v.optional(v.number()),
+    chunkCount: v.optional(v.number()),
+    // Internal scheduler-only continuation; never accepted from HTTP input.
+    cleanupCursor: v.optional(v.union(v.string(), v.null())),
     rows: v.array(rowValidator),
     now: v.number(),
   },
@@ -341,7 +312,7 @@ export const commitPartition = internalMutation({
     const run = await ctx.db.query("snapshotRuns").withIndex("by_collectorId_and_runId", (q) =>
       q.eq("collectorId", collector._id).eq("runId", args.runId),
     ).unique();
-    if (!run || run.status === "failed") throw new ConvexError("SNAPSHOT_RUN_NOT_FOUND");
+    if (!run || run.status === "failed") throw new ConvexError("SNAPSHOT_RUN_EXPIRED");
     const receipt = await ctx.db.query("snapshotReceipts").withIndex("by_collectorId_and_partitionId", (q) =>
       q.eq("collectorId", collector._id).eq("partitionId", args.partitionId),
     ).unique();
@@ -349,7 +320,34 @@ export const commitPartition = internalMutation({
       if (receipt.payloadHash !== args.payloadHash) throw new ConvexError("IDEMPOTENCY_CONFLICT");
       return { replay: true, changedRows: receipt.changedRows, correctionRows: receipt.correctionRows };
     }
-    await enforceCollectorRateLimit(ctx, String(collector._id), args.rows.length);
+    if (run.status !== "uploading") throw new ConvexError("SNAPSHOT_RUN_CLOSED");
+    const chunked = args.chunkIndex !== undefined || args.chunkCount !== undefined;
+    const cleaning = args.cleanupCursor !== undefined;
+    let group = chunked || cleaning ? await ctx.db.query("snapshotChunkGroups")
+      .withIndex("by_collectorId_and_runId_and_source_and_day", q => q.eq("collectorId", collector._id).eq("runId", args.runId).eq("source", args.source).eq("day", args.day)).unique() : null;
+    if (chunked && !cleaning) {
+      if (!Number.isSafeInteger(args.chunkCount) || !Number.isSafeInteger(args.chunkIndex)
+        || args.chunkCount! < 1 || args.chunkCount! > 10000 || args.chunkIndex! < 0 || args.chunkIndex! >= args.chunkCount!) throw new ConvexError("INVALID_SNAPSHOT_CHUNK");
+      if (group && (group.revision !== args.revision || group.chunkCount !== args.chunkCount || group.complete !== args.complete || group.pricingVersion !== args.pricingVersion)) throw new ConvexError("SNAPSHOT_MANIFEST_CONFLICT");
+      if ((group?.nextChunk ?? 0) !== args.chunkIndex) throw new ConvexError("SNAPSHOT_CHUNK_OUT_OF_ORDER");
+      if (!group) {
+        const id = await ctx.db.insert("snapshotChunkGroups", { collectorId: collector._id, runId: args.runId, source: args.source, day: args.day, revision: args.revision, chunkCount: args.chunkCount!, nextChunk: 0, complete: args.complete, pricingVersion: args.pricingVersion, done: false, updatedAt: args.now });
+        group = (await ctx.db.get(id))!;
+      }
+    }
+    if (cleaning && (!group || group.done || group.nextChunk !== group.chunkCount)) throw new ConvexError("INVALID_SNAPSHOT_CLEANUP");
+    // Cleanup is a bounded, server-issued continuation of an already admitted write.
+    if (!cleaning) await enforceCollectorRateLimit(ctx, String(collector._id), args.rows.length);
+    const head = await ctx.db.query("snapshotPartitionHeads").withIndex("by_collectorId_and_source_and_day", q => q.eq("collectorId", collector._id).eq("source", args.source).eq("day", args.day)).unique();
+    if (head && head.runId !== args.runId && head.revision >= args.revision) {
+      if (!cleaning) throw new ConvexError("STALE_SNAPSHOT_REVISION");
+      // A newer run superseded this cleanup. Never delete its rows.
+      await ctx.db.patch(group!._id, { done: true, updatedAt: args.now });
+      await ctx.db.patch(run._id, { pendingCleanups: Math.max(0, (run.pendingCleanups ?? 0) - 1) });
+      return { replay: false, changedRows: 0, correctionRows: 0 };
+    }
+    if (!head) await ctx.db.insert("snapshotPartitionHeads", { collectorId: collector._id, source: args.source, day: args.day, runId: args.runId, revision: args.revision });
+    else if (head.runId !== args.runId) await ctx.db.patch(head._id, { runId: args.runId, revision: args.revision });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(args.day) || args.rows.length > 100) throw new ConvexError("INVALID_SNAPSHOT_PARTITION");
     const uniqueRows = new Map<string, (typeof args.rows)[number]>();
     for (const row of args.rows) {
@@ -359,9 +357,14 @@ export const commitPartition = internalMutation({
       if (uniqueRows.has(key)) throw new ConvexError("DUPLICATE_SNAPSHOT_ROW");
       uniqueRows.set(key, row);
     }
-    const priorSnapshots = await ctx.db.query("collectorUsageSnapshots").withIndex("by_collectorId_and_source_and_day", (q) =>
+    const partitionQuery = ctx.db.query("collectorUsageSnapshots").withIndex("by_collectorId_and_source_and_day", (q) =>
       q.eq("collectorId", collector._id).eq("source", args.source).eq("day", args.day),
-    ).collect();
+    );
+    const cleanupPage = cleaning ? await partitionQuery.paginate({ cursor: args.cleanupCursor!, numItems: 100 }) : null;
+    const priorSnapshots = cleanupPage ? cleanupPage.page.filter(row => row.seenRunId !== args.runId && row.revision <= args.revision)
+      : chunked ? (await Promise.all(args.rows.map(row => ctx.db.query("collectorUsageSnapshots").withIndex("by_collectorId_and_source_and_day_and_provider_and_model", q => q.eq("collectorId", collector._id).eq("source", args.source).eq("day", args.day).eq("provider", row.provider).eq("model", row.model)).unique()))).filter((row): row is Doc<"collectorUsageSnapshots"> => row !== null)
+      : await partitionQuery.take(101);
+    if (!chunked && !cleaning && priorSnapshots.length > 100) throw new ConvexError("SNAPSHOT_CHUNKING_REQUIRED");
     if (priorSnapshots.some((row) => row.revision > args.revision)) throw new ConvexError("STALE_SNAPSHOT_REVISION");
     const changes: Array<{
       provider: string;
@@ -380,6 +383,9 @@ export const commitPartition = internalMutation({
         : prior
           ? Object.fromEntries(counterFields.map((field) => [field, prior[field]])) as Counters
           : row.previous;
+      // A partial scan is not authoritative evidence for any downward correction.
+      if ((!args.complete || !run.inventoryComplete || run.inventoryErrors > 0 || run.inventoryTruncated)
+        && counterFields.some(field => row.current[field] < base[field])) continue;
       changes.push({
         provider: row.provider,
         model: row.model,
@@ -391,7 +397,7 @@ export const commitPartition = internalMutation({
         prior,
       });
     }
-    if (args.complete) {
+    if (args.complete && (!chunked || cleaning) && run.inventoryComplete && run.inventoryErrors === 0 && !run.inventoryTruncated) {
       for (const prior of priorSnapshots) {
         if (uniqueRows.has(`${prior.provider}\u001f${prior.model}`)) continue;
         const current = zeroCounters();
@@ -494,6 +500,7 @@ export const commitPartition = internalMutation({
           pricingVersion: args.pricingVersion,
           contentHash: change.contentHash,
           revision: args.revision,
+          seenRunId: args.runId,
           lastUsedAt: change.lastUsedAt,
           updatedAt: args.now,
         };
@@ -511,6 +518,8 @@ export const commitPartition = internalMutation({
       }
     }
 
+    // Pure replays/adoption write snapshot receipts, not every shared rollup.
+    if (changed.length) {
     const dayUpdate = {
       totalTokens: nextValue(priorDay?.totalTokens ?? 0, dayDelta.totalTokens),
       outputTokens: nextValue(priorDay?.outputTokens ?? 0, dayDelta.outputTokens),
@@ -557,7 +566,7 @@ export const commitPartition = internalMutation({
       });
     }
 
-    const deviceLabel = await ensureDevice(ctx, collector, args.now);
+    const deviceLabel = await ensureProfileDevice(ctx, collector, args.now);
     const deviceDimension = await ctx.db.query("dailyDimensions").withIndex("by_profileId_and_dimension_and_day_and_key", (q) =>
       q.eq("profileId", collector.profileId).eq("dimension", "device").eq("day", args.day).eq("key", deviceLabel),
     ).unique();
@@ -589,7 +598,6 @@ export const commitPartition = internalMutation({
     if (!isZero(dayDelta)) {
       const stats = await ctx.db.query("profileStats").withIndex("by_profileId", (q) => q.eq("profileId", collector.profileId)).unique();
       if (!stats) throw new ConvexError("PROFILE_STATS_NOT_FOUND");
-      const devices = await ctx.db.query("profileDevices").withIndex("by_profileId", (q) => q.eq("profileId", collector.profileId)).collect();
       await ctx.db.patch(stats._id, {
         totalTokens: nextValue(stats.totalTokens, dayDelta.totalTokens),
         totalCostMicros: nextValue(stats.totalCostMicros, dayDelta.costMicros),
@@ -600,7 +608,6 @@ export const commitPartition = internalMutation({
         reasoningTokens: nextValue(stats.reasoningTokens, dayDelta.reasoningTokens),
         unclassifiedTokens: nextValue(stats.unclassifiedTokens ?? 0, dayDelta.unclassifiedTokens),
         activeDays: nextValue(stats.activeDays, Number(dayIsActive) - Number(dayWasActive)),
-        deviceCount: devices.length,
         sources: [...new Set([...(stats.sources ?? []), args.source])].sort(),
         lastSyncAt: args.now,
         syncStatus: "healthy",
@@ -608,6 +615,7 @@ export const commitPartition = internalMutation({
         updatedAt: args.now,
       });
       await updateNetwork(ctx, collector, dayDelta, 0, args.day, args.now);
+    }
     }
 
     await ctx.db.insert("snapshotReceipts", {
@@ -619,48 +627,47 @@ export const commitPartition = internalMutation({
       correctionRows,
       createdAt: args.now,
     });
+    const cleanupNeeded = args.complete && run.inventoryComplete && run.inventoryErrors === 0 && !run.inventoryTruncated;
+    const lastChunk = chunked && !cleaning && args.chunkIndex! + 1 === args.chunkCount;
     await ctx.db.patch(run._id, {
-      acceptedPartitions: run.acceptedPartitions + 1,
+      acceptedPartitions: run.acceptedPartitions + (cleaning ? 0 : 1),
+      pendingCleanups: (run.pendingCleanups ?? 0) + (chunked && !cleaning && args.chunkIndex === 0 ? 1 : 0) - ((cleaning && cleanupPage?.isDone) || (lastChunk && !cleanupNeeded) ? 1 : 0),
       changedRows: run.changedRows + changed.length,
       correctionRows: run.correctionRows + correctionRows,
       updatedAt: args.now,
     });
+    if (group) {
+      if (cleaning) {
+        if (cleanupPage!.isDone) await ctx.db.patch(group._id, { done: true, updatedAt: args.now });
+        else await ctx.scheduler.runAfter(0, internal.snapshots.commitPartition, { ...args, cleanupCursor: cleanupPage!.continueCursor, partitionId: `${args.runId}:cleanup:${group._id}:${cleanupPage!.continueCursor}`, now: args.now });
+      } else {
+        await ctx.db.patch(group._id, { nextChunk: args.chunkIndex! + 1, done: lastChunk && !cleanupNeeded, updatedAt: args.now });
+        if (lastChunk && cleanupNeeded) {
+          await ctx.scheduler.runAfter(0, internal.snapshots.commitPartition, { ...args, rows: [], cleanupCursor: null, partitionId: `${args.runId}:cleanup:${group._id}:start`, payloadHash: "internal-cleanup", now: args.now });
+        }
+      }
+    }
     return { replay: false, changedRows: changed.length, correctionRows };
   },
 });
 
-export const completeRun = internalMutation({
-  args: {
-    keyHash: v.string(),
-    installationIdHash: v.optional(v.string()),
-    runId: v.string(),
-    now: v.number(),
-  },
-  handler: async (ctx, args) => {
-    const collector = await collectorForKey(ctx, args.keyHash, args.installationIdHash);
-    const run = await ctx.db.query("snapshotRuns").withIndex("by_collectorId_and_runId", (q) =>
-      q.eq("collectorId", collector._id).eq("runId", args.runId),
-    ).unique();
-    if (!run) throw new ConvexError("SNAPSHOT_RUN_NOT_FOUND");
-    if (run.status === "complete") return { replay: true, changedRows: run.changedRows, correctionRows: run.correctionRows };
-    await enforceCollectorRateLimit(ctx, String(collector._id));
-    if (run.acceptedPartitions !== run.partitionCount) throw new ConvexError("SNAPSHOT_RUN_INCOMPLETE");
-    const stats = await ctx.db.query("profileStats").withIndex("by_profileId", (q) => q.eq("profileId", collector.profileId)).unique();
-    const profile = await ctx.db.get(collector.profileId);
-    if (!stats || !profile) throw new ConvexError("PROFILE_NOT_FOUND");
+async function refreshProfileSummary(ctx: MutationCtx, profileId: Doc<"profiles">["_id"], now: number) {
+    const stats = await ctx.db.query("profileStats").withIndex("by_profileId", q => q.eq("profileId", profileId)).unique();
+    const profile = await ctx.db.get(profileId);
+    if (!stats || !profile) return;
     const activityRows = await ctx.db.query("profileDailyTotals").withIndex("by_profileId_and_day", (q) =>
-      q.eq("profileId", collector.profileId),
+      q.eq("profileId", profileId),
     ).order("desc").take(4000);
     const activeRows = activityRows.filter((row) => row.totalTokens > 0);
     const days = activeRows.map((row) => row.day);
-    const streaks = streakMetrics(days, args.now);
+    const streaks = streakMetrics(days, now);
     const peak = [...activeRows].sort((left, right) => right.costMicros - left.costMicros || left.day.localeCompare(right.day))[0];
     const topByCost = await ctx.db.query("modelTotals").withIndex("by_profileId_and_costMicros", (q) =>
-      q.eq("profileId", collector.profileId),
+      q.eq("profileId", profileId),
     ).order("desc").first();
     const topModel = (topByCost?.costMicros ?? 0) > 0
       ? topByCost
-      : await ctx.db.query("modelTotals").withIndex("by_profileId_and_totalTokens", (q) => q.eq("profileId", collector.profileId)).order("desc").first();
+      : await ctx.db.query("modelTotals").withIndex("by_profileId_and_totalTokens", (q) => q.eq("profileId", profileId)).order("desc").first();
     const nextStats = {
       activeDays: activeRows.length,
       currentStreakDays: streaks.current,
@@ -673,15 +680,13 @@ export const completeRun = internalMutation({
       topModel: topModel?.model ?? "unknown",
       topModelProvider: topModel?.provider,
       topModelMetric: ((topByCost?.costMicros ?? 0) > 0 ? "spend" : "tokens") as "spend" | "tokens",
-      sessionCoverage: run.mode === "full" && run.inventoryComplete ? "complete" as const : "partial" as const,
-      lastSyncAt: args.now,
       syncStatus: "healthy" as const,
       syncErrorCode: undefined,
-      updatedAt: args.now,
+      updatedAt: now,
     };
     await ctx.db.patch(stats._id, nextStats);
-    const thirtyCutoff = dayFromTimestamp(args.now - 29 * DAY_MS);
-    const sevenCutoff = dayFromTimestamp(args.now - 6 * DAY_MS);
+    const thirtyCutoff = dayFromTimestamp(now - 29 * DAY_MS);
+    const sevenCutoff = dayFromTimestamp(now - 6 * DAY_MS);
     const recentDays = activityRows.filter((row) => row.day >= thirtyCutoff);
     const periodScores = [
       { period: "all" as const, tokens: stats.totalTokens, spend: stats.totalCostMicros },
@@ -691,7 +696,7 @@ export const completeRun = internalMutation({
     for (const score of periodScores) {
       for (const metric of ["tokens", "spend"] as const) {
         const prior = await ctx.db.query("leaderboardEntries").withIndex("by_profileId_and_period_and_metric", (q) =>
-          q.eq("profileId", collector.profileId).eq("period", score.period).eq("metric", metric),
+          q.eq("profileId", profileId).eq("period", score.period).eq("metric", metric),
         ).unique();
         const update = {
           handle: profile.handle,
@@ -706,12 +711,50 @@ export const completeRun = internalMutation({
           activeDays: nextStats.activeDays,
           lastEventAt: stats.lastEventAt,
           isPublic: profile.isPublic,
-          updatedAt: args.now,
+          updatedAt: now,
         };
         if (prior) await ctx.db.patch(prior._id, update);
-        else await ctx.db.insert("leaderboardEntries", { workspaceId: collector.workspaceId, profileId: collector.profileId, period: score.period, metric, ...update });
+        else await ctx.db.insert("leaderboardEntries", { workspaceId: profile.workspaceId, profileId: profileId, period: score.period, metric, ...update });
       }
     }
+    await ctx.db.patch(stats._id, { summaryScheduledAt: undefined });
+}
+
+export const refreshSummary = internalMutation({
+  args: { profileId: v.id("profiles") },
+  handler: async (ctx, args) => { await refreshProfileSummary(ctx, args.profileId, Date.now()); },
+});
+
+export const completeRun = internalMutation({
+  args: {
+    keyHash: v.string(),
+    installationIdHash: v.optional(v.string()),
+    runId: v.string(),
+    now: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const collector = await collectorForKey(ctx, args.keyHash, args.installationIdHash);
+    const run = await ctx.db.query("snapshotRuns").withIndex("by_collectorId_and_runId", (q) =>
+      q.eq("collectorId", collector._id).eq("runId", args.runId),
+    ).unique();
+    if (!run) throw new ConvexError("SNAPSHOT_RUN_EXPIRED");
+    if (run.status === "complete") return { replay: true, changedRows: run.changedRows, correctionRows: run.correctionRows };
+    if (run.status === "failed") throw new ConvexError("SNAPSHOT_RUN_EXPIRED");
+    await enforceCollectorRateLimit(ctx, String(collector._id));
+    if (run.acceptedPartitions !== run.partitionCount || (run.pendingCleanups ?? 0) > 0) throw new ConvexError("SNAPSHOT_RUN_INCOMPLETE");
+    const stats = await ctx.db.query("profileStats").withIndex("by_profileId", (q) => q.eq("profileId", collector.profileId)).unique();
+    const profile = await ctx.db.get(collector.profileId);
+    if (!stats || !profile) throw new ConvexError("PROFILE_NOT_FOUND");
+    const workspace = await ctx.db.get(collector.workspaceId);
+    if (workspace?.workosOrganizationId || stats.deviceCount >= 100) {
+      if (stats.summaryScheduledAt === undefined) {
+        await ctx.db.patch(stats._id, { summaryScheduledAt: args.now });
+        await ctx.scheduler.runAfter(5_000, internal.snapshots.refreshSummary, { profileId: collector.profileId });
+      }
+    } else {
+      await refreshProfileSummary(ctx, collector.profileId, args.now);
+    }
+    await ctx.db.patch(stats._id, { lastSyncAt: args.now, sessionCoverage: run.mode === "full" && run.inventoryComplete ? "complete" : "partial" });
     const coverageStatus = run.mode === "full" && run.inventoryComplete && !run.inventoryTruncated && run.inventoryErrors === 0
       ? "complete" as const
       : "partial" as const;

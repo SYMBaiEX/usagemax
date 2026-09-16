@@ -31,9 +31,9 @@ type ProfileData = { profile: { handle: string; displayName: string; bio: string
 type BreakdownRow = { key: string; totalTokens: number; costMicros: number };
 type BreakdownData = { sources: BreakdownRow[]; devices: BreakdownRow[] };
 type AgentRow = { externalId: string; parentExternalId?: string; name: string; model: string; state: string; task?: string; tokensPerSecond: number; totalTokens: number; toolCalls: number; errorCount: number; sessionStartedAt: number; updatedAt: number; expiresAt: number };
-type EventRow = { _id: string; eventKey: string; agentName?: string; eventType: "model_request" | "tool_call" | "agent_state" | "outcome"; source: string; model: string; totalTokens: number; costMicros: number; latencyMs?: number; status: "ok" | "error" | "cancelled"; task?: string; occurredAt: number };
+type EventRow = { _id?: string; eventKey: string; agentName?: string; eventType: "model_request" | "tool_call" | "agent_state" | "outcome"; source: string; model: string; totalTokens: number; costMicros: number; latencyMs?: number; status: "ok" | "error" | "cancelled"; task?: string; occurredAt: number };
 type LiveData = { agents: AgentRow[]; events: EventRow[] };
-type ProfileSnapshotData = ProfileData & { daily: DailyRow[]; dailyModels: DailyModelRow[]; breakdowns: BreakdownData; live: LiveData };
+type ProfileSnapshotData = ProfileData & { daily: DailyRow[]; dailyModels: DailyModelRow[]; breakdowns: BreakdownData; coverage: Record<"daily" | "dailyModels" | "sources" | "devices", "complete" | "truncated">; live: LiveData };
 
 const convexConfigured = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
 
@@ -98,30 +98,45 @@ function LiveActivity({ live, loading, now }: { live: LiveData; loading: boolean
   return <section className="live-activity-section" id="activity" aria-busy={loading}><div className="live-activity-head"><div><LivePill>{loading ? "Connecting" : `${online.length} agents online`}</LivePill><h2>Live activity</h2></div></div><div className="live-activity-grid"><div className="agent-feed"><div className="feed-label">Recent agents</div>{loading ? <><span className="sr-only" role="status">Loading recent agents</span><Skeleton className="skeleton-tall" /></> : live.agents.length ? live.agents.slice(0, 8).map((agent) => { const isOnline = agent.expiresAt > now; return <div className="agent-item" key={agent.externalId}><span aria-hidden="true" className={isOnline ? "agent-status is-online" : "agent-status"} /><span><strong>{agent.name}</strong><small>{agent.task || sentenceCase(agent.state)} · {formatModel(agent.model)}</small></span><span><strong>{isOnline ? compactNumber(agent.tokensPerSecond, 1) : "Idle"}</strong><small>{isOnline ? "online · tok/s" : `idle · ${relativeTime(new Date(agent.updatedAt))}`}</small></span></div>; }) : <div className="feed-empty">No agent heartbeat in this window.</div>}</div><div className="event-feed"><div className="feed-label">Recent log</div>{loading ? <><span className="sr-only" role="status">Loading recent public events</span><Skeleton className="skeleton-tall" /></> : live.events.length ? live.events.slice(0, 12).map((event) => <div className="event-item" key={event._id || event.eventKey}><span aria-hidden="true" className={`event-dot is-${event.status}`} /><time>{new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date(event.occurredAt))}</time><span><strong>{event.agentName || event.source}</strong><small>{sentenceCase(event.eventType)} · {formatModel(event.model)} · {event.status}</small></span><span>{event.totalTokens ? compactNumber(event.totalTokens, 1) : event.latencyMs ? `${event.latencyMs}ms` : "—"}</span></div>) : <div className="feed-empty">No public events in this window.</div>}</div></div></section>;
 }
 
+function PublicLive({ handle, compact = false }: { handle: string; compact?: boolean }) {
+  const live = useQuery(api.public.live, { handle, agentLimit: 12, eventLimit: 24 });
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    const refresh = () => setNow(Date.now());
+    refresh();
+    const timer = window.setInterval(refresh, 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  if (compact) return <LivePill>{live === undefined ? "Connecting" : live.agents.some(agent => agent.expiresAt > now) ? "Working now" : "No active heartbeat"}</LivePill>;
+  return <LiveActivity live={live ?? { agents: [], events: [] }} loading={live === undefined} now={now} />;
+}
+
+function DetailUnavailable({ label }: { label: string }) {
+  return <p role="status" className="feed-empty">{label} unavailable for this volume. Complete detail is available through the paginated public API.</p>;
+}
+
 function ProfileNotFound({ handle }: { handle: string }) {
   return <div className="page-surface empty-page"><span className="section-index">404 / PUBLIC PROFILE</span><h1>No public stats for <em>@{handle}</em>.</h1><p>This profile is private, disconnected, or has not been claimed yet.</p><Link className="button button-primary" href="/leaderboard">Explore profiles <ArrowUpRight size={16} /></Link></div>;
 }
 
 function ProfileDataView({ handle }: { handle: string }) {
   const normalizedHandle = handle.replace(/^@/, "").toLowerCase();
-  const snapshot = useQuery(api.public.profileSnapshot, { handle: normalizedHandle, days: 365, agentLimit: 12, eventLimit: 24 }) as ProfileSnapshotData | null | undefined;
-  const [now, setNow] = useState(0);
+  const snapshot = useQuery(api.public.profileSnapshot, { handle: normalizedHandle, days: 365, includeLive: false }) as ProfileSnapshotData | null | undefined;
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
 
-  useEffect(() => { const refresh = () => setNow(Date.now()); refresh(); const timer = window.setInterval(refresh, 15_000); return () => window.clearInterval(timer); }, []);
   if (snapshot === undefined) return <div aria-busy="true" className="page-surface profile-loading"><span className="sr-only" role="status">Loading public profile</span><Skeleton className="skeleton-profile" /><Skeleton className="skeleton-profile-body" /></div>;
   if (snapshot === null) return <ProfileNotFound handle={normalizedHandle} />;
 
-  const { profile, stats, models, daily, dailyModels, breakdowns, live } = snapshot;
+  const { profile, stats, models, daily, dailyModels, breakdowns, coverage } = snapshot;
   const rank = stats?.leaderboardRank ? `#${stats.leaderboardRank}` : "—";
   async function share() { try { await navigator.clipboard.writeText(window.location.href); setCopyError(false); setCopied(true); window.setTimeout(() => setCopied(false), 1800); } catch { setCopyError(true); } }
 
   return <div className="page-surface profile-page">
-    <div className="profile-toolbar shell"><Link href="/leaderboard">← Leaderboard</Link><nav aria-label="Profile sections"><a href="#usage">Usage</a><a href="#models">Models</a><a href="#activity">Activity</a></nav></div><section className="profile-cover shell"><div className="profile-chart-hero"><CodeField /><div className="profile-chart-total"><span>All-time tokens</span><strong>{compactNumber(safeNumber(stats?.totalTokens), 2)}</strong><small>{currencyFromMicros(safeNumber(stats?.totalCostMicros))} {costBasisLabel(stats?.costBasis)}</small><HeroSparkline rows={daily} /></div><div className="profile-chart-meta"><LivePill>{live.agents.some((agent) => agent.expiresAt > now) ? "Working now" : "No active heartbeat"}</LivePill><span>Since {stats?.firstDay ? shortDate(stats.firstDay) : "first upload"}</span></div></div><aside className="profile-identity-card"><div className="profile-avatar-row"><ProfileAvatar handle={profile.handle} size="large" /><button onClick={share} type="button">{copied ? "Copied" : "Share"} <ArrowUpRight size={14} /></button></div><div><h1>{profile.displayName || profile.handle}{profile.isVerified ? <VerifyBadge /> : null}</h1><p className="profile-handle">@{profile.handle}</p></div>{profile.bio ? <p className="profile-bio">{profile.bio}</p> : null}{copyError ? <p className="copy-fallback">Copy failed. Select this URL: <span>{typeof window === "undefined" ? `https://usagemax.com/${profile.handle}` : window.location.href}</span></p> : null}<div className="identity-facts"><span><small>Rank</small><strong>{rank}</strong></span><span><small>Top model by {stats?.topModelMetric === "tokens" ? "tokens" : "spend"}</small><strong>{formatModel(stats?.topModel || "—")}</strong></span></div><div className="identity-update"><i /> Last upload {stats?.lastSyncAt ? relativeTime(new Date(stats.lastSyncAt)) : stats?.lastEventAt ? relativeTime(new Date(stats.lastEventAt)) : "not received"}</div></aside></section>
+    <div className="profile-toolbar shell"><Link href="/leaderboard">← Leaderboard</Link><nav aria-label="Profile sections"><a href="#usage">Usage</a><a href="#models">Models</a><a href="#activity">Activity</a></nav></div><section className="profile-cover shell"><div className="profile-chart-hero"><CodeField /><div className="profile-chart-total"><span>All-time tokens</span><strong>{compactNumber(safeNumber(stats?.totalTokens), 2)}</strong><small>{currencyFromMicros(safeNumber(stats?.totalCostMicros))} {costBasisLabel(stats?.costBasis)}</small>{coverage.daily === "complete" ? <HeroSparkline rows={daily} /> : <DetailUnavailable label="Daily history" />}</div><div className="profile-chart-meta"><PublicLive handle={normalizedHandle} compact /><span>Since {stats?.firstDay ? shortDate(stats.firstDay) : "first upload"}</span></div></div><aside className="profile-identity-card"><div className="profile-avatar-row"><ProfileAvatar handle={profile.handle} size="large" /><button onClick={share} type="button">{copied ? "Copied" : "Share"} <ArrowUpRight size={14} /></button></div><div><h1>{profile.displayName || profile.handle}{profile.isVerified ? <VerifyBadge /> : null}</h1><p className="profile-handle">@{profile.handle}</p></div>{profile.bio ? <p className="profile-bio">{profile.bio}</p> : null}{copyError ? <p className="copy-fallback">Copy failed. Select this URL: <span>{typeof window === "undefined" ? `https://usagemax.com/${profile.handle}` : window.location.href}</span></p> : null}<div className="identity-facts"><span><small>Rank</small><strong>{rank}</strong></span><span><small>Top model by {stats?.topModelMetric === "tokens" ? "tokens" : "spend"}</small><strong>{formatModel(stats?.topModel || "—")}</strong></span></div><div className="identity-update"><i /> Last upload {stats?.lastSyncAt ? relativeTime(new Date(stats.lastSyncAt)) : stats?.lastEventAt ? relativeTime(new Date(stats.lastEventAt)) : "not received"}</div></aside></section>
     <CoverageSummary stats={stats} />
     <section className="profile-stats shell"><StatTile label="Total spend" note={costBasisLabel(stats?.costBasis)} value={currencyFromMicros(safeNumber(stats?.totalCostMicros))} /><StatTile label="Sessions" note={`${compactNumber(safeNumber(stats?.deviceCount))} privacy-safe devices`} value={compactNumber(safeNumber(stats?.sessions))} /><StatTile label="Active days" note={stats?.firstDay ? `since ${shortDate(stats.firstDay)}` : "since first upload"} value={compactNumber(safeNumber(stats?.activeDays))} /><StatTile label="Current streak" note={`best ${safeNumber(stats?.longestStreakDays)} days`} value={`${safeNumber(stats?.currentStreakDays)} days`} /></section>
-    <section className="profile-data shell" id="usage"><UsageTrend rows={daily} /><ModelFlow rows={dailyModels} /><ActivityCalendar rows={daily} /><RhythmCharts rows={daily} /><ModelTable models={models} totalTokens={safeNumber(stats?.totalTokens)} dailyModels={dailyModels} /><div className="dimension-grid"><DimensionPanel rows={breakdowns.sources} title="Sources" /><DimensionPanel rows={breakdowns.devices} title="Devices" /></div><LiveActivity live={live} loading={false} now={now} /></section>
+    <section className="profile-data shell" id="usage">{coverage.daily === "complete" ? <UsageTrend rows={daily} /> : <DetailUnavailable label="Daily history" />}{coverage.dailyModels === "complete" ? <ModelFlow rows={dailyModels} /> : <DetailUnavailable label="Model history" />}{coverage.daily === "complete" ? <><ActivityCalendar rows={daily} /><RhythmCharts rows={daily} /></> : null}<ModelTable models={models} totalTokens={safeNumber(stats?.totalTokens)} dailyModels={dailyModels} /><div className="dimension-grid">{coverage.sources === "complete" ? <DimensionPanel rows={breakdowns.sources} title="Sources" /> : <DetailUnavailable label="Sources" />}{coverage.devices === "complete" ? <DimensionPanel rows={breakdowns.devices} title="Devices" /> : <DetailUnavailable label="Devices" />}</div><PublicLive handle={normalizedHandle} /></section>
   </div>;
 }
 

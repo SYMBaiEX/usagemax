@@ -1,13 +1,14 @@
 import { createHash } from "node:crypto";
-import { beforeEach, describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { convexTest } from "convex-test";
 
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
+import { buildSnapshotPlan } from "../packages/cli/src/core.js";
 
 const modules = import.meta.glob("./**/*.ts");
-const token = "umx_snapshot_0123456789abcdef0123456789abcdef";
+const token = `umx_${"a".repeat(64)}`;
 const keyHash = createHash("sha256").update(token).digest("hex");
 
 const counters = (totalTokens: number, costMicros = totalTokens * 10) => ({
@@ -39,6 +40,21 @@ describe("authoritative collector snapshots", () => {
   beforeEach(() => {
     t = convexTest(schema, modules);
     rateLimiterTest.register(t);
+  });
+
+  test("actual CLI chunk bytes are accepted through the HTTP contract before noon", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-14T06:00:00Z"));
+    try {
+      await seed(t, Date.now());
+      const plan = buildSnapshotPlan({ daily: [{ agent: "codex", period: "2026-09-14", modelBreakdowns: Array.from({ length: 101 }, (_, i) => ({ modelName: `gpt-test-${i}`, inputTokens: 1 })) }] }, {}, { bootstrap: true, full: true, complete: false, runId: "wire", revision: Date.now() });
+      const post = (payload: unknown) => t.fetch("/v2/usage/snapshots", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json", "x-usagemax-device-id": "01234567-89ab-4cde-8fab-0123456789ab" }, body: JSON.stringify(payload) });
+      expect((await post({ operation: "begin", runId: "wire", mode: "full", partitionCount: plan.partitions.length, sourceCount: 1, inventoryComplete: false, inventoryErrors: 0, inventoryTruncated: false })).status).toBe(202);
+      const committed = await post({ operation: "partitions", runId: "wire", partitions: plan.partitions });
+      expect(await committed.json()).toMatchObject({ ok: true });
+      expect((await post({ operation: "complete", runId: "wire" })).status).toBe(200);
+      expect((await t.query(api.public.profile, { handle: "snapshot" }))?.stats?.totalTokens).toBe(101);
+    } finally { vi.useRealTimers(); }
   });
 
   test("applies downward corrections and keeps provider identity", async () => {
@@ -146,6 +162,74 @@ describe("authoritative collector snapshots", () => {
     expect(state.collector).toMatchObject({ snapshotBaselineMode: "legacy_adopted", snapshotBaselineEstablishedAt: now });
     expect(state.snapshots).toEqual([expect.objectContaining({ totalTokens: 80 })]);
     expect(state.stats?.totalTokens).toBe(80);
+    await t.mutation(internal.snapshots.beginRun, { keyHash, runId: "after-adoption", requestedBaselineMode: "adopt-current", mode: "full", sourceCount: 1, partitionCount: 1, inventoryComplete: true, inventoryErrors: 0, inventoryTruncated: false, now: now + 1 });
+    await t.mutation(internal.snapshots.commitPartition, { keyHash, runId: "after-adoption", partitionId: "after-adoption:p", payloadHash: "after", revision: 2, source: "codex", day: "2026-09-14", complete: true, rows: [{ provider: "openai", model: "gpt-test", previous: counters(80), current: counters(100), costBasis: "estimated", contentHash: "after", lastUsedAt: now }], now: now + 1 });
+    expect((await t.query(api.public.profile, { handle: "snapshot" }))?.stats?.totalTokens).toBe(100);
+  });
+
+  test("incomplete scans cannot decrease explicit rows or erase omitted models", async () => {
+    const now = Date.UTC(2026, 8, 14, 12);
+    await seed(t, now);
+    const begin = { keyHash, mode: "full" as const, sourceCount: 1, partitionCount: 1, inventoryErrors: 0, inventoryTruncated: false, now };
+    const row = (model: string, count: number) => ({ provider: "openai", model, previous: counters(0), current: counters(count), costBasis: "estimated" as const, contentHash: model, lastUsedAt: now });
+    const part = { keyHash, revision: 1, source: "codex", day: "2026-09-14", complete: true, now };
+    await t.mutation(internal.snapshots.beginRun, { ...begin, runId: "safe-one", inventoryComplete: true });
+    await t.mutation(internal.snapshots.commitPartition, { ...part, runId: "safe-one", partitionId: "safe-one", payloadHash: "one", rows: [row("a", 100), row("b", 20)] });
+    await t.mutation(internal.snapshots.completeRun, { keyHash, runId: "safe-one", now });
+    await t.mutation(internal.snapshots.beginRun, { ...begin, runId: "safe-two", inventoryComplete: false });
+    await t.mutation(internal.snapshots.commitPartition, { ...part, revision: 2, runId: "safe-two", partitionId: "safe-two", payloadHash: "two", rows: [row("a", 0)] });
+    expect((await t.query(api.public.profile, { handle: "snapshot" }))?.stats?.totalTokens).toBe(120);
+    expect(await t.run(ctx => ctx.db.query("collectorUsageSnapshots").collect())).toHaveLength(2);
+  });
+
+  test("enterprise summary refreshes coalesce without delaying accounting totals", async () => {
+    vi.useFakeTimers();
+    try {
+      const now = Date.now();
+      const { workspaceId } = await seed(t, now);
+      await t.run(ctx => ctx.db.patch(workspaceId, { workosOrganizationId: "org-summary", plan: "enterprise" }));
+      // This fixture collector is service-owned; no interactive member is claimed.
+      for (let i = 1; i <= 3; i++) {
+        await t.mutation(internal.snapshots.beginRun, { keyHash, runId: `summary-${i}`, mode: "full", sourceCount: 1, partitionCount: 1, inventoryComplete: true, inventoryErrors: 0, inventoryTruncated: false, now });
+        await t.mutation(internal.snapshots.commitPartition, { keyHash, runId: `summary-${i}`, partitionId: `summary-${i}`, payloadHash: `sum-${i}`, source: "codex", day: "2026-09-14", revision: i, complete: true, rows: [{ provider: "openai", model: "gpt-test", previous: counters(i - 1), current: counters(i), costBasis: "estimated", contentHash: `h${i}`, lastUsedAt: now }], now });
+        await t.mutation(internal.snapshots.completeRun, { keyHash, runId: `summary-${i}`, now });
+      }
+      expect((await t.query(api.public.profile, { handle: "snapshot" }))?.stats).toMatchObject({ totalTokens: 3, summaryScheduledAt: now });
+      const scheduled = await t.run(ctx => ctx.db.system.query("_scheduled_functions").collect());
+      expect(scheduled.filter(row => row.name === "snapshots:refreshSummary")).toHaveLength(1);
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      const stats = (await t.query(api.public.profile, { handle: "snapshot" }))?.stats;
+      expect(stats?.summaryScheduledAt).toBeUndefined();
+      expect(stats?.topModel).toBe("gpt-test");
+    } finally { vi.useRealTimers(); }
+  });
+
+  test("chunks preserve sibling models, block premature completion and clean omissions in bounded pages", async () => {
+    vi.useFakeTimers();
+    try {
+      const now = Date.UTC(2026, 8, 14, 12);
+      await seed(t, now);
+      const rows = Array.from({ length: 201 }, (_, i) => ({ provider: "openai", model: `m${i}`, previous: counters(0), current: counters(1), costBasis: "estimated" as const, contentHash: `h${i}`, lastUsedAt: now }));
+      const begin = { keyHash, mode: "full" as const, sourceCount: 1, inventoryComplete: true, inventoryErrors: 0, inventoryTruncated: false, now };
+      await t.mutation(internal.snapshots.beginRun, { ...begin, runId: "chunks", partitionCount: 3 });
+      const part = { keyHash, runId: "chunks", revision: 1, source: "codex", day: "2026-09-14", complete: true, chunkCount: 3, now };
+      await expect(t.mutation(internal.snapshots.commitPartition, { ...part, chunkIndex: 1, partitionId: "bad-order", payloadHash: "bad", rows: rows.slice(100, 200) })).rejects.toThrow("SNAPSHOT_CHUNK_OUT_OF_ORDER");
+      for (let i = 0; i < 3; i++) {
+        const args = { ...part, chunkIndex: i, partitionId: `chunk${i}`, payloadHash: `hash${i}`, rows: rows.slice(i * 100, (i + 1) * 100) };
+        await t.mutation(internal.snapshots.commitPartition, args);
+        expect(await t.mutation(internal.snapshots.commitPartition, args)).toMatchObject({ replay: true });
+      }
+      await expect(t.mutation(internal.snapshots.completeRun, { keyHash, runId: "chunks", now })).rejects.toThrow("SNAPSHOT_RUN_INCOMPLETE");
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      await t.mutation(internal.snapshots.completeRun, { keyHash, runId: "chunks", now });
+      expect((await t.query(api.public.profile, { handle: "snapshot" }))?.stats?.totalTokens).toBe(201);
+      await t.mutation(internal.snapshots.beginRun, { ...begin, runId: "prune", partitionCount: 1 });
+      await t.mutation(internal.snapshots.commitPartition, { ...part, runId: "prune", revision: 2, chunkIndex: 0, chunkCount: 1, partitionId: "prune", payloadHash: "prune", rows: rows.slice(0, 1) });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      await t.mutation(internal.snapshots.completeRun, { keyHash, runId: "prune", now });
+      expect((await t.query(api.public.profile, { handle: "snapshot" }))?.stats?.totalTokens).toBe(1);
+      expect(await t.run(ctx => ctx.db.query("collectorUsageSnapshots").collect())).toHaveLength(1);
+    } finally { vi.useRealTimers(); }
   });
 
   test("does not permit a second adopt request to suppress real deltas", async () => {

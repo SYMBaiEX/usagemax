@@ -7,7 +7,7 @@ import type { telemetryEventValidator } from "./telemetry";
 
 type NormalizedEvent = typeof telemetryEventValidator.type;
 type JsonObject = Record<string, unknown>;
-const RECOMMENDED_CLI_VERSION = "0.3.0";
+const RECOMMENDED_CLI_VERSION = "0.3.1";
 
 function newCollectorToken() {
   const bytes = new Uint8Array(32);
@@ -485,7 +485,11 @@ const snapshots = httpAction(async (ctx, request) => {
           };
         });
         const complete = partition.complete === true;
-        const calculatedHash = await sha256(JSON.stringify({ source, day, complete, pricingVersion, rows }));
+        const chunked = partition.chunkIndex !== undefined || partition.chunkCount !== undefined;
+        const chunkIndex = chunked ? partition.chunkIndex : undefined;
+        const chunkCount = chunked ? partition.chunkCount : undefined;
+        if (chunked && (typeof chunkIndex !== "number" || typeof chunkCount !== "number" || !Number.isSafeInteger(chunkIndex) || !Number.isSafeInteger(chunkCount) || chunkIndex < 0 || chunkCount < 1 || chunkCount > 10000 || chunkIndex >= chunkCount)) throw new Error("INVALID_SNAPSHOT_CHUNK");
+        const calculatedHash = await sha256(JSON.stringify(chunked ? { source, day, complete, pricingVersion, chunkIndex, chunkCount, rows } : { source, day, complete, pricingVersion, rows }));
         if (calculatedHash !== partition.payloadHash) throw new Error("PAYLOAD_HASH_MISMATCH");
         const result = await ctx.runMutation(internal.snapshots.commitPartition, {
           ...auth,
@@ -497,6 +501,7 @@ const snapshots = httpAction(async (ctx, request) => {
           day,
           complete,
           pricingVersion,
+          ...(chunked ? { chunkIndex: chunkIndex as number, chunkCount: chunkCount as number } : {}),
           rows,
           now: Date.now(),
         });
@@ -527,6 +532,7 @@ const snapshots = httpAction(async (ctx, request) => {
     if (message.includes("DEVICE_ID_MISMATCH")) return jsonResponse({ error: "device_identity_mismatch" }, 409);
     if (message.includes("IDEMPOTENCY_CONFLICT") || message.includes("STALE_SNAPSHOT_REVISION")) return jsonResponse({ error: "snapshot_conflict" }, 409);
     if (message.includes("SNAPSHOT_RUN_INCOMPLETE")) return jsonResponse({ error: "snapshot_run_incomplete" }, 409);
+    if (message.includes("SNAPSHOT_RUN_EXPIRED")) return jsonResponse({ error: "snapshot_run_expired" }, 410);
     if (message.includes("PROJECTION_UNDERFLOW")) return jsonResponse({ error: "reconciliation_required" }, 409);
     if (message.includes("INVALID_") || message.includes("PAYLOAD_") || message.includes("DUPLICATE_")) return jsonResponse({ error: "invalid_snapshot" }, 400);
     return jsonResponse({ error: "snapshot_failed" }, 500);
