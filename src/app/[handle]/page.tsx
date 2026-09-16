@@ -29,13 +29,14 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
   const normalizedHandle = handle.replace(/^@/, "").toLowerCase();
   if (!/^[a-z0-9_-]{1,80}$/.test(normalizedHandle)) notFound();
   if (process.env.NEXT_PUBLIC_CONVEX_URL) {
+    let profile: unknown;
     try {
-      const profile = await fetchQuery(api.public.profile, { handle: normalizedHandle });
-      if (!profile) notFound();
+      profile = await fetchQuery(api.public.profile, { handle: normalizedHandle });
     } catch {
       // Keep the rendered fallback available during a Convex outage. The
       // profile component will surface its normal loading/unavailable state.
     }
+    if (profile === null) notFound();
   }
   return <ProfileView handle={handle} />;
 }
