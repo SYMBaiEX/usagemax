@@ -115,7 +115,7 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
         <form {...({ toolname: "usagemax_leaderboard", tooldescription: "Read the bounded public UsageMax leaderboard." } as Record<string, string>)} action="/api/leaderboard" method="get"><button type="submit">Read leaderboard</button></form>
         <form {...({ toolname: "usagemax_sandbox_validate", tooldescription: "Validate content-free UsageMax telemetry without writing data." } as Record<string, string>)} action="/api/v1/sandbox/validate" method="post"><button type="submit">Validate telemetry</button></form>
       </div>
-      <section className={styles.hero} aria-labelledby="landing-title">
+      <section className={styles.hero} aria-labelledby="landing-title" data-webmcp="document.modelContext.registerTool">
         <div className={`${styles.wrap} ${styles.heroInner}`}>
         <div className={styles.heroCopy}>
           <h1 id="landing-title">Your AI work.<br /><span>On the record.</span></h1>

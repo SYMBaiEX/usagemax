@@ -120,17 +120,6 @@ export const manifest = {
     },
     {
       "@context": "https://agenticresourcediscovery.org/context/v1",
-      identifier: "urn:air:usagemax.com:a2a:agent-card",
-      displayName: "UsageMax A2A agent card",
-      type: "application/json",
-      url: `${origin}/.well-known/agent-card.json`,
-      trustManifest,
-      description: "A2A discovery metadata for the bounded UsageMax public observability agent.",
-      capabilities: ["a2a-discovery", "agent-card"],
-      representativeQueries: ["Where is the UsageMax A2A agent card?", "How can an agent ask UsageMax a public usage question?"],
-    },
-    {
-      "@context": "https://agenticresourcediscovery.org/context/v1",
       identifier: "urn:air:usagemax.com:mcp:documentation",
       displayName: "UsageMax documentation MCP",
       type: "application/mcp-server-card+json",
