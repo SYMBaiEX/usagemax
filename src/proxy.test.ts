@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { agentHomepage } from "@/lib/agent-index";
 import { requestsMarkdown } from "./lib/markdown-negotiation";
 
 const request = (headers: Record<string, string>) => ({ headers: new Headers(headers) });
@@ -14,5 +15,29 @@ describe("public markdown negotiation", () => {
 
   it("still honors an explicit markdown accept header", () => {
     expect(requestsMarkdown(request({ accept: "text/markdown" }))).toBe(true);
+  });
+});
+
+describe("agent homepage contract", () => {
+  it("identifies itself as a stable machine-readable discovery view", () => {
+    const view = agentHomepage();
+
+    expect(view).toMatchObject({
+      schemaVersion: "1.0",
+      version: "1.0.0",
+      mode: "agent",
+      agentMode: true,
+      mediaType: "application/json",
+      machineReadable: true,
+      type: "agent-capability-index",
+      name: "UsageMax",
+    });
+    expect(view.discovery).toMatchObject({
+      llms: "https://usagemax.com/llms.txt",
+      openapi: "https://usagemax.com/openapi.json",
+      mcp: "https://usagemax.com/.well-known/mcp/server-card.json",
+      a2a: "https://usagemax.com/.well-known/agent-card.json",
+    });
+    expect(view.endpoints.map((endpoint) => endpoint.path)).toContain("/api/v1/devices/status");
   });
 });

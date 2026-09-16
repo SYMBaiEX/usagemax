@@ -8,6 +8,14 @@
     "source": "github"
   },
   "version": "1.0.0",
+  "websiteUrl": "https://usagemax.com",
+  "icons": [
+    {
+      "src": "https://usagemax.com/brand/icon-192.png",
+      "mimeType": "image/png",
+      "sizes": ["192x192"]
+    }
+  ],
   "remotes": [
     {
       "type": "streamable-http",

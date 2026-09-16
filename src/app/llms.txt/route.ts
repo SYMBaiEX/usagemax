@@ -36,7 +36,7 @@ source code, credentials, or private workspace data.
 - [MCP](https://usagemax.com/mcp): read-only Streamable HTTP tools, when supported by the client
 - [Documentation MCP](https://usagemax.com/docs-mcp): read-only documentation tools
 - [Documentation MCP card](https://usagemax.com/.well-known/mcp/docs-server-card.json): documentation-server identity and tool contract
-- [MCP Registry metadata](https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/server.json): official remote-server metadata
+- [MCP Registry submission metadata](https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/server.json): valid remote-server metadata; not proof of a published Registry listing
 - [Agent resource discovery](https://usagemax.com/.well-known/ard.json): public resource catalog
 - [AI Catalog compatibility](https://usagemax.com/.well-known/ai-catalog.json): equivalent legacy discovery catalog
 - [Agent skills index](https://usagemax.com/.well-known/agent-skills/index.json): published skill inventory
@@ -53,8 +53,15 @@ source code, credentials, or private workspace data.
 - [UsageMax source repository](https://github.com/SYMBaiEX/usagemax): canonical open-source implementation
 - [Agent rules](https://github.com/SYMBaiEX/usagemax/blob/main/AGENTS.md): contributor and runtime guidance
 - [Agent Plugin manifest](https://github.com/SYMBaiEX/usagemax/blob/main/plugin.json): installable plugin metadata
+- [skills.sh](https://www.skills.sh/): public agent-skills directory and CLI documentation
 - [Usage observability skill](https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/skills/usage-observability/SKILL.md): public-data integration guidance
 - [Enterprise reporting skill](https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/skills/enterprise-reporting/SKILL.md): tenant-safe reporting guidance
+
+Install either source skill from the default branch with
+\`npx skills add SYMBaiEX/usagemax --skill usage-observability\` or
+\`npx skills add SYMBaiEX/usagemax --skill enterprise-reporting\`. The local
+files and digest-pinned index do not by themselves claim a skills.sh listing or
+install usage.
 
 ## Agent mode
 

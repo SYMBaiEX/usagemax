@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://usagemax.com">
-    <img src="https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/public/brand/icon-192.png" alt="UsageMax" width="96" height="96">
+    <img src="https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/public/brand/icon-192.png" alt="UsageMax" width="88" height="88">
   </a>
 
   <h1>UsageMax</h1>
@@ -10,7 +10,7 @@
 
   <p>
     <a href="https://usagemax.com">Live app</a> ·
-    <a href="https://usagemax.com/docs">Documentation</a> ·
+    <a href="https://usagemax.com/docs">Docs</a> ·
     <a href="https://usagemax.com/methodology">How we count</a> ·
     <a href="https://github.com/SYMBaiEX/usagemax/issues">Issues</a>
   </p>
@@ -24,72 +24,61 @@
 </div>
 
 <p align="center">
-  <img src="docs/screenshots/home.png" alt="UsageMax home page" width="960">
+  <a href="https://usagemax.com"><img src="docs/screenshots/home.png" alt="UsageMax dashboard" width="960"></a>
 </p>
 
-UsageMax brings together the AI usage histories that are already on your
-computers. The web app reconciles private workspace data in Convex; the
-open-source `usagemax` CLI performs bounded local scans and uploads aggregate
-snapshots over the versioned API.
+UsageMax reconciles the AI usage histories already on your computers into one
+clear view of tokens, model mix, tracked cost, sessions, and activity. The
+open-source CLI performs bounded local scans and uploads aggregate snapshots to
+the versioned UsageMax API.
 
-> UsageMax is a one-shot collector, not a resident scanner. Local files stay
-> local, public sharing is opt-in, and unknown data is never invented.
+> **The short version:** one-shot collector, private by default, public only by
+> choice. Prompts and completions never leave the computer.
 
-## What it does
+## What you get
 
-| Surface | What you get |
+| Surface | Purpose |
 | --- | --- |
-| Private workspace | One view across computers, providers, models, projects, and cost centers. |
-| Public profile | An optional aggregate profile with activity, model mix, cost, and streaks. |
-| Collector API | Installation-bound, write-only snapshots and content-free telemetry. |
-| Open-source CLI | A `bunx`-friendly scanner with archive recovery and optional OS scheduling. |
-| Agent surfaces | Bounded OpenAPI, MCP, Markdown, WebMCP, and agent skill documentation. |
+| **Private workspace** | Compare computers, providers, models, projects, and cost centers in one tenant-scoped view. |
+| **Public profile** | Opt-in profile, leaderboard, activity, model mix, cost estimate, and streaks. |
+| **Collector API** | Installation-bound, write-only snapshots and content-free telemetry. |
+| **`usagemax` CLI** | A `bunx`-friendly scanner with archive recovery, safe diagnostics, and optional OS scheduling. |
+| **Agent interfaces** | Bounded OpenAPI, MCP, Markdown, WebMCP, A2A, and installable skill surfaces. |
 
-The physical HUD/screen project is intentionally separate from this repository's
-collector service. It can consume UsageMax telemetry, but it is not required to
-use the platform.
+The physical HUD/screen project is intentionally separate from this repository.
+It can consume UsageMax telemetry, but it is not required to use the platform.
 
 ## Connect a computer
 
-### 1. Install or run the CLI
+### 1. Create a link code
 
-```bash
-bunx usagemax@latest --help
-# npm users can use: npx usagemax@latest --help
-```
+Sign in at [usagemax.com/account](https://usagemax.com/account), choose
+**Link a computer**, give it a name, and copy the one-use command. The code is
+valid for ten minutes and can be used once.
 
-The CLI requires Node.js 20 or newer. Bun is recommended for local development,
-but is not required to run the published package.
+### 2. Link and sync
 
-### 2. Create a one-use link
-
-1. Sign in at [usagemax.com/account](https://usagemax.com/account).
-2. Choose **Link a computer**, give it a name, and copy the `UMX-…` command.
-3. Run the command on the computer or WSL distribution that owns the history.
+Run the command on the computer or WSL distribution that owns the history:
 
 ```bash
 bunx usagemax@latest link UMX-XXXX-XXXX-XXXX-XXXX
 
-# Optional: override the account-side name explicitly.
+# Optional explicit name; the account keeps this name for the installation.
 bunx usagemax@latest link UMX-XXXX-XXXX-XXXX-XXXX --name "Work laptop"
 ```
 
-The code expires after ten minutes and works once. Link each distinct home or
-WSL distribution that contains usage history. A stable random installation ID
-keeps relinking and renaming idempotent; repeating the command does not create
+The first link performs a full one-shot sync. Every installation receives a
+stable random ID, so relinking or renaming it rotates its key without creating
 a duplicate device.
 
-### 3. Reconcile usage
+### 3. Reconcile when you choose
 
 ```bash
 bunx usagemax sync --dry-run --explain  # inspect the bounded plan
 bunx usagemax sync                      # upload changed usage
 bunx usagemax sync --full               # reconcile all retained history
-bunx usagemax status --remote           # check the stored key without printing it
+bunx usagemax status --remote            # check the saved credential safely
 ```
-
-For a first connection, the link command performs a full one-shot sync unless
-you pass `--no-sync`.
 
 ## Coverage and correctness
 
@@ -99,11 +88,10 @@ CLI, Factory Droid, Gemini CLI, Goose, Grok Build, Hermes, Kilo Code, Kimi CLI,
 OpenClaw, OpenCode, Pi, and Qwen Code. Named Pi-format stores are discovered as
 well.
 
-The collector follows supported provider environment overrides and bounded home
-locations. It also recognizes Claude Desktop sessions, `.cc-mirror`, renamed
-Claude/Codex backup folders, and supported Windows homes from WSL. Normal syncs
-inspect known locations and immediate home entries; they do not crawl the whole
-disk.
+The collector recognizes supported provider overrides, bounded home locations,
+Claude Desktop sessions, `.cc-mirror`, renamed Claude/Codex backup folders, and
+supported Windows homes from WSL. Normal syncs inspect known locations and
+immediate home entries; they do not crawl the whole disk.
 
 ```bash
 bunx usagemax doctor                 # metadata-only coverage check
@@ -112,28 +100,53 @@ bunx usagemax sync --archives        # one-time compressed-history recovery
 bunx usagemax report                 # local ccusage report
 ```
 
-Full scans catalog retained history from 2024 onward. A partial or incomplete
-source inventory cannot authorize destructive corrections, so decreases and
-missing rows are protected until the parser can prove complete coverage.
-Unknown model attribution remains `unattributed`; unknown pricing remains
-unknown instead of becoming a guess.
+Full scans can catalog retained history from 2024 onward. Incomplete source
+coverage never authorizes destructive corrections: decreases and missing rows
+remain protected until the parser can prove the inventory is complete. Unknown
+models stay `unattributed`; unknown pricing stays unknown.
 
 Cursor, Windsurf, Aider, Continue, Cline, Roo Code, hosted agents, direct
 provider API traffic, and enterprise billing systems do not all expose a stable
-local ledger. Integrate those through the native or OTLP/HTTP JSON endpoints,
-or use a provider billing export when local evidence is unavailable.
+local ledger. Feed those through the native or OTLP/HTTP JSON contract, or use
+a provider billing export when local evidence is unavailable.
+
+## Privacy and resource use
+
+| Stays on the computer | May be uploaded |
+| --- | --- |
+| Prompts and completions | Aggregate token counters |
+| Source code and file contents | Provider, model, and source names |
+| Project paths and tool payloads | Dates, costs, and coverage state |
+| Provider credentials and secrets | Opaque SHA-256 session identities |
+
+The CLI is short-lived. It skips unchanged inventories, parses only the
+necessary date range, uses a local lock to prevent overlap, and never downloads
+a package per run. Optional scheduling invokes the same one-shot process and
+backs off after failures.
+
+```bash
+bun install -g usagemax
+usagemax service install          # approximately every 15 minutes
+usagemax service install --every 30
+usagemax service status
+usagemax service uninstall
+```
+
+Scheduling is opt-in. macOS uses a user LaunchAgent, Linux/WSL uses a user
+systemd timer, and Windows uses Task Scheduler. Sleeping or battery-powered
+computers are not needlessly woken.
 
 ## Credentials and safe diagnostics
 
-There is one supported write credential: a `umx_` collector token followed by
-64 lowercase hexadecimal characters. It is generated server-side, shown once,
-stored locally with user-only permissions, and stored by the service only as a
-SHA-256 hash. Website sign-in, a link code, and a provider API key are different
-credentials.
+UsageMax has separate credentials for website sign-in, one-use linking, and
+collector writes. A collector key is exactly `umx_` followed by 64 lowercase
+hexadecimal characters. It is generated server-side, displayed once, stored
+locally with user-only permissions, and stored by UsageMax only as a SHA-256
+hash.
 
-For an advanced key created in **Advanced · custom telemetry collector**, pipe
-the secret through stdin. Do not put it in shell history, a URL, a request body,
-or a command-line argument:
+For an **Advanced · custom telemetry collector** key, pipe the secret through
+stdin. Never put it in a command-line argument, URL, request body, repository,
+or log:
 
 ```bash
 set +x
@@ -144,20 +157,28 @@ printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
   | jq -r '[.httpStatus, (if .ingestAuthorized then 1 else 0 end)] | @tsv'
 ```
 
-The `jq` projection is numeric-only: `200 1` means active and authorized,
-`200 0` means recognized but blocked, `409 0` means the installation does not
-match, and `401 0` means the format/key was not accepted. Without `jq`, `--json`
-returns the structured diagnostic object. Neither form returns the secret, its
-hash, or the raw authorized UUID. Advanced keys are active immediately; they do
-not require activation or propagation. They remain unbound until their first
-valid write.
+The numeric projection is deliberately small:
 
-### Zero-token telemetry probe
+| Result | Meaning |
+| --- | --- |
+| `200 1` | Recognized, active, and authorized to ingest. |
+| `200 0` | Recognized but blocked; inspect the redacted JSON status. |
+| `409 0` | The installation UUID does not match the key binding. |
+| `401 0` | The format/key was not accepted; the server does not reveal which reason. |
 
-The following shell-compatible `curl` probe sends exactly one content-free
-`agent_state` event with zero tokens and an explicitly reported zero cost. It
-prints only the numeric HTTP status code. Use a disposable collector if you want
-to test the write path:
+The read-only diagnostic reports credential type, scopes, activation state,
+profile/name, binding state, and last accepted/rejected write. It never returns
+the token, its hash, or the authorized UUID. Advanced keys are active
+immediately; they bind on the first valid write. Linked CLI keys are bound
+during the link exchange.
+
+<details>
+<summary>Optional zero-token telemetry smoke test</summary>
+
+This sends exactly one content-free `agent_state` event. It has zero token and
+zero cost fields, is observability-only, and prints only the HTTP status. Use a
+disposable collector if you want to test the write path; the first valid write
+may bind an unbound advanced key.
 
 ```bash
 set +x
@@ -170,9 +191,9 @@ curl -sS -o /dev/null -w '%{http_code}\n' \
     printf '%s\n' \
       'url = "https://usagemax.com/api/v1/telemetry/llm"' \
       'request = "POST"' \
-      'header = "Authorization: Bearer '"$USAGEMAX_COLLECTOR_TOKEN"'"' \
-      'header = "X-UsageMax-Device-ID: '"$device_id"'"' \
-      'header = "Idempotency-Key: '"$batch_id"'"' \
+      "header = \"Authorization: Bearer $USAGEMAX_COLLECTOR_TOKEN\"" \
+      "header = \"X-UsageMax-Device-ID: $device_id\"" \
+      "header = \"Idempotency-Key: $batch_id\"" \
       'header = "Content-Type: application/json"'
   ) \
   --data-binary @- <<JSON
@@ -180,72 +201,94 @@ curl -sS -o /dev/null -w '%{http_code}\n' \
 JSON
 ```
 
-Expected result: `202` for a new batch. To replay the exact same batch, export
-the two values retained by the first command before running it again in the
-same shell:
+Expected result: `202` for a new batch and `200` for an exact idempotent
+replay. Only `model_request` events update accounting; this event cannot change
+token totals or spend.
 
-```bash
-export USAGEMAX_DIAGNOSTIC_BATCH_ID="$batch_id"
-export USAGEMAX_DIAGNOSTIC_OCCURRED_AT="$occurred_at"
-```
+</details>
 
-The replay then returns `200`. This event is not an accounting total: only
-`model_request` events update token and spend accounting. It is still persisted
-as observability telemetry and may bind an unbound key. The CLI diagnostic above
-is the safer read-only check.
+## Agent and developer surfaces
 
-## Optional automatic checkpoints
-
-Scheduling is off by default. When enabled, the OS invokes the same short-lived
-one-shot sync; there is no resident watcher, high-frequency poller, or package
-download on every run.
-
-```bash
-bun install -g usagemax
-usagemax service install          # approximately every 15 minutes
-usagemax service install --every 30
-usagemax service status
-usagemax service uninstall
-```
-
-The scheduler uses a user LaunchAgent on macOS, a user systemd timer on
-Linux/WSL, and Task Scheduler on Windows. Jobs skip unchanged inventories,
-back off after failures, avoid waking sleeping or battery-powered computers,
-and retain only bounded local status. Use `service run` or `sync` when you want
-an immediate checkpoint.
-
-## Privacy boundary
-
-| Stays on the computer | May be uploaded |
+| Surface | URL |
 | --- | --- |
-| Prompts and completions | Aggregate token counters |
-| Source code and file contents | Provider/model and source names |
-| Project paths and tool payloads | Dates, costs, coverage state |
-| Provider credentials and secrets | Opaque SHA-256 session identities |
+| OpenAPI | [openapi.json](https://usagemax.com/openapi.json) |
+| Agent capability view | [/?mode=agent](https://usagemax.com/?mode=agent) |
+| Public MCP | [server-card.json](https://usagemax.com/.well-known/mcp/server-card.json) |
+| Documentation MCP | [/docs-mcp](https://usagemax.com/docs-mcp) |
+| A2A card | [agent-card.json](https://usagemax.com/.well-known/agent-card.json) |
+| Skills index | [agent-skills/index.json](https://usagemax.com/.well-known/agent-skills/index.json) |
+| MCP Registry metadata | [server.json](https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/server.json) |
+| Skill source and install docs | [`skills/`](https://github.com/SYMBaiEX/usagemax/tree/main/skills) · [skills.sh](https://www.skills.sh/) |
+| Auth guide | [/auth.md](https://usagemax.com/auth.md) |
 
-Public profiles and leaderboards are opt-in projections. Workspace data and
-exports require an authenticated UsageMax session. Collector writes are
-installation-bound, write-scoped, rate-limited, replay-safe, and revocable.
+Public reads are bounded and unauthenticated. The public MCP servers are
+stateless, read-only, and do not expose private workspace data or collector
+credentials. Collector ingestion is a separate authenticated API boundary.
 
 ## Repository map
 
-| Path | Purpose |
-| --- | --- |
-| `src/` | Next.js web application, public API proxy, docs, and UI |
-| `convex/` | Convex schema, authorization, ingestion, projections, and jobs |
-| `packages/cli/` | Published `usagemax` package |
-| `docs/` | Architecture, contracts, coverage, operations, and release notes |
-| `server.json` | Official MCP Registry metadata for the public remote server |
-| `skills/` | Direct-installable agent skills |
+```text
+src/             Next.js web app, public routes, docs, and UI
+convex/          Convex schema, authorization, ingestion, and projections
+packages/cli/    Distributable `usagemax` package
+docs/            Architecture, contracts, coverage, operations, and releases
+skills/          Direct-installable agent skills and source notes
+server.json      MCP Registry submission metadata for the public remote server
+```
 
-Public machine-readable surfaces include the [OpenAPI document](https://usagemax.com/openapi.json),
-[MCP endpoint](https://usagemax.com/mcp), [CLI guide](https://usagemax.com/cli.md),
-and [authentication guide](https://usagemax.com/auth.md).
+## MCP Registry and skills.sh status
+
+The local artifacts are ready for validation, but they are not external
+listings. [server.json](server.json) describes only the public
+`https://usagemax.com/mcp` remote; it contains no package, credential, or
+published Registry ID. The two `skills/` cards have valid `name` and
+`description` frontmatter and can be installed from the public source with:
+
+```bash
+npx skills add SYMBaiEX/usagemax --skill usage-observability
+npx skills add SYMBaiEX/usagemax --skill enterprise-reporting
+```
+
+No skills.sh install count, listing, or security audit is claimed until the
+external directory has indexed the source. The digest-pinned
+[Agent Skills index](https://usagemax.com/.well-known/agent-skills/index.json)
+is the deployed inventory; the raw GitHub files are the install sources.
+
+### Maintainer-only external submission recipe
+
+These commands are not part of normal development and were not run in this
+lane. After the source commit is public and the remote is live, a maintainer
+can publish and verify the MCP metadata:
+
+```bash
+mcp-publisher validate server.json
+mcp-publisher login github
+mcp-publisher publish server.json
+curl -fsS --get \
+  --data-urlencode 'search=io.github.symbaiex/usagemax' \
+  https://registry.modelcontextprotocol.io/v0.1/servers
+```
+
+For skills.sh, install each skill from the default branch to seed its
+anonymous directory telemetry, then verify the indexed IDs and URLs via [the
+skills.sh API](https://www.skills.sh/docs/api):
+
+```bash
+npx --yes skills add SYMBaiEX/usagemax --skill usage-observability
+npx --yes skills add SYMBaiEX/usagemax --skill enterprise-reporting
+curl -fsS --get \
+  --data-urlencode 'q=UsageMax' \
+  --data-urlencode 'owner=SYMBaiEX' \
+  https://www.skills.sh/api/v1/skills/search
+```
+
+Those steps may create third-party listing or usage state, so they remain
+explicit maintainer actions.
 
 ## Development
 
-Requirements: [Bun 1.4.2](https://bun.sh/), Node.js 20 or newer, and a Convex
-development deployment for the web app.
+Requirements: [Bun 1.4.2](https://bun.sh/) and Node.js 20 or newer. The web app
+also needs a configured Convex development deployment.
 
 ```bash
 bun install
@@ -254,11 +297,12 @@ bun run cli:pack    # verify the publishable CLI archive
 ```
 
 For local web development, configure an ignored `.env.local`, then run
-`bunx convex dev` and `bun run dev`. See [CONTRIBUTING.md](CONTRIBUTING.md)
-for change boundaries and [docs/RELEASE.md](docs/RELEASE.md) for release gates.
+`bunx convex dev` and `bun run dev`. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for contribution boundaries and
+[docs/RELEASE.md](docs/RELEASE.md) for release gates.
 
 ## Open source
 
-UsageMax and the CLI are released under the [MIT License](LICENSE). Third-party
-dependency notices are in [NOTICE.md](NOTICE.md). Please report suspected
-security issues privately through [SECURITY.md](SECURITY.md), not a public issue.
+UsageMax is released under the [MIT License](LICENSE). Third-party dependency
+notices are in [NOTICE.md](NOTICE.md). Please report suspected vulnerabilities
+privately through [SECURITY.md](SECURITY.md), not a public issue.
