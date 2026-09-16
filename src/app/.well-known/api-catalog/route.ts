@@ -27,6 +27,12 @@ const catalog = {
           "http://www.w3.org/1999/xhtml#documentation": `${origin}/docs#quickstart`,
         },
         {
+          href: `${origin}/api/v1/devices/status`,
+          type: "application/json",
+          title: "Read-only collector credential status",
+          "http://www.w3.org/1999/xhtml#documentation": `${origin}/auth.md#diagnose`,
+        },
+        {
           href: `${origin}/api/stats`,
           type: "application/json",
           title: "Public UsageMax network statistics",

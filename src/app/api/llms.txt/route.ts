@@ -9,6 +9,7 @@ The UsageMax HTTP API has public read operations and authenticated, content-free
 - [CLI guide](/cli.md): install, link, sync, and scheduling
 - [Protected-resource metadata](/.well-known/oauth-protected-resource): collector credential metadata
 - [Authentication](/auth.md): credential, header, revocation, and error guidance
+- [Collector status](/api/v1/devices/status): read-only key and device-binding diagnostic
 - [API catalog](/.well-known/api-catalog): RFC 9727 Linkset discovery
 - [AI Catalog compatibility](/.well-known/ai-catalog.json): equivalent legacy discovery catalog
 - [Network stats](/api/stats): bounded public aggregate totals

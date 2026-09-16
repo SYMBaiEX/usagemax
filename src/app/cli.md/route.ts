@@ -22,7 +22,13 @@ Run <code>bunx usagemax@latest --help</code> or install the package from [npm](h
 
 The computer name selected in Account is retained. Use <code>--name "Work laptop"</code> only when you want the current CLI to explicitly override that account-side name.
 
-The link code and collector token are never included in documentation examples, URLs, telemetry fields, or logs. Use <code>bunx usagemax@latest status</code> to inspect local state without printing the token.
+The link code and collector token are never included in documentation examples, URLs, telemetry fields, or logs. Use <code>bunx usagemax@latest status</code> to inspect local state without printing the token. Add <code>--remote</code> to verify the stored key against UsageMax without exposing it.
+
+For an advanced key that is not stored by the CLI, pipe the token through stdin and optionally check an installation UUID:
+
+    printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" | bunx usagemax@latest token status --device-id "$USAGEMAX_INSTALLATION_ID"
+
+The status check is read-only. It reports the key format, collector scopes, activation state, account-side profile/name, and whether the supplied installation is unbound, bound, matched, or mismatched. New advanced keys do not require activation; linked CLI keys are bound during the link exchange.
 
 ## Optional scheduling
 

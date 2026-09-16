@@ -412,6 +412,68 @@ function collectorView(collector: Doc<"collectors">) {
   };
 }
 
+// This is intentionally a diagnostic projection. It proves the state of a
+// credential without returning its hash, installation UUID, or any other
+// secret-bearing value. A caller that presents a valid key may see the
+// account-side name and profile it is already authorized to write to.
+export const inspectCollector = internalQuery({
+  args: {
+    keyHash: v.string(),
+    installationIdHash: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const collector = await ctx.db
+      .query("collectors")
+      .withIndex("by_keyHash", (q) => q.eq("keyHash", args.keyHash))
+      .unique();
+    if (!collector) return null;
+
+    const workspace = await ctx.db.get(collector.workspaceId);
+    const profile = await ctx.db.get(collector.profileId);
+    let membershipActive = true;
+    if (workspace?.workosOrganizationId && collector.ownerUserId) {
+      const member = await ctx.db
+        .query("workspaceMemberships")
+        .withIndex("by_userId_and_workspaceId", (q) =>
+          q.eq("userId", collector.ownerUserId!).eq("workspaceId", collector.workspaceId),
+        )
+        .unique();
+      membershipActive = member?.status === "active";
+    }
+
+    let status: "active" | "revoked" | "workspace_disabled" | "membership_inactive" | "device_mismatch" = "active";
+    if (collector.revokedAt) status = "revoked";
+    else if (!workspace || workspace.accessDisabledAt) status = "workspace_disabled";
+    else if (!membershipActive) status = "membership_inactive";
+    else if (collector.installationIdHash && args.installationIdHash && collector.installationIdHash !== args.installationIdHash) status = "device_mismatch";
+
+    const deviceBinding = !collector.installationIdHash
+      ? "unbound" as const
+      : args.installationIdHash
+        ? collector.installationIdHash === args.installationIdHash ? "matched" as const : "mismatch" as const
+        : "bound" as const;
+
+    return {
+      status,
+      credentialType: "collector" as const,
+      writeOnly: true,
+      activation: "not_required" as const,
+      expiresAt: null,
+      scopes: collector.scopes,
+      deviceBinding,
+      profileHandle: profile?.handle ?? null,
+      deviceName: collector.name,
+      platform: collector.platform ?? null,
+      cliVersion: collector.cliVersion ?? null,
+      createdAt: collector.createdAt,
+      lastSeenAt: collector.lastSeenAt ?? null,
+      lastSuccessAt: collector.lastSuccessAt ?? null,
+      lastFailureAt: collector.lastFailureAt ?? null,
+      lastFailureCode: collector.lastFailureCode ?? null,
+    };
+  },
+});
+
 export const current = query({
   args: {},
   handler: async (ctx) => {

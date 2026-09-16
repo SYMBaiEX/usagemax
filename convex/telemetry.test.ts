@@ -6,7 +6,7 @@ import schema from "./schema";
 import { api, internal } from "./_generated/api";
 
 const modules = import.meta.glob("./**/*.ts");
-const token = "umx_test_0123456789abcdef0123456789abcdef";
+const token = `umx_${"d".repeat(64)}`;
 const keyHash = createHash("sha256").update(token).digest("hex");
 
 function event(overrides: Record<string, unknown> = {}) {
@@ -95,6 +95,27 @@ describe("telemetry ingestion", () => {
     t = convexTest(schema, modules);
     rateLimiterTest.register(t);
     await seedCollector(t, Date.now());
+  });
+
+  test("diagnoses a collector without returning its secret", async () => {
+    const response = await t.fetch("/v1/devices/status", {
+      method: "GET",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "x-usagemax-device-id": "01234567-89ab-4cde-8fab-0123456789ab",
+      },
+    });
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toMatchObject({ ok: true, status: "active", credentialType: "collector", writeOnly: true, activation: "not_required", deviceBinding: "unbound" });
+    expect(JSON.stringify(body)).not.toContain(token);
+    expect(body).not.toHaveProperty("keyHash");
+
+    const unknown = await t.fetch("/v1/devices/status", {
+      method: "GET",
+      headers: { authorization: `Bearer umx_${"f".repeat(64)}` },
+    });
+    expect(unknown.status).toBe(401);
   });
 
   test("commits once and updates realtime projections", async () => {
