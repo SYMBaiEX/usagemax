@@ -19,7 +19,7 @@ describe("UsageMax OpenAPI contract", () => {
       "/api/profiles/{handle}/daily", "/api/profiles/{handle}/daily/detail",
       "/api/v1/devices/link", "/api/v1/devices/revoke", "/api/v1/telemetry/llm",
       "/api/v1/traces", "/api/v2/usage/snapshots",
-      "/api", "/api/v1/sandbox", "/api/v1/sandbox/validate",
+      "/api", "/api/v1/sandbox", "/api/v1/sandbox/validate", "/api/v1/batch", "/api/v1/batch/validate",
     ]));
     const native = document.paths["/api/v1/telemetry/llm"].post;
     expect(native.parameters).toEqual(expect.arrayContaining([
@@ -33,6 +33,7 @@ describe("UsageMax OpenAPI contract", () => {
     expect(document.paths["/api/v1/devices/revoke"].post.security).toEqual([{ collectorBearer: [] }]);
     expect(document.paths["/api/v2/usage/snapshots"].post.requestBody.content["application/json"].schema).toEqual({ $ref: "#/components/schemas/SnapshotOperation" });
     expect(document.paths["/api/v1/sandbox/validate"].post.responses["200"]).toBeDefined();
+    expect(document.paths["/api/v1/batch/validate"].post.responses["200"]).toBeDefined();
     expect(document.paths["/api"].get.responses["401"]).toBeDefined();
     expect(document.paths["/api/v1/sandbox"].get.responses["200"]).toBeDefined();
     expect(document.components.schemas.SandboxDescriptor.properties.writes).toEqual({ const: false });

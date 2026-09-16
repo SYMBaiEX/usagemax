@@ -3,11 +3,12 @@ import { WorkOS } from "@workos-inc/node";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { MIN_EVENT_TIME, clampNonNegative, cleanText, jsonResponse, sha256 } from "./lib";
+import { isAutomaticDeviceName } from "./device_name";
 import type { telemetryEventValidator } from "./telemetry";
 
 type NormalizedEvent = typeof telemetryEventValidator.type;
 type JsonObject = Record<string, unknown>;
-const RECOMMENDED_CLI_VERSION = "0.3.5";
+const RECOMMENDED_CLI_VERSION = "0.3.6";
 
 function newCollectorToken() {
   const bytes = new Uint8Array(32);
@@ -366,6 +367,7 @@ const linkDevice = httpAction(async (ctx, request) => {
       keyHash: await sha256(token),
       keyPrefix: token.slice(0, 12),
       name: typeof body?.name === "string" && body.name.trim() ? cleanText(body.name, "My computer", 80) : undefined,
+      nameIsExplicit: body?.nameExplicit === true || (typeof body?.name === "string" && body.name.trim() ? !isAutomaticDeviceName(body.name, typeof body.platform === "string" ? body.platform : undefined) : undefined),
       platform: optionalText(body?.platform, 24),
       cliVersion: optionalText(body?.cliVersion, 24),
       installationIdHash: id ? await sha256(id) : undefined,

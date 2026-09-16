@@ -40,8 +40,11 @@ function publicHeaders(headers: Headers, cacheControl: string, markdownPath?: st
 
 function agentHomepage() {
   return {
+    schemaVersion: "1.0",
+    type: "agent-capability-index",
     name: "UsageMax",
     description: "A public observability layer for bounded AI usage telemetry.",
+    canonicalUrl: "https://usagemax.com/?mode=agent",
     capabilities: ["public aggregate usage", "leaderboard", "documentation", "OpenAPI", "MCP", "A2A"],
     publicData: ["network totals", "public profiles", "bounded daily rollups", "bounded live activity"],
     exclusions: ["prompts", "completions", "credentials", "private workspace data"],
@@ -58,6 +61,22 @@ function agentHomepage() {
       { name: "mcp", method: "POST", path: "/mcp", authentication: "none", readOnly: true },
       { name: "sandbox", method: "POST", path: "/api/v1/sandbox/validate", authentication: "none", writes: false },
     ],
+    resources: [
+      { name: "openapi", url: "/openapi.json", contentType: "application/vnd.oai.openapi+json", authentication: "none", readOnly: true },
+      { name: "mcp-discovery", url: "/.well-known/mcp", contentType: "application/json", authentication: "none", readOnly: true },
+      { name: "a2a-agent-card", url: "/.well-known/agent-card.json", contentType: "application/json", authentication: "none", readOnly: true },
+      { name: "agent-skills", url: "/.well-known/agent-skills/index.json", contentType: "application/json", authentication: "none", readOnly: true },
+    ],
+    protocols: {
+      mcp: { endpoint: "/mcp", transport: "streamable-http", protocolVersion: "2025-06-18", authentication: "none", readOnly: true },
+      a2a: { endpoint: "/a2a", transport: "json-rpc", authentication: "none", readOnly: true },
+    },
+    limits: {
+      publicLeaderboardRows: 100,
+      sandbox: { maxBytes: 16_384, maxEvents: 100, writes: false },
+      mcp: { maxBodyBytes: 65_536, writes: false },
+    },
+    errors: { format: "application/json", schema: "/openapi.json#/components/schemas/Error", recovery: "/404" },
     links: {
       markdown: "/index.md",
       docs: "/docs",

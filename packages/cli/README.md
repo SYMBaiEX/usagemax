@@ -25,6 +25,10 @@ readable supported-provider homes under `/mnt/c/Users` automatically. Use the
 WSL collector as the single collector for that Windows PC instead of linking the
 same host history again from Windows.
 
+The computer name selected in Account is preserved during linking, including
+when an older CLI sends its automatic platform label. To intentionally override
+it from the terminal, pass `--name "Work laptop"`.
+
 The CLI stores the resulting collector key in a user-only config file, then runs
 a one-shot full-history sync. Running it again, changing the display name, or
 relinking an installation does not create a second device: the private random

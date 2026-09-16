@@ -24,7 +24,7 @@ process.title = "UsageMax";
 
 const require = createRequire(import.meta.url);
 const executeFile = promisify(execFile);
-const VERSION = "0.3.5";
+const VERSION = "0.3.6";
 const PUBLIC_API_ORIGIN = "https://usagemax.com/api";
 const DEFAULT_LINK_ENDPOINT = `${PUBLIC_API_ORIGIN}/v1/devices/link`;
 const CONFIG_FILE = "config.json";
@@ -180,7 +180,7 @@ async function link(args) {
   const response = await fetch(endpoint, {
     method: "POST",
     headers,
-    body: JSON.stringify({ code, ...(name ? { name } : {}), platform: platform(), cliVersion: VERSION, deviceId }),
+    body: JSON.stringify({ code, ...(name ? { name, nameExplicit: true } : {}), platform: platform(), cliVersion: VERSION, deviceId }),
     signal: AbortSignal.timeout(15_000),
   });
   const body = await response.json().catch(() => ({}));

@@ -26,6 +26,42 @@ const catalog = {
           "http://www.w3.org/1999/xhtml#title": "Authoritative usage snapshots",
           "http://www.w3.org/1999/xhtml#documentation": `${origin}/docs#quickstart`,
         },
+        {
+          href: `${origin}/api/stats`,
+          type: "application/json",
+          title: "Public UsageMax network statistics",
+          "http://www.w3.org/1999/xhtml#documentation": `${origin}/docs`,
+        },
+        {
+          href: `${origin}/api/leaderboard`,
+          type: "application/json",
+          title: "Public UsageMax leaderboard",
+          "http://www.w3.org/1999/xhtml#documentation": `${origin}/docs`,
+        },
+        {
+          href: `${origin}/api/profiles/{handle}`,
+          type: "application/json",
+          title: "Public UsageMax profile",
+          "http://www.w3.org/1999/xhtml#documentation": `${origin}/docs`,
+        },
+        {
+          href: `${origin}/api/v1/sandbox/validate`,
+          type: "application/json",
+          title: "No-write telemetry batch validation",
+          "http://www.w3.org/1999/xhtml#documentation": `${origin}/sandbox`,
+        },
+        {
+          href: `${origin}/a2a`,
+          type: "application/a2a+json",
+          title: "UsageMax A2A public observability agent",
+          "http://www.w3.org/1999/xhtml#documentation": `${origin}/docs`,
+        },
+        {
+          href: `${origin}/mcp`,
+          type: "application/mcp+json",
+          title: "UsageMax public product MCP",
+          "http://www.w3.org/1999/xhtml#documentation": `${origin}/docs`,
+        },
       ],
       "service-desc": [
         {
