@@ -8,14 +8,14 @@ last-updated: 2026-09-16
 # UsageMax authorization-server metadata
 
 UsageMax publishes an RFC 8414-shaped discovery document for its website
-authorization entry point. It starts a WorkOS AuthKit browser session; it does
-not mint a general-purpose API access token.
+browser sign-in entry point. It starts a WorkOS AuthKit browser session; it does
+not mint a general-purpose API access token or provide OAuth delegation.
 
 - Issuer: https://usagemax.com
-- Authorization endpoint: https://usagemax.com/auth/start
-- Response type: code
+- Browser sign-in entry point: https://usagemax.com/auth/start
+- Website session: WorkOS AuthKit browser session
 - Website scope: website_session
-- Token endpoint authentication methods: none advertised
+- OAuth token exchange: not provided
 - OAuth delegation: false
 
 Collector uploads use a separate installation-bound, write-only umx_ bearer

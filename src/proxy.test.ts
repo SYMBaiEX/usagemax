@@ -16,6 +16,15 @@ describe("public markdown negotiation", () => {
   it("still honors an explicit markdown accept header", () => {
     expect(requestsMarkdown(request({ accept: "text/markdown" }))).toBe(true);
   });
+
+  it("respects an explicit zero-quality markdown preference", () => {
+    expect(requestsMarkdown(request({ accept: "text/markdown;q=0, text/html" }))).toBe(false);
+    expect(requestsMarkdown(request({ accept: "text/markdown; q=0" }))).toBe(false);
+  });
+
+  it("uses the highest explicit markdown quality when repeated", () => {
+    expect(requestsMarkdown(request({ accept: "text/markdown;q=0, text/markdown;q=0.4" }))).toBe(true);
+  });
 });
 
 describe("agent homepage contract", () => {

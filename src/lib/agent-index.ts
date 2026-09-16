@@ -79,6 +79,7 @@ export function agentHomepage() {
     developerResources: [
       { name: "documentation", url: "https://usagemax.com/docs", mediaType: "text/html" },
       { name: "agentGuide", url: "https://usagemax.com/llms.txt", mediaType: "text/plain" },
+      { name: "agentMode", url: "https://usagemax.com/agent.json", mediaType: "application/json" },
       { name: "agentResourceDiscovery", url: "https://usagemax.com/.well-known/ard.json", mediaType: "application/json" },
       { name: "aiCatalog", url: "https://usagemax.com/.well-known/ai-catalog.json", mediaType: "application/json" },
       { name: "apiCatalog", url: "https://usagemax.com/.well-known/api-catalog", mediaType: "application/linkset+json" },
@@ -137,6 +138,7 @@ export function agentHomepage() {
       skills: "https://usagemax.com/.well-known/agent-skills/index.json",
       plugin: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/plugin.json",
       webmcp: "https://usagemax.com/webmcp",
+      agentMode: "https://usagemax.com/agent.json",
       mcpRegistry: "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest",
       aiCatalog: "https://usagemax.com/.well-known/ai-catalog.json",
       apiCatalog: "https://usagemax.com/.well-known/api-catalog",

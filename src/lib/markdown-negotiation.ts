@@ -3,6 +3,15 @@ const aiBotPattern = /(?:GPTBot|ClaudeBot|ChatGPT-User|PerplexityBot|Google-Exte
 type HeaderReader = { headers: { get(name: string): string | null } };
 
 export function requestsMarkdown(request: HeaderReader) {
-  return request.headers.get("accept")?.toLowerCase().includes("text/markdown")
+  const accept = request.headers.get("accept") ?? "";
+  const markdownQualities = accept.split(",").flatMap((part) => {
+    const [mediaType, ...parameters] = part.trim().toLowerCase().split(";");
+    if (mediaType !== "text/markdown") return [];
+    const quality = parameters.find((parameter) => parameter.trim().startsWith("q="))?.trim().slice(2);
+    const parsed = quality === undefined ? 1 : Number(quality);
+    return Number.isFinite(parsed) ? [parsed] : [0];
+  });
+
+  return (markdownQualities.length > 0 && Math.max(...markdownQualities) > 0)
     || aiBotPattern.test(request.headers.get("user-agent") ?? "");
 }

@@ -14,26 +14,32 @@ const markdownRoutes: Record<string, string> = {
   "/terms": "/terms.md",
   "/pricing": "/pricing.md",
   "/leaderboard": "/leaderboard.md",
+  "/api-versioning": "/api-versioning.md",
+  "/auth": "/auth.md",
+  "/cli": "/cli.md",
   "/.well-known/api-catalog": "/.well-known/api-catalog.md",
+  "/.well-known/oauth-authorization-server": "/.well-known/oauth-authorization-server.md",
   "/.well-known/oauth-protected-resource": "/.well-known/oauth-protected-resource.md",
+  "/.well-known/mcp/docs-server-card.json": "/.well-known/mcp/docs-server-card.json.md",
   "/api/llms.txt": "/api/llms.txt.md",
   "/sandbox": "/sandbox.md",
   "/about": "/about.md",
   "/contact": "/contact.md",
+  "/webmcp": "/webmcp.md",
 };
 
 const nonProfileRootPaths = new Set([
-  "about", "account", "api-versioning.md", "api", "ask", "auth.md", "auth", "callback", "cli.md", "contact",
+  "about", "account", "agent.json", "api-versioning.md", "api-versioning", "api", "ask", "auth.md", "auth", "callback", "cli.md", "cli", "contact",
   "docs-mcp", "docs.md", "docs", "enterprise.md", "enterprise", "index.md", "leaderboard.md", "leaderboard", "llms.txt",
-  "methodology.md", "methodology", "not-found.md", "openapi.json", "pricing.md", "pricing", "privacy.md", "privacy", "robots.txt", "sandbox.md", "sandbox",
+  "methodology.md", "methodology", "not-found.md", "openapi.json", "pricing.md", "pricing", "privacy.md", "privacy", "robots.txt", "sandbox.md", "sandbox", "webmcp.md", "webmcp",
   "schema-feed.jsonl", "schemamap.xml", "security.md", "security", "sign-in", "sign-up", "sitemap.xml", "terms.md", "terms", "workspace",
 ]);
 
 const knownExactPaths = new Set([
-  "/", "/about", "/account", "/api", "/api-versioning.md", "/ask", "/auth.md", "/callback", "/cli.md", "/contact",
+  "/", "/about", "/account", "/agent.json", "/api", "/api-versioning.md", "/api-versioning", "/ask", "/auth.md", "/auth", "/callback", "/cli.md", "/cli", "/contact",
   "/docs", "/docs-mcp", "/docs.md", "/enterprise", "/enterprise.md", "/index.md", "/leaderboard", "/leaderboard.md", "/llms.txt",
   "/mcp", "/methodology", "/methodology.md", "/not-found.md", "/openapi.json", "/pricing", "/pricing.md", "/privacy", "/privacy.md",
-  "/robots.txt", "/sandbox", "/sandbox.md", "/schema-feed.jsonl", "/schemamap.xml", "/security", "/security.md", "/sign-in", "/sign-up",
+  "/robots.txt", "/sandbox", "/sandbox.md", "/schema-feed.jsonl", "/schemamap.xml", "/security", "/security.md", "/sign-in", "/sign-up", "/webmcp", "/webmcp.md",
   "/sitemap.xml", "/terms", "/terms.md", "/workspace",
 ]);
 
