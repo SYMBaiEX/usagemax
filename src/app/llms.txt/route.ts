@@ -35,6 +35,7 @@ source code, credentials, or private workspace data.
 - [A2A agent](https://usagemax.com/a2a): bounded JSON-RPC answers about public UsageMax resources
 - [MCP](https://usagemax.com/mcp): read-only Streamable HTTP tools, when supported by the client
 - [Documentation MCP](https://usagemax.com/docs-mcp): read-only documentation tools
+- [MCP Registry metadata](https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/server.json): official remote-server metadata
 - [Agent resource discovery](https://usagemax.com/.well-known/ard.json): public resource catalog
 - [AI Catalog compatibility](https://usagemax.com/.well-known/ai-catalog.json): equivalent legacy discovery catalog
 - [Agent skills index](https://usagemax.com/.well-known/agent-skills/index.json): published skill inventory
