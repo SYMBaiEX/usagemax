@@ -17,6 +17,8 @@ UsageMax uses URL versioning for collector contracts and keeps the public read s
 
 Documented public and collector API responses include <code>X-API-Version: 1</code>. The [OpenAPI contract](https://usagemax.com/openapi.json) is canonical for request and response shapes.
 
+Public JSON reads advertise the bounded application policy with <code>RateLimit-Policy</code>, <code>RateLimit-Limit</code>, and <code>RateLimit-Reset</code>. A remaining count is not emitted because the response layer does not expose a shared counter; clients should still back off on HTTP 429 and honor <code>Retry-After</code>.
+
 ## Compatibility
 
 Additive response fields and optional request fields may be introduced without changing the major URL. Required fields, authentication requirements, privacy boundaries, and accounting semantics do not change silently. New collector contracts use a new versioned path and are documented in the CLI before becoming recommended.

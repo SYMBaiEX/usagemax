@@ -14,6 +14,8 @@ last-updated: 2026-09-16
 - [Usage snapshots](https://usagemax.com/api/v2/usage/snapshots)
 - [Collector credential status](https://usagemax.com/api/v1/devices/status) (read-only; bearer required)
 - [Sandbox validator](https://usagemax.com/api/v1/sandbox)
+- [Batch validator alias](https://usagemax.com/api/v1/batch)
+- [Pricing](https://usagemax.com/pricing)
 `;
 
 export function GET() { return new Response(markdown, { headers: { "cache-control": "public, max-age=3600", "content-type": "text/markdown; charset=utf-8", vary: "Accept, User-Agent" } }); }

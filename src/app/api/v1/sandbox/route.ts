@@ -11,7 +11,7 @@ const descriptor = {
   method: "POST",
   contentType: "application/json",
   limits: { maxBytes: 16_384, maxEvents: 100 },
-  aliases: ["https://usagemax.com/api/v1/batch/validate"],
+  aliases: ["https://usagemax.com/api/v1/batch", "https://usagemax.com/api/v1/batch/validate"],
   acceptedFields: [
     "eventKey", "logicalRequestId", "sessionId", "agentId", "agentExternalId", "parentAgentId", "parentAgentExternalId", "agentName",
     "eventType", "source", "provider", "requestedModel", "model", "inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens",

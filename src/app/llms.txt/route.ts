@@ -21,6 +21,7 @@ source code, credentials, or private workspace data.
 - [Methodology](https://usagemax.com/methodology): aggregation, completeness, and ranking definitions
 - [Security](https://usagemax.com/security): public data boundaries and bounded reads
 - [Enterprise](https://usagemax.com/enterprise): team operating surface
+- [Pricing](https://usagemax.com/pricing): free personal and small-team plans, plus scoped enterprise capacity
 - [Privacy](https://usagemax.com/privacy): telemetry and public profile handling
 - [Terms](https://usagemax.com/terms): public service terms
 - [About](https://usagemax.com/about): product and operating boundary
@@ -39,6 +40,7 @@ source code, credentials, or private workspace data.
 - [Agent skills index](https://usagemax.com/.well-known/agent-skills/index.json): published skill inventory
 - [RFC 9727 API catalog](https://usagemax.com/.well-known/api-catalog): API linkset
 - [Protected-resource metadata](https://usagemax.com/.well-known/oauth-protected-resource): collector authentication metadata
+- [HTTP Message Signatures directory](https://usagemax.com/.well-known/http-message-signatures-directory): public Web Bot Auth key discovery; signatures are not required by UsageMax today
 - [CLI package](https://www.npmjs.com/package/usagemax): installable local collector
 - [CLI guide](https://usagemax.com/cli.md): install, link, sync, and low-priority scheduling
 - [API versioning](https://usagemax.com/api-versioning.md): compatibility and deprecation policy

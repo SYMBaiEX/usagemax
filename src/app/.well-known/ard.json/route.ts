@@ -151,6 +151,28 @@ export const manifest = {
       capabilities: ["schema", "json-ld", "entity-discovery"],
       representativeQueries: ["What structured entities does UsageMax publish?"],
     },
+    {
+      "@context": "https://agenticresourcediscovery.org/context/v1",
+      identifier: "urn:air:usagemax.com:resource:pricing",
+      displayName: "UsageMax pricing",
+      type: "text/markdown",
+      url: `${origin}/pricing.md`,
+      trustManifest,
+      description: "Machine-readable pricing boundaries for free personal use, small teams, and scoped enterprise capacity.",
+      capabilities: ["pricing", "enterprise-capacity"],
+      representativeQueries: ["What does UsageMax cost?", "What is included for enterprise teams?"],
+    },
+    {
+      "@context": "https://agenticresourcediscovery.org/context/v1",
+      identifier: "urn:air:usagemax.com:resource:http-message-signatures-directory",
+      displayName: "UsageMax HTTP Message Signatures directory",
+      type: "application/http-message-signatures-directory+json",
+      url: `${origin}/.well-known/http-message-signatures-directory`,
+      trustManifest,
+      description: "Public Web Bot Auth key discovery material. UsageMax does not currently require signatures for public reads.",
+      capabilities: ["http-message-signatures", "bot-auth-discovery"],
+      representativeQueries: ["Where can I find the UsageMax bot-auth key directory?"],
+    },
   ],
 };
 

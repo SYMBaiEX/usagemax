@@ -9,6 +9,7 @@ The UsageMax HTTP API has public read operations and authenticated, content-free
 - [CLI guide](/cli.md): install, link, sync, and scheduling
 - [Protected-resource metadata](/.well-known/oauth-protected-resource): collector credential metadata
 - [Authentication](/auth.md): credential, header, revocation, and error guidance
+- [Pricing](/pricing.md): machine-readable personal, small-team, and enterprise plan boundaries
 - [Collector status](/api/v1/devices/status): read-only key and device-binding diagnostic
 - [API catalog](/.well-known/api-catalog): RFC 9727 Linkset discovery
 - [AI Catalog compatibility](/.well-known/ai-catalog.json): equivalent legacy discovery catalog
@@ -18,6 +19,7 @@ The UsageMax HTTP API has public read operations and authenticated, content-free
 - [MCP](/mcp): read-only tool interface for public projections
 - [A2A](/a2a): read-only JSON-RPC agent interface for bounded public questions
 - [Sandbox descriptor](/api/v1/sandbox): no-write validation environment and example
+- [Batch validator alias](/api/v1/batch): no-write POST alias documented in OpenAPI
 
 ## Source
 
