@@ -25,6 +25,17 @@ The response also reports whether the `telemetry:write` scope is present through
 flow is active immediately and remains unbound
 until its first valid write; linked CLI keys are bound during link exchange.
 
+HTTP `200` means the credential was recognized, not necessarily that ingestion
+is authorized: check both `scopeStatus` and `ingestAuthorized`. HTTP `409` means
+the supplied installation UUID does not match the key's binding; HTTP `401`
+means the credential was not accepted. A numeric-only CLI projection is
+`[httpStatus, ingestAuthorized ? 1 : 0]`, so `200 1` is authorized and `200 0`
+is recognized but blocked. A write-path smoke test may POST one `agent_state`
+event with every token counter and `costMicros` set to zero; it returns `202`
+for a new batch and `200` for an identical replay. This is observability-only:
+`agent_state` does not update token or spend accounting, and the probe can bind
+an unbound advanced key.
+
 - **Snapshot v2** is the recommended path for local coding-agent history. It is
   authoritative, correction-aware, and optimized for a short-lived CLI run.
 - **Event v2** records live model attempts, tool calls, agent state, and outcomes.
@@ -100,6 +111,13 @@ Useful optional fields:
 - `status`: `ok`, `error`, or `cancelled`
 - `state`, `task`, `traceId`, `spanId`
 - `completeness`: `reported`, `estimated`, or `unknown`
+
+Every authenticated usage write request must include `X-UsageMax-Device-ID` with the
+stable installation UUID. The public Next proxy and the Convex HTTP boundary
+both enforce this requirement, so reaching the infrastructure host directly
+cannot bypass installation binding. Status reads may omit the header to inspect
+the credential's unqualified state; supplying it reports `matched` or
+`mismatch` without returning the stored UUID.
 
 One request accepts 1–100 events and at most 1 MB of JSON. Across event and
 snapshot APIs, each collector is limited to 180 operations and 20,000 accepted

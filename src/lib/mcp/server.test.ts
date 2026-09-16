@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { DOCS, DOC_TOOL_DEFINITIONS, handleMcp, MCP_APP_RESOURCE_URI, MCP_SERVER_NAMES, MCP_SERVER_VERSION, USAGEMAX_TOOLS } from "./server";
+import { DOCS, DOC_TOOL_DEFINITIONS, handleMcp, MCP_APP_RESOURCE_URI, MCP_SERVER_INSTRUCTIONS, MCP_SERVER_NAMES, MCP_SERVER_VERSION, USAGEMAX_TOOLS } from "./server";
 
 describe("UsageMax MCP", () => {
   it("supports initialize and lists only read tools", async () => {
     const init = await handleMcp({ jsonrpc: "2.0", id: 1, method: "initialize" });
     expect("result" in init ? init.result : null).toMatchObject({ protocolVersion: "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: MCP_SERVER_NAMES.public, version: MCP_SERVER_VERSION } });
-    expect("result" in init ? init.result : null).toMatchObject({ instructions: expect.stringContaining("read-only") });
+    expect("result" in init ? init.result : null).toMatchObject({ instructions: MCP_SERVER_INSTRUCTIONS.public });
     const list = await handleMcp({ jsonrpc: "2.0", id: 2, method: "tools/list" });
     expect(("result" in list ? list.result as { tools: { name: string }[] } : { tools: [] }).tools.map((tool) => tool.name)).toEqual(["public_profile", "leaderboard", "network_stats", "ask_site", "docs_list", "docs_search", "docs_get"]);
   });
   it("describes the docs surface without claiming product resources", async () => {
     const init = await handleMcp({ jsonrpc: "2.0", id: 1, method: "initialize" }, undefined, "docs");
-    expect("result" in init ? init.result : null).toMatchObject({ serverInfo: { name: MCP_SERVER_NAMES.docs, version: MCP_SERVER_VERSION }, instructions: expect.stringContaining("documentation tools") });
+    expect("result" in init ? init.result : null).toMatchObject({ serverInfo: { name: MCP_SERVER_NAMES.docs, version: MCP_SERVER_VERSION }, instructions: MCP_SERVER_INSTRUCTIONS.docs });
     expect("result" in init ? init.result : null).not.toMatchObject({ instructions: expect.stringContaining("MCP App resource") });
     expect("result" in init ? init.result : null).toMatchObject({ capabilities: { tools: {} } });
   });

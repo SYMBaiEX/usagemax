@@ -41,6 +41,8 @@ describe("UsageMax OpenAPI contract", () => {
     expect(document.paths["/api/v1/batch"].post.operationId).toBe("validateTelemetryBatchRootAlias");
     expect(document.paths["/api/v1/batch"].post.requestBody.content["application/json"].schema).toEqual({ $ref: "#/components/schemas/NativeTelemetryBatch" });
     expect(document.paths["/api"].get.responses["401"]).toBeDefined();
+    expect(document.paths["/api"].get.responses["401"].content["application/json"].schema).toEqual({ $ref: "#/components/schemas/Error" });
+    expect(document.paths["/api"].get.responses["401"].headers["WWW-Authenticate"]).toBeDefined();
     expect(document.paths["/api/v1/sandbox"].get.responses["200"]).toBeDefined();
     expect(document.components.schemas.SandboxDescriptor.properties.writes).toEqual({ const: false });
     expect(document.components.schemas.NativeTelemetryBatch.additionalProperties).toBe(false);

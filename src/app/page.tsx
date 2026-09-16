@@ -4,7 +4,8 @@ import { LandingPage } from "@/components/landing-page";
 
 export const metadata: Metadata = {
   title: "Your AI work. On the record.",
-  description: "Bring your AI tokens, models, and costs into one clear view. Connect your machines, understand your usage, and share only what you choose.",
+  description: "Track AI model, agent, and tool usage across connected computers. Free for individuals and small teams; public sharing is optional.",
+  alternates: { canonical: "https://usagemax.com/" },
 };
 
 export default function Home() {

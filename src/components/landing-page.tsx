@@ -119,10 +119,11 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
         <div className={`${styles.wrap} ${styles.heroInner}`}>
         <div className={styles.heroCopy}>
           <h1 id="landing-title">Your AI work.<br /><span>On the record.</span></h1>
-          <p>Track tokens and costs across your models and computers.</p>
+          <p>Track tokens and costs across your models and computers. Free for individuals and small teams. No card required.</p>
           <div className={styles.heroActions}>
             <AuthNavigation className={styles.primaryButton} href="/sign-up">Start tracking <ArrowUpRight size={17} /></AuthNavigation>
             <Link className={styles.textLink} href="/leaderboard">Leaderboard <ArrowRight size={16} /></Link>
+            <Link className={styles.textLink} href="/?mode=agent" rel="alternate" type="application/json" aria-label="Open UsageMax agent mode">Agent mode <ArrowUpRight size={16} /></Link>
           </div>
           <span className={styles.privacy}><LockClosed size={13} /> Private by default. Public when you choose.</span>
         </div>
@@ -162,6 +163,7 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
           </div>
           <div className={styles.connectCopy}>
             <h2 id="connect-title">Connect your computers.</h2>
+            <p>Free for individuals and small teams. No card required.</p>
             <Link className={styles.textLink} href="/docs">Setup guide <ArrowUpRight size={15} /></Link>
           </div>
         </div>

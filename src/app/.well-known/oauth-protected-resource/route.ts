@@ -5,13 +5,11 @@ const metadata = {
   resource_documentation: "https://usagemax.com/auth.md",
   bearer_methods_supported: ["header"],
   // These are resource permission labels enforced on UsageMax collector
-  // credentials. They are discoverable for least-privilege clients even
-  // though UsageMax does not expose an OAuth authorization server.
+  // credentials. They are discoverable for least-privilege clients. The
+  // authorization-server metadata below describes the browser sign-in entry
+  // point; UsageMax does not expose an OAuth token exchange for this resource.
   scopes_supported: ["telemetry:write", "outcomes:write"],
-  // No authorization_servers claim: UsageMax has no OAuth authorization server
-  // or token endpoint. The bearer credential is a proprietary collector token.
-  // UsageMax currently accepts a proprietary, write-only collector credential.
-  // It is intentionally not advertised as an OAuth access token or delegated API.
+  authorization_servers: ["https://usagemax.com"],
   x_usagemax_authentication: {
     collector_token: "umx_ prefix, installation-bound, write-only",
     collector_scopes: ["telemetry:write", "outcomes:write"],

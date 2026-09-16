@@ -23,6 +23,7 @@ describe("API response contract", () => {
     expect(response.headers.get("ratelimit-policy")).toBe("180;w=60");
     expect(response.headers.get("ratelimit-limit")).toBe("180");
     expect(response.headers.get("ratelimit-reset")).toBe("60");
+    expect(response.headers.get("retry-after")).toBe("60");
     expect(response.headers.get("ratelimit-remaining")).toBeNull();
   });
 

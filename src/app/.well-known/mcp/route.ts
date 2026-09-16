@@ -1,4 +1,4 @@
-import { DOC_TOOL_DEFINITIONS, MCP_APP_RESOURCES, MCP_PROTOCOL_VERSION, MCP_SERVER_VERSION, USAGEMAX_TOOLS } from "@/lib/mcp/server";
+import { DOC_TOOL_DEFINITIONS, MCP_APP_RESOURCES, MCP_PROTOCOL_VERSION, MCP_SERVER_INSTRUCTIONS, MCP_SERVER_NAMES, MCP_SERVER_VERSION, USAGEMAX_TOOLS } from "@/lib/mcp/server";
 
 export const dynamic = "force-static";
 
@@ -16,9 +16,10 @@ function toolMetadata(tool: { name: string; title: string; description: string; 
 const discovery = {
   schemaVersion: "1.0",
   type: "mcp-discovery",
-  name: "UsageMax public read MCP",
+  name: MCP_SERVER_NAMES.public,
   version: MCP_SERVER_VERSION,
   protocol: MCP_PROTOCOL_VERSION,
+  instructions: MCP_SERVER_INSTRUCTIONS.public,
   transport: "streamable-http",
   serverUrl: "https://usagemax.com/mcp",
   serverCard: "https://usagemax.com/.well-known/mcp/server-card.json",

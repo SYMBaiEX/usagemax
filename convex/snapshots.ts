@@ -829,9 +829,9 @@ export const completeRun = internalMutation({
 });
 
 export const failRun = internalMutation({
-  args: { keyHash: v.string(), runId: v.string(), failureCode: v.string(), now: v.number() },
+  args: { keyHash: v.string(), installationIdHash: v.optional(v.string()), runId: v.string(), failureCode: v.string(), now: v.number() },
   handler: async (ctx, args) => {
-    const collector = await collectorForKey(ctx, args.keyHash);
+    const collector = await collectorForKey(ctx, args.keyHash, args.installationIdHash);
     await enforceCollectorRateLimit(ctx, String(collector._id));
     const run = await ctx.db.query("snapshotRuns").withIndex("by_collectorId_and_runId", (q) =>
       q.eq("collectorId", collector._id).eq("runId", args.runId),

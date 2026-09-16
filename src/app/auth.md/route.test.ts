@@ -7,8 +7,9 @@ describe("auth.md", () => {
     expect(body).toContain("https://usagemax.com/sign-in");
     expect(body).toContain("https://usagemax.com/account");
     expect(body).toContain("https://usagemax.com/api/v1/devices/link");
-    expect(body).toContain("no OAuth authorization-server exchange or token endpoint");
-    expect(body).toContain("no `authorization_servers`, `authorization_endpoint`, or `token_endpoint`");
+    expect(body).toContain("authorization-server metadata");
+    expect(body).toContain("does not expose an OAuth token exchange");
+    expect(body).toContain("no `identity_endpoint`, `claim_endpoint`, `events_endpoint`");
     expect(body).toContain("https://usagemax.com/.well-known/oauth-protected-resource");
   });
 

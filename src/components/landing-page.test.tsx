@@ -31,6 +31,9 @@ describe("landing page", () => {
     expect(html).toContain("$1,250");
     expect(html.match(/href="\/test-builder"/g)).toHaveLength(1);
     expect(html).toContain("Not an invoice.");
+    expect(html).toContain('href="/?mode=agent"');
+    expect(html).toContain("Agent mode");
+    expect(html).toContain("Free for individuals and small teams. No card required.");
     expect(queryMock).toHaveBeenCalledTimes(2);
     expect(queryMock.mock.calls[1][1]).toEqual({ period: "all", metric: "tokens", limit: 5 });
   });

@@ -45,6 +45,21 @@ function safeResponseHeaders(source: Headers) {
   return headers;
 }
 
+// The status endpoint uses HTTP 409 to report a recognized collector that is
+// bound to another installation. Preserve that one safe projection through
+// the public proxy; generic upstream error bodies remain normalized below.
+function collectorDiagnostic(value: unknown) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  const body = value as Record<string, unknown>;
+  if (body.credentialType !== "collector" || body.writeOnly !== true || typeof body.status !== "string") return null;
+  const allowed = new Set([
+    "ok", "status", "credentialType", "writeOnly", "activation", "expiresAt", "scopes", "scopeStatus",
+    "ingestAuthorized", "deviceBinding", "profileHandle", "deviceName", "platform", "cliVersion", "createdAt",
+    "lastSeenAt", "lastSuccessAt", "lastFailureAt", "lastFailureCode",
+  ]);
+  return Object.fromEntries(Object.entries(body).filter(([key]) => allowed.has(key)));
+}
+
 export async function forwardCollectorRequest(request: Request, options: ForwardOptions) {
   const rateLimitPolicy = options.rateLimitPolicy ?? "180;w=60";
   if (!convexSiteUrl) return error("api_not_configured", 503, undefined, rateLimitPolicy);
@@ -93,6 +108,12 @@ export async function forwardCollectorRequest(request: Request, options: Forward
   });
   if (!response.ok && response.headers.get("content-type")?.includes("application/json")) {
     const payload = await response.json().catch(() => null) as { error?: unknown } | null;
+    const diagnostic = collectorDiagnostic(payload);
+    if (diagnostic) {
+      const headers = safeResponseHeaders(response.headers);
+      headers.set("content-type", "application/json; charset=utf-8");
+      return new Response(JSON.stringify(diagnostic), { status: response.status, headers });
+    }
     return error(typeof payload?.error === "string" ? payload.error : "collector_request_failed", response.status, safeResponseHeaders(response.headers), rateLimitPolicy);
   }
   const responseHeaders = safeResponseHeaders(response.headers);

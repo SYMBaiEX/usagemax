@@ -30,17 +30,19 @@ source code, credentials, or private workspace data.
 - [OpenAPI](https://usagemax.com/openapi.json): machine-readable HTTP contract
 - [API context](https://usagemax.com/api/llms.txt): scoped API guidance
 - [Documentation context](https://usagemax.com/docs/llms.txt): scoped documentation guidance
-- [Agent mode](https://usagemax.com/?mode=agent): structured homepage capability view
+- [Agent mode](https://usagemax.com/?mode=agent): public JSON capability view for the homepage
 - [NLWeb ask](https://usagemax.com/ask): bounded JSON or finite SSE answers about public UsageMax resources
 - [A2A agent](https://usagemax.com/a2a): bounded JSON-RPC answers about public UsageMax resources
 - [MCP](https://usagemax.com/mcp): read-only Streamable HTTP tools, when supported by the client
 - [Documentation MCP](https://usagemax.com/docs-mcp): read-only documentation tools
+- [Documentation MCP card](https://usagemax.com/.well-known/mcp/docs-server-card.json): documentation-server identity and tool contract
 - [MCP Registry metadata](https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/server.json): official remote-server metadata
 - [Agent resource discovery](https://usagemax.com/.well-known/ard.json): public resource catalog
 - [AI Catalog compatibility](https://usagemax.com/.well-known/ai-catalog.json): equivalent legacy discovery catalog
 - [Agent skills index](https://usagemax.com/.well-known/agent-skills/index.json): published skill inventory
 - [RFC 9727 API catalog](https://usagemax.com/.well-known/api-catalog): API linkset
 - [Protected-resource metadata](https://usagemax.com/.well-known/oauth-protected-resource): collector authentication metadata
+- [Authorization-server metadata](https://usagemax.com/.well-known/oauth-authorization-server): browser-session authorization entry point; no API token exchange
 - [HTTP Message Signatures directory](https://usagemax.com/.well-known/http-message-signatures-directory): public Web Bot Auth key discovery; signatures are not required by UsageMax today
 - [CLI package](https://www.npmjs.com/package/usagemax): installable local collector
 - [CLI guide](https://usagemax.com/cli.md): install, link, sync, and low-priority scheduling
@@ -53,6 +55,25 @@ source code, credentials, or private workspace data.
 - [Agent Plugin manifest](https://github.com/SYMBaiEX/usagemax/blob/main/plugin.json): installable plugin metadata
 - [Usage observability skill](https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/skills/usage-observability/SKILL.md): public-data integration guidance
 - [Enterprise reporting skill](https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/skills/enterprise-reporting/SKILL.md): tenant-safe reporting guidance
+
+## Agent mode
+
+Request \`GET https://usagemax.com/?mode=agent\` for the public JSON capability
+index. It describes the currently advertised read-only endpoints, resources,
+protocols, limits, authentication boundaries, and excluded private data. It does
+not require authentication and does not mint OAuth tokens. Use the linked
+OpenAPI and resource documents for request and response schemas.
+
+## Getting started
+
+1. Create an account at [UsageMax sign-up](https://usagemax.com/sign-up).
+2. In [Account](https://usagemax.com/account), create a one-use computer link.
+3. Run \`bunx usagemax@latest link UMX-XXXX-XXXX-XXXX-XXXX\`, then run
+   \`bunx usagemax@latest sync\` for a bounded one-shot upload.
+
+Personal and small-team plans are free, and no card is required. Public profile
+publication is optional; prompts, completions, source code, credentials, and
+private workspace data remain outside the public projection.
 
 ## Public data contract
 
