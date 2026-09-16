@@ -1,6 +1,7 @@
 const repositoryUrl = "https://github.com/SYMBaiEX/usagemax";
 const logoUrl = "https://usagemax.com/brand/icon-192.png";
-const sameAs = [repositoryUrl, "https://github.com/SYMBaiEX", "https://www.npmjs.com/package/usagemax"];
+const registryUrl = "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest";
+const sameAs = [repositoryUrl, "https://github.com/SYMBaiEX", "https://www.npmjs.com/package/usagemax", registryUrl];
 
 export const usageMaxStructuredData = {
   "@context": "https://schema.org",
