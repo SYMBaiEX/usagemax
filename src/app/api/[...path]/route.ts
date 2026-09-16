@@ -1,6 +1,6 @@
 import { apiError } from "@/lib/api-response";
 
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 
 function notFound() {
   const response = apiError("api_route_not_found", 404);
