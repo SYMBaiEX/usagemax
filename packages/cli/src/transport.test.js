@@ -86,3 +86,24 @@ test("collector status reduces an unknown credential to a safe rejection", () =>
   assert.equal(JSON.stringify(view).includes(token), false);
   assert.equal("error" in view, false);
 });
+
+test("collector status keeps a safe installation mismatch diagnostic", () => {
+  const view = collectorStatusView(409, {
+    ok: false,
+    status: "device_mismatch",
+    credentialType: "collector",
+    writeOnly: true,
+    activation: "not_required",
+    expiresAt: null,
+    scopes: ["telemetry:write"],
+    scopeStatus: "valid",
+    ingestAuthorized: false,
+    deviceBinding: "mismatch",
+    profileHandle: "relay",
+    deviceName: "HUD relay",
+  }, token);
+  assert.equal(view.status, "device_mismatch");
+  assert.equal(view.httpStatus, 409);
+  assert.equal(view.deviceBinding, "mismatch");
+  assert.equal(view.ingestAuthorized, false);
+});

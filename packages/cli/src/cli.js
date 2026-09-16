@@ -540,8 +540,10 @@ async function removeLink(args = []) {
     if (!endpoint) throw new Error("This collector does not have a valid revoke endpoint. Revoke it at https://usagemax.com/account.");
     const response = await fetch(endpoint, {
       method: "POST",
-      headers: { authorization: `Bearer ${config.token}`, "content-type": "application/json" },
-      body: JSON.stringify({ deviceId: config.deviceId }),
+      headers: {
+        authorization: `Bearer ${config.token}`,
+        "x-usagemax-device-id": config.deviceId,
+      },
       signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) throw new Error("UsageMax could not revoke this collector. It remains linked locally.");

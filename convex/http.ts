@@ -88,6 +88,12 @@ async function authorizationContext(request: Request) {
   return { keyHash: await sha256(token), installationIdHash: id ? await sha256(id) : undefined };
 }
 
+async function requiredAuthorizationContext(request: Request) {
+  const auth = await authorizationContext(request);
+  if (!auth.installationIdHash) throw new Error("INVALID_DEVICE_ID");
+  return auth as { keyHash: string; installationIdHash: string };
+}
+
 function nativeEvent(value: unknown, now: number): Omit<NormalizedEvent, "eventHash"> {
   const event = object(value);
   if (!event) throw new Error("INVALID_EVENT");
@@ -291,15 +297,12 @@ async function ingest(ctx: Parameters<Parameters<typeof httpAction>[0]>[0], requ
   if (!request.headers.get("content-type")?.toLowerCase().includes("application/json")) {
     return jsonResponse({ error: "content_type_must_be_application_json" }, 415);
   }
-  const authorization = request.headers.get("authorization") ?? "";
-  const token = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
-  if (token.length < 32) return jsonResponse({ error: "unauthorized" }, 401);
-  let installationIdHash: string | undefined;
+  let auth: { keyHash: string; installationIdHash: string };
   try {
-    const id = deviceId(request.headers.get("x-usagemax-device-id"));
-    installationIdHash = id ? await sha256(id) : undefined;
-  } catch {
-    return jsonResponse({ error: "invalid_device_id" }, 400);
+    auth = await requiredAuthorizationContext(request);
+  } catch (error) {
+    const message = String(error);
+    return jsonResponse({ error: message.includes("INVALID_DEVICE_ID") ? "invalid_device_id" : "unauthorized" }, message.includes("INVALID_DEVICE_ID") ? 400 : 401);
   }
   const batchId = cleanText(request.headers.get("idempotency-key"), "", 180);
   if (!batchId) return jsonResponse({ error: "idempotency_key_required" }, 400);
@@ -328,11 +331,11 @@ async function ingest(ctx: Parameters<Parameters<typeof httpAction>[0]>[0], requ
   const events = await Promise.all(sourceEvents.map(async (event) => ({ ...event, eventHash: await sha256(JSON.stringify(event)) })));
   try {
     const result = await ctx.runMutation(internal.telemetry.commitBatch, {
-      keyHash: await sha256(token),
+      keyHash: auth.keyHash,
       batchId,
       payloadHash: await sha256(rawBody),
       receivedAt: now,
-      installationIdHash,
+      installationIdHash: auth.installationIdHash,
       events,
     });
     return jsonResponse({ ok: true, ...result }, result.replay ? 200 : 202);
@@ -419,9 +422,11 @@ const snapshots = httpAction(async (ctx, request) => {
   try {
     body = object(JSON.parse(rawBody));
     if (!body) throw new Error("INVALID_BODY");
-    auth = await authorizationContext(request);
+    auth = await requiredAuthorizationContext(request);
   } catch (error) {
-    return jsonResponse({ error: String(error).includes("UNAUTHORIZED") ? "unauthorized" : "invalid_request" }, String(error).includes("UNAUTHORIZED") ? 401 : 400);
+    const message = String(error);
+    const unauthorized = message.includes("UNAUTHORIZED");
+    return jsonResponse({ error: unauthorized ? "unauthorized" : message.includes("INVALID_DEVICE_ID") ? "invalid_device_id" : "invalid_request" }, unauthorized ? 401 : 400);
   }
   const operation = body.operation;
   const runId = cleanText(body.runId, "", 80);
@@ -532,6 +537,7 @@ const snapshots = httpAction(async (ctx, request) => {
     if (operation === "fail") {
       const result = await ctx.runMutation(internal.snapshots.failRun, {
         keyHash: auth.keyHash,
+        installationIdHash: auth.installationIdHash,
         runId,
         failureCode: cleanText(body.failureCode, "sync_failed", 80),
         now,
@@ -588,13 +594,15 @@ const snapshotStatus = httpAction(async (ctx, request) => {
 
 const revokeDevice = httpAction(async (ctx, request) => {
   try {
-    const auth = await authorizationContext(request);
+    const auth = await requiredAuthorizationContext(request);
     const result = await ctx.runMutation(internal.snapshots.revokeSelf, { ...auth, now: Date.now() });
     return jsonResponse({ ok: true, ...result });
   } catch (error) {
     const message = String(error);
     if (message.includes("RATE_LIMITED")) return jsonResponse({ error: "rate_limited" }, 429, { "retry-after": "60" });
-    return jsonResponse({ error: message.includes("INVALID_COLLECTOR") || message.includes("UNAUTHORIZED") ? "unauthorized" : "revoke_failed" }, message.includes("INVALID_COLLECTOR") || message.includes("UNAUTHORIZED") ? 401 : 500);
+    if (message.includes("INVALID_DEVICE_ID")) return jsonResponse({ error: "invalid_device_id" }, 400);
+    const unauthorized = message.includes("INVALID_COLLECTOR") || message.includes("UNAUTHORIZED");
+    return jsonResponse({ error: unauthorized ? "unauthorized" : "revoke_failed" }, unauthorized ? 401 : 500);
   }
 });
 

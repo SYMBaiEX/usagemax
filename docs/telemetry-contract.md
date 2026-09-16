@@ -101,6 +101,13 @@ Useful optional fields:
 - `state`, `task`, `traceId`, `spanId`
 - `completeness`: `reported`, `estimated`, or `unknown`
 
+Every authenticated usage write request must include `X-UsageMax-Device-ID` with the
+stable installation UUID. The public Next proxy and the Convex HTTP boundary
+both enforce this requirement, so reaching the infrastructure host directly
+cannot bypass installation binding. Status reads may omit the header to inspect
+the credential's unqualified state; supplying it reports `matched` or
+`mismatch` without returning the stored UUID.
+
 One request accepts 1–100 events and at most 1 MB of JSON. Across event and
 snapshot APIs, each collector is limited to 180 operations and 20,000 accepted
 items per minute, with bounded burst capacity. Timestamps before 2024 or more

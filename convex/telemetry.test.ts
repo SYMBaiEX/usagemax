@@ -131,6 +131,86 @@ describe("telemetry ingestion", () => {
     expect(await response.json()).toMatchObject({ ok: false, status: "scope_missing", scopeStatus: "missing_telemetry_write", ingestAuthorized: false });
   });
 
+  test("requires the installation header at the backend write boundary", async () => {
+    const response = await t.fetch("/v1/telemetry/llm", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+        "idempotency-key": "missing-installation",
+      },
+      body: JSON.stringify({ events: [{ eventKey: "missing-installation", model: "relay-activity", occurredAt: Date.now(), totalTokens: 0, costMicros: 0 }] }),
+    });
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "invalid_device_id" });
+  });
+
+  test("advanced account keys authenticate through native telemetry and bind on first write", async () => {
+    const session = t.withIdentity({
+      subject: "user_01ADVANCEDCOLLECTOR",
+      issuer: "https://api.workos.com/",
+      tokenIdentifier: "https://api.workos.com/|user_01ADVANCEDCOLLECTOR",
+      name: "Advanced Collector",
+      email: "advanced@example.com",
+    });
+    await session.mutation(api.account.ensureProfile, { handle: "advanced-collector" });
+    const created = await session.action(api.account.createCollector, { name: "HUD relay" });
+    const installationId = "01234567-89ab-4cde-8fab-0123456789ab";
+    const occurredAt = Date.now();
+    const response = await t.fetch("/v1/telemetry/llm", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${created.token}`,
+        "content-type": "application/json",
+        "idempotency-key": "advanced-hud-probe",
+        "x-usagemax-device-id": installationId,
+      },
+      body: JSON.stringify({
+        events: [{
+          eventKey: "advanced-hud-probe",
+          eventType: "agent_state",
+          accountingMode: "observability",
+          source: "local-hud-relay",
+          provider: "usagemax",
+          model: "relay-activity",
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+          reasoningTokens: 0,
+          totalTokens: 0,
+          costMicros: 0,
+          status: "ok",
+          state: "diagnostic",
+          occurredAt,
+          schemaVersion: 1,
+          completeness: "unknown",
+        }],
+      }),
+    });
+    expect(response.status).toBe(202);
+    expect(await response.json()).toMatchObject({ ok: true, accepted: 1, duplicates: 0, conflicts: 0, replay: false });
+
+    const status = await t.fetch("/v1/devices/status", {
+      method: "GET",
+      headers: {
+        authorization: `Bearer ${created.token}`,
+        "x-usagemax-device-id": installationId,
+      },
+    });
+    expect(status.status).toBe(200);
+    expect(await status.json()).toMatchObject({
+      ok: true,
+      status: "active",
+      credentialType: "collector",
+      scopeStatus: "valid",
+      ingestAuthorized: true,
+      deviceBinding: "matched",
+      profileHandle: "advanced-collector",
+      deviceName: "HUD relay",
+    });
+  });
+
   test("commits once and updates realtime projections", async () => {
     const receivedAt = Date.now();
     const first = await t.mutation(internal.telemetry.commitBatch, {
@@ -369,6 +449,7 @@ describe("telemetry ingestion", () => {
         authorization: `Bearer ${token}`,
         "content-type": "application/json",
         "idempotency-key": "future-batch",
+        "x-usagemax-device-id": "01234567-89ab-4cde-8fab-0123456789ab",
       },
       body: JSON.stringify({ events: [{
         eventKey: "future-event",
@@ -391,6 +472,7 @@ describe("telemetry ingestion", () => {
         authorization: `Bearer ${token}`,
         "content-type": "application/json",
         "idempotency-key": "otel-current-semconv",
+        "x-usagemax-device-id": "01234567-89ab-4cde-8fab-0123456789ab",
       },
       body: JSON.stringify({
         resourceSpans: [{
