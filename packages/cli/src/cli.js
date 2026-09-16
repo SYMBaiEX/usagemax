@@ -421,7 +421,7 @@ async function status(args = []) {
   if (remote) {
     try {
       const result = await requestCollectorStatus(collectorStatusEndpoint(config), config);
-      remoteView = collectorStatusView(result.httpStatus, result.body);
+      remoteView = collectorStatusView(result.httpStatus, result.body, config.token);
     } catch (error) {
       remoteView = { tokenFormat: "valid", status: "unavailable", reason: error instanceof Error ? error.message : "Collector status unavailable." };
     }
@@ -457,7 +457,7 @@ async function tokenStatus(args = []) {
   const endpoint = validHttpsUrl(configuredEndpoint, { allowLocalhost: true });
   if (!endpoint) throw new Error("USAGEMAX_STATUS_ENDPOINT must use HTTPS, except for localhost development.");
   const result = await requestCollectorStatus(endpoint, { token, deviceId: requestedDeviceId });
-  const view = collectorStatusView(result.httpStatus, result.body);
+  const view = collectorStatusView(result.httpStatus, result.body, token);
   if (args.includes("--json")) process.stdout.write(`${JSON.stringify(view)}\n`);
   else {
     process.stdout.write("Credential format: valid (umx_ + 64 lowercase hexadecimal characters)\n");

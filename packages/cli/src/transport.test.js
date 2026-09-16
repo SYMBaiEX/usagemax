@@ -57,7 +57,7 @@ test("collector status sends the credential only as a bearer header", async () =
         expiresAt: null,
         scopes: ["telemetry:write"],
         deviceBinding: "matched",
-        profileHandle: "builder",
+        profileHandle: `relay-${token}`,
       }), { status: 200, headers: { "content-type": "application/json" } });
     },
   });
@@ -68,14 +68,15 @@ test("collector status sends the credential only as a bearer header", async () =
   assert.equal(request.options.headers["x-usagemax-device-id"], deviceId);
   assert.equal(new URL(request.url).search, "");
   assert.equal(result.httpStatus, 200);
-  const view = collectorStatusView(result.httpStatus, result.body);
+  const view = collectorStatusView(result.httpStatus, result.body, token);
   assert.equal(view.status, "active");
   assert.equal(JSON.stringify(view).includes(token), false);
+  assert.equal(view.profileHandle, "relay-[redacted]");
   assert.equal("keyHash" in view, false);
 });
 
 test("collector status reduces an unknown credential to a safe rejection", () => {
-  const view = collectorStatusView(401, { error: "unauthorized", token });
+  const view = collectorStatusView(401, { error: "unauthorized", token }, token);
   assert.equal(view.status, "rejected");
   assert.equal(view.tokenFormat, "valid");
   assert.equal(JSON.stringify(view).includes(token), false);
