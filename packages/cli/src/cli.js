@@ -445,7 +445,15 @@ async function status(args = []) {
 
 async function readTokenFromStdin() {
   if (process.stdin.isTTY) throw new Error("Pipe the collector token on stdin; never pass it as a command-line argument.");
-  const token = (await readFile(0, "utf8")).trim();
+  // fs.promises.readFile does not consistently accept file descriptor 0
+  // across the Node versions supported by the CLI. Read the pipe as a stream
+  // instead, and bound it so an accidental large stdin cannot be buffered.
+  let input = "";
+  for await (const chunk of process.stdin) {
+    input += String(chunk);
+    if (input.length > 256) throw new Error("stdin did not contain a valid UsageMax collector token.");
+  }
+  const token = input.trim();
   if (!TOKEN_PATTERN.test(token)) throw new Error("stdin did not contain a valid UsageMax collector token (expected umx_ plus 64 lowercase hexadecimal characters).");
   return token;
 }
