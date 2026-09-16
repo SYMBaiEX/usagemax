@@ -57,6 +57,7 @@ export function SiteFooter() {
             <Link href="/docs">Documentation</Link>
             <Link href="/enterprise">Enterprise</Link>
             <Link href="/security">Security</Link>
+            <a href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest" target="_blank" rel="noreferrer">MCP Registry ↗</a>
           </div>
           <div>
             <p className="footer-heading">Legal</p>
