@@ -7,6 +7,12 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 export const MCP_SERVER_VERSION = "1.0.0";
 export const MCP_APP_RESOURCE_URI = "ui://usagemax/public-observability.html";
 export const MCP_APP_RESOURCE_MIME = "text/html;profile=mcp-app";
+const MCP_APP_UI_META = {
+  ui: {
+    prefersBorder: false,
+    csp: { baseUriDomains: [], connectDomains: ["https://usagemax.com"], frameDomains: [], resourceDomains: [] },
+  },
+} as const;
 
 type RpcRequest = { jsonrpc: "2.0"; id?: string | number | null; method: string; params?: Record<string, unknown> };
 type QueryFn = (query: unknown, args: Record<string, unknown>) => Promise<unknown>;
@@ -27,7 +33,7 @@ export const MCP_APP_RESOURCES = [
     title: "UsageMax public observability",
     description: "A small, sandboxed, read-only view for the network statistics tool.",
     mimeType: MCP_APP_RESOURCE_MIME,
-    _meta: { ui: { prefersBorder: false } },
+    _meta: MCP_APP_UI_META,
   },
 ] as const;
 
@@ -36,6 +42,7 @@ const MCP_APP_HTML = `<!doctype html>
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
     <title>UsageMax public observability</title>
     <style>
@@ -107,7 +114,7 @@ export async function handleMcp(request: RpcRequest, query: QueryFn = (q, args) 
   if (request.method === "resources/read") {
     const uri = request.params?.uri;
     if (surface === "docs" || uri !== MCP_APP_RESOURCE_URI) return error(request.id, -32004, "resource_not_found");
-    return result(request.id, { contents: [{ uri: MCP_APP_RESOURCE_URI, mimeType: MCP_APP_RESOURCE_MIME, text: MCP_APP_HTML, _meta: { ui: { prefersBorder: false } } }] });
+    return result(request.id, { contents: [{ uri: MCP_APP_RESOURCE_URI, mimeType: MCP_APP_RESOURCE_MIME, text: MCP_APP_HTML, _meta: MCP_APP_UI_META }] });
   }
   if (request.method !== "tools/call") return error(request.id, -32601, "method_not_found");
   const name = request.params?.name;

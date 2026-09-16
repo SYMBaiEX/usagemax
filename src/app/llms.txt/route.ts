@@ -35,6 +35,7 @@ source code, credentials, or private workspace data.
 - [MCP](https://usagemax.com/mcp): read-only Streamable HTTP tools, when supported by the client
 - [Documentation MCP](https://usagemax.com/docs-mcp): read-only documentation tools
 - [Agent resource discovery](https://usagemax.com/.well-known/ard.json): public resource catalog
+- [AI Catalog compatibility](https://usagemax.com/.well-known/ai-catalog.json): equivalent legacy discovery catalog
 - [Agent skills index](https://usagemax.com/.well-known/agent-skills/index.json): published skill inventory
 - [RFC 9727 API catalog](https://usagemax.com/.well-known/api-catalog): API linkset
 - [Protected-resource metadata](https://usagemax.com/.well-known/oauth-protected-resource): collector authentication metadata
