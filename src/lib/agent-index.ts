@@ -18,12 +18,19 @@ export function agentHomepage() {
     canonicalUrl: "https://usagemax.com/?mode=agent",
     purpose: "Help agents discover public UsageMax data, understand the collector boundary, and choose a safe integration path.",
     capabilities: ["public aggregate usage", "leaderboard", "documentation", "pricing", "OpenAPI", "MCP", "WebMCP", "A2A"],
+    keyCapabilities: {
+      read: ["network totals", "public profiles", "leaderboard", "bounded daily rollups", "bounded live activity"],
+      write: ["content-free telemetry", "OpenTelemetry traces", "usage snapshots"],
+      safety: ["public reads require no credential", "collector writes require an installation-bound bearer token", "sandbox validation never writes"],
+    },
     publicData: ["network totals", "public profiles", "bounded daily rollups", "bounded live activity"],
     exclusions: ["prompts", "completions", "credentials", "private workspace data"],
     authentication: {
       publicReads: "none",
       collectorWrites: "installation-bound write-only bearer token",
       website: "WorkOS AuthKit session; not an API token",
+      browserSignIn: "https://usagemax.com/auth/start",
+      oauthDelegation: false,
     },
     endpoints: [
       { name: "networkStats", method: "GET", path: "/api/stats", authentication: "none" },
@@ -43,6 +50,15 @@ export function agentHomepage() {
       collectorWrites: ["/api/v1/telemetry/llm", "/api/v1/traces", "/api/v2/usage/snapshots"],
       sandbox: "https://usagemax.com/api/v1/sandbox/validate",
     },
+    apiEndpoints: [
+      { name: "networkStats", url: "https://usagemax.com/api/stats", method: "GET", authentication: "none", readOnly: true },
+      { name: "leaderboard", url: "https://usagemax.com/api/leaderboard", method: "GET", authentication: "none", readOnly: true },
+      { name: "publicProfile", url: "https://usagemax.com/api/profiles/{handle}", method: "GET", authentication: "none", readOnly: true },
+      { name: "collectorTelemetry", url: "https://usagemax.com/api/v1/telemetry/llm", method: "POST", authentication: "collector bearer", contentFree: true },
+      { name: "collectorTraces", url: "https://usagemax.com/api/v1/traces", method: "POST", authentication: "collector bearer", contentFree: true },
+      { name: "usageSnapshots", url: "https://usagemax.com/api/v2/usage/snapshots", method: "POST", authentication: "collector bearer", contentFree: true },
+      { name: "sandboxValidate", url: "https://usagemax.com/api/v1/sandbox/validate", method: "POST", authentication: "none", writes: false },
+    ],
     tools: [
       { name: "public_profile", protocol: "MCP", readOnly: true },
       { name: "leaderboard", protocol: "MCP", readOnly: true },

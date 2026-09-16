@@ -190,6 +190,7 @@ export const manifest = {
       displayName: "UsageMax MCP Registry record",
       type: "application/json",
       url: "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest",
+      trustManifest,
       description: "The official MCP Registry record for the UsageMax public MCP remote. The Registry owns and serves this external artifact.",
       capabilities: ["mcp-registry", "mcp-discovery"],
       representativeQueries: ["Where is the official UsageMax MCP Registry record?", "Which MCP Registry record describes the UsageMax public server?"],

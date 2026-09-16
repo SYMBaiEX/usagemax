@@ -11,7 +11,7 @@ UsageMax separates public read access, website sign-in, and local collector uplo
 
 ## Discover
 
-Read the [OpenAPI contract](https://usagemax.com/openapi.json), the [protected-resource metadata](https://usagemax.com/.well-known/oauth-protected-resource), the [authorization-server metadata](https://usagemax.com/.well-known/oauth-authorization-server), and the [documentation](https://usagemax.com/docs) before integrating. Public profiles, network statistics, leaderboard data, and bounded documentation reads do not require credentials. The authorization-server metadata points to the browser sign-in entry point and does not advertise an API token exchange.
+Read the [OpenAPI contract](https://usagemax.com/openapi.json), the [protected-resource metadata](https://usagemax.com/.well-known/oauth-protected-resource), the [authentication metadata](https://usagemax.com/.well-known/oauth-authorization-server), and the [documentation](https://usagemax.com/docs) before integrating. Public profiles, network statistics, leaderboard data, and bounded documentation reads do not require credentials. The authentication metadata records the browser sign-in entry point but does not claim an OAuth authorization endpoint or API token exchange.
 
 ## Pick a method
 
@@ -35,7 +35,7 @@ The diagnostic endpoint is read-only. It reports \`active\`, \`revoked\`, \`work
 
 ## Exchange
 
-The UsageMax API does not expose an OAuth token exchange. The protected-resource metadata links to the UsageMax authorization-server metadata, whose authorization endpoint starts the WorkOS browser session; that session is not an API bearer token. There is no \`identity_endpoint\`, \`claim_endpoint\`, \`events_endpoint\`, or agent \`service_auth\` flow. Do not mint or infer an OAuth access token from the website session. The one-use link-code exchange above is the only supported way to create a collector credential.
+The UsageMax API does not expose an OAuth authorization or token exchange. The authentication metadata records the real browser sign-in entry point for discovery; that session is not an API bearer token. There is no \`authorization_endpoint\`, \`token_endpoint\`, \`identity_endpoint\`, \`claim_endpoint\`, \`events_endpoint\`, or agent \`service_auth\` flow. Do not mint or infer an OAuth access token from the website session. The one-use link-code exchange above is the only supported way to create a collector credential.
 
 ## Use the access token
 

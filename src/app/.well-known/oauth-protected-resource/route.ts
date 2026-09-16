@@ -9,7 +9,6 @@ const metadata = {
   // authorization-server metadata below describes the browser sign-in entry
   // point; UsageMax does not expose an OAuth token exchange for this resource.
   scopes_supported: ["telemetry:write", "outcomes:write"],
-  authorization_servers: ["https://usagemax.com"],
   x_usagemax_authentication: {
     collector_token: "umx_ prefix, installation-bound, write-only",
     collector_scopes: ["telemetry:write", "outcomes:write"],

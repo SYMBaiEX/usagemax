@@ -6,12 +6,8 @@ export const dynamic = "force-static";
 // inferring an unsupported OAuth token exchange.
 const metadata = {
   issuer: "https://usagemax.com",
-  authorization_endpoint: "https://usagemax.com/auth/start",
-  response_types_supported: ["code"],
-  subject_types_supported: ["public"],
-  token_endpoint_auth_methods_supported: [],
-  scopes_supported: ["website_session"],
   x_usagemax_authentication: {
+    browser_sign_in_endpoint: "https://usagemax.com/auth/start",
     website_session: "WorkOS AuthKit browser session; not an API bearer token",
     collector_token: "Installation-bound write-only bearer token created by the account link flow",
     oauth_delegation: false,

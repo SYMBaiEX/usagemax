@@ -41,9 +41,6 @@ describe("collector API forwarding", () => {
     expect(response.headers.get("ratelimit-policy")).toBe("180;w=60, 20000;w=60");
     expect(response.headers.get("ratelimit-limit")).toBe("180, 20000");
     expect(response.headers.get("ratelimit-reset")).toBe("17, 17");
-    expect(response.headers.get("RateLimit-Policy")).toBe("180;w=60, 20000;w=60");
-    expect(response.headers.get("RateLimit-Limit")).toBe("180, 20000");
-    expect(response.headers.get("RateLimit-Reset")).toBe("17, 17");
     await expect(response.json()).resolves.toMatchObject({ error: "rate_limited", documentation: "https://usagemax.com/docs" });
   });
 });

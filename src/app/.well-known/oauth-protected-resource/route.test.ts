@@ -12,7 +12,7 @@ describe("protected resource metadata", () => {
     expect(metadata.scopes_supported).toEqual(["telemetry:write", "outcomes:write"]);
     expect(metadata.x_usagemax_authentication.collector_scopes).toEqual(["telemetry:write", "outcomes:write"]);
     expect(metadata.x_usagemax_authentication.oauth_delegation).toBe(false);
-    expect(metadata.authorization_servers).toEqual(["https://usagemax.com"]);
+    expect(metadata).not.toHaveProperty("authorization_servers");
     expect(metadata).not.toHaveProperty("token_endpoint");
   });
 

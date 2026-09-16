@@ -1,4 +1,5 @@
 import serverMetadata from "../../server.json";
+import { agentHomepage } from "./agent-index";
 import { describe, expect, it } from "vitest";
 
 describe("local MCP Registry metadata", () => {
@@ -13,5 +14,14 @@ describe("local MCP Registry metadata", () => {
       remotes: [{ type: "streamable-http", url: "https://usagemax.com/mcp" }],
     });
     expect(serverMetadata).not.toHaveProperty("packages");
+  });
+});
+
+describe("agent authentication metadata", () => {
+  it("states the real browser boundary without claiming OAuth delegation", () => {
+    expect(agentHomepage().authentication).toMatchObject({
+      browserSignIn: "https://usagemax.com/auth/start",
+      oauthDelegation: false,
+    });
   });
 });
