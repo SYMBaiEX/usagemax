@@ -60,6 +60,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <script id="usagemax-structured-data" type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(usageMaxStructuredData) }} />
         <link rel="ard" href="/.well-known/ard.json" />
         <link rel="alternate" type="application/json" href="/.well-known/ai-catalog.json" title="UsageMax AI Catalog" />
+        <link rel="alternate" type="application/json" href="/.well-known/agent-card.json" title="UsageMax A2A agent card" />
+        <link rel="alternate" type="application/json" href="/.well-known/mcp/server-card.json" title="UsageMax MCP server card" />
+        <link rel="alternate" type="application/linkset+json" href="/.well-known/api-catalog" title="UsageMax API catalog" />
+        <link rel="service-desc" type="application/vnd.oai.openapi+json" href="/openapi.json" title="UsageMax OpenAPI contract" />
         <link rel="alternate" type="text/plain" href="/llms.txt" title="UsageMax agent guide" />
         <link rel="alternate" type="application/json" href="/.well-known/agent-skills/index.json" title="UsageMax agent skills" />
         <link rel="alternate" type="application/json" href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest" title="UsageMax MCP Registry listing" />

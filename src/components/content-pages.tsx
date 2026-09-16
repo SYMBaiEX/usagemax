@@ -121,7 +121,7 @@ export function DocsView() {
   return (
     <div className="page-surface content-page docs-page">
       <PageIntro
-        title="Documentation"
+        title="UsageMax developer documentation"
       >
         <Link className="button button-acid" href="#quickstart">Quickstart <ArrowRight size={16} /></Link>
       </PageIntro>
