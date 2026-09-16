@@ -7,7 +7,7 @@ import type { telemetryEventValidator } from "./telemetry";
 
 type NormalizedEvent = typeof telemetryEventValidator.type;
 type JsonObject = Record<string, unknown>;
-const RECOMMENDED_CLI_VERSION = "0.3.4";
+const RECOMMENDED_CLI_VERSION = "0.3.5";
 
 function newCollectorToken() {
   const bytes = new Uint8Array(32);
@@ -365,7 +365,7 @@ const linkDevice = httpAction(async (ctx, request) => {
       codeHash,
       keyHash: await sha256(token),
       keyPrefix: token.slice(0, 12),
-      name: cleanText(body?.name, "My computer", 80),
+      name: typeof body?.name === "string" && body.name.trim() ? cleanText(body.name, "My computer", 80) : undefined,
       platform: optionalText(body?.platform, 24),
       cliVersion: optionalText(body?.cliVersion, 24),
       installationIdHash: id ? await sha256(id) : undefined,
@@ -380,6 +380,7 @@ const linkDevice = httpAction(async (ctx, request) => {
       revokeUrl: new URL("/v1/devices/revoke", request.url).toString(),
       recommendedCliVersion: RECOMMENDED_CLI_VERSION,
       profileHandle: result.handle,
+      deviceName: result.deviceName,
       profileUrl: `https://usagemax.com/${encodeURIComponent(result.handle)}`,
     });
   } catch (error) {

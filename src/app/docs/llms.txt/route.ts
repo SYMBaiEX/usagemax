@@ -10,6 +10,8 @@ Use this section when you need to understand the product, privacy boundary, or i
 - [Privacy](/privacy): retention and public-profile controls
 - [Authentication](/auth.md): actual website and collector credential flow
 - [OpenAPI](/openapi.json): typed HTTP contract
+- [CLI guide](/cli.md): install, link, sync, and scheduling
+- [API versioning](/api-versioning.md): compatibility and deprecation policy
 - [MCP](/mcp): read-only public and docs Streamable HTTP tools
 - [Sandbox](/sandbox): exercise the content-free validation contract without a write
 

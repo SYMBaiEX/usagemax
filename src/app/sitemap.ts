@@ -12,6 +12,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${baseUrl}/about`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
     { url: `${baseUrl}/contact`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
     { url: `${baseUrl}/auth.md`, lastModified: now, changeFrequency: "monthly", priority: 0.4 },
+    { url: `${baseUrl}/cli.md`, lastModified: now, changeFrequency: "monthly", priority: 0.4 },
+    { url: `${baseUrl}/api-versioning.md`, lastModified: now, changeFrequency: "monthly", priority: 0.4 },
     { url: `${baseUrl}/openapi.json`, lastModified: now, changeFrequency: "weekly", priority: 0.5 },
     { url: `${baseUrl}/mcp`, lastModified: now, changeFrequency: "weekly", priority: 0.4 },
     { url: `${baseUrl}/docs-mcp`, lastModified: now, changeFrequency: "weekly", priority: 0.4 },

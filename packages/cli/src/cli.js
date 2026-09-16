@@ -24,7 +24,7 @@ process.title = "UsageMax";
 
 const require = createRequire(import.meta.url);
 const executeFile = promisify(execFile);
-const VERSION = "0.3.4";
+const VERSION = "0.3.5";
 const PUBLIC_API_ORIGIN = "https://usagemax.com/api";
 const DEFAULT_LINK_ENDPOINT = `${PUBLIC_API_ORIGIN}/v1/devices/link`;
 const CONFIG_FILE = "config.json";
@@ -171,7 +171,8 @@ async function link(args) {
   const configuredEndpoint = process.env.USAGEMAX_LINK_ENDPOINT || DEFAULT_LINK_ENDPOINT;
   const endpoint = validHttpsUrl(configuredEndpoint, { allowLocalhost: true });
   if (!endpoint) throw new Error("USAGEMAX_LINK_ENDPOINT must use HTTPS, except for localhost development.");
-  const name = (option(args, "--name") || deviceLabel()).trim().slice(0, 80);
+  const requestedName = option(args, "--name");
+  const name = requestedName?.trim().slice(0, 80) || undefined;
   const previous = await readConfig();
   const deviceId = await stableInstallationId(configDirectory(), previous?.deviceId);
   const headers = { "content-type": "application/json" };
@@ -179,7 +180,7 @@ async function link(args) {
   const response = await fetch(endpoint, {
     method: "POST",
     headers,
-    body: JSON.stringify({ code, name, platform: platform(), cliVersion: VERSION, deviceId }),
+    body: JSON.stringify({ code, ...(name ? { name } : {}), platform: platform(), cliVersion: VERSION, deviceId }),
     signal: AbortSignal.timeout(15_000),
   });
   const body = await response.json().catch(() => ({}));
@@ -189,6 +190,7 @@ async function link(args) {
   const revokeUrl = validHttpsUrl(body.revokeUrl, { allowLocalhost: true }) || ingestUrl?.replace(/\/v1\/telemetry\/llm$/, "/v1/devices/revoke");
   if (!/^umx_[a-f0-9]{64}$/.test(body.token || "") || !ingestUrl || !snapshotUrl || !revokeUrl) throw new Error("UsageMax returned an invalid link response.");
   const profileHandle = typeof body.profileHandle === "string" ? body.profileHandle : undefined;
+  const savedName = typeof body.deviceName === "string" && body.deviceName.trim() ? body.deviceName.trim().slice(0, 80) : (name || deviceLabel());
   const sameAccount = Boolean(previous && previous.profileHandle && previous.profileHandle === profileHandle);
   const config = {
     version: 1,
@@ -199,13 +201,13 @@ async function link(args) {
     profileUrl: validHttpsUrl(body.profileUrl) || "https://usagemax.com/account",
     profileHandle,
     deviceId,
-    deviceName: name,
+    deviceName: savedName,
     linkedAt: new Date().toISOString(),
     snapshots: sameAccount ? previous.snapshots : {},
   };
   await writeConfig(config);
   warnVersion(body);
-  process.stdout.write(`Linked ${name} to ${config.profileHandle ? `@${config.profileHandle}` : "UsageMax"}.\n`);
+  process.stdout.write(`Linked ${savedName} to ${config.profileHandle ? `@${config.profileHandle}` : "UsageMax"}.\n`);
   if (args.includes("--no-sync")) {
     process.stdout.write("No usage was uploaded. Run `bunx usagemax sync --full` when you are ready.\n");
     return;

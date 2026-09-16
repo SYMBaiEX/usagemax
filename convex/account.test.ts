@@ -130,6 +130,7 @@ describe("WorkOS-backed accounts", () => {
       now: Date.now(),
     });
     expect(redeemed.handle).toBe("pairing-owner");
+    expect(redeemed.deviceName).toBe("Studio PC");
     const account = await session.query(api.account.current, {});
     expect(account?.collectors[0]).toMatchObject({ name: "Studio PC", platform: "win32", cliVersion: "0.1.0" });
     expect(JSON.stringify(account)).not.toContain(token);
@@ -140,6 +141,25 @@ describe("WorkOS-backed accounts", () => {
       name: "Replay",
       now: Date.now(),
     })).rejects.toThrow("INVALID_LINK_CODE");
+  });
+
+  test("uses the name from the account link when the CLI does not override it", async () => {
+    const session = t.withIdentity({
+      subject: "user_01LINK_NAME",
+      issuer: "https://api.workos.com/",
+      tokenIdentifier: "https://api.workos.com/|user_01LINK_NAME",
+    });
+    await session.mutation(api.account.ensureProfile, { handle: "link-name" });
+    const link = await session.action(api.account.createDeviceLink, { name: "Work laptop" });
+    const token = `umx_${"b".repeat(64)}`;
+    const redeemed = await t.mutation(internal.account.redeemDeviceLink, {
+      codeHash: await sha256(link.code),
+      keyHash: await sha256(token),
+      keyPrefix: token.slice(0, 12),
+      now: Date.now(),
+    });
+    expect(redeemed.deviceName).toBe("Work laptop");
+    expect((await session.query(api.account.current, {}))?.collectors[0]?.name).toBe("Work laptop");
   });
 
   test("relinks one installation by rotating its collector instead of duplicating it", async () => {

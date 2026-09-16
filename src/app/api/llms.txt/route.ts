@@ -5,6 +5,8 @@ The UsageMax HTTP API has public read operations and authenticated, content-free
 <!-- title: UsageMax API agent guide; canonical: https://usagemax.com/api/llms.txt; last-updated: 2026-09-16 -->
 
 - [OpenAPI contract](/openapi.json): canonical typed request and response schema
+- [API versioning](/api-versioning.md): compatibility and deprecation policy
+- [CLI guide](/cli.md): install, link, sync, and scheduling
 - [Protected-resource metadata](/.well-known/oauth-protected-resource): collector credential metadata
 - [Authentication](/auth.md): credential, header, revocation, and error guidance
 - [API catalog](/.well-known/api-catalog): RFC 9727 Linkset discovery

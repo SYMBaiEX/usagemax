@@ -559,7 +559,7 @@ export const redeemDeviceLink = internalMutation({
     codeHash: v.string(),
     keyHash: v.string(),
     keyPrefix: v.string(),
-    name: v.string(),
+    name: v.optional(v.string()),
     platform: v.optional(v.string()),
     cliVersion: v.optional(v.string()),
     installationIdHash: v.optional(v.string()),
@@ -621,7 +621,7 @@ export const redeemDeviceLink = internalMutation({
         });
     await ctx.db.patch(link._id, { usedAt: args.now, collectorId });
     await audit(ctx, link.workspaceId, link.userId, existing ? "collector.relinked" : "collector.linked", "collector", String(collectorId), existing ? "Relinked an existing installation" : "Linked a new installation");
-    return { collectorId, handle: profile.handle };
+    return { collectorId, handle: profile.handle, deviceName: update.name };
   },
 });
 
