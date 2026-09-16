@@ -10,6 +10,12 @@ aggregates, and exits.
 [npm package](https://www.npmjs.com/package/usagemax) ·
 [source repository](https://github.com/SYMBaiEX/usagemax/tree/main/packages/cli)
 
+This package is the open-source `usagemax` command-line collector. It is not a
+JavaScript or Python SDK and does not expose an import API. For programmatic
+integrations, use the documented [OpenAPI contract](https://usagemax.com/openapi.json)
+or the public [agent surfaces](https://usagemax.com/?mode=agent); the package
+itself is intended to be invoked as a short-lived local process.
+
 ## Requirements
 
 - Node.js 20 or newer
@@ -29,6 +35,17 @@ npx --yes usagemax@latest link UMX-XXXX-XXXX-XXXX-XXXX
 bunx usagemax sync --dry-run --explain
 bunx usagemax sync
 ```
+
+Agent-friendly checks can request JSON and keep the secret out of arguments and
+logs. This example only inspects local source coverage:
+
+```bash
+set +x
+bunx usagemax doctor --deep --json | jq '{complete, sources: [.sources[] | {name, status}]}'
+```
+
+The JSON shape is intended for local automation; unsupported or unavailable
+sources remain explicitly reported rather than being inferred.
 
 The link code expires after ten minutes and is consumed once. The account-side
 computer name is retained. Pass `--name "Work laptop"` only when the current
