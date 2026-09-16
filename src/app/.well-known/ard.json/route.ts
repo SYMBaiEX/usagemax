@@ -55,8 +55,8 @@ export const manifest = {
       "@context": "https://agenticresourcediscovery.org/context/v1",
       identifier: "urn:air:usagemax.com:a2a:public-observability",
       displayName: "UsageMax public observability A2A agent",
-      type: "application/a2a+json",
-      url: `${origin}/a2a`,
+      type: "application/a2a-agent-card+json",
+      url: `${origin}/.well-known/agent-card.json`,
       trustManifest,
       description: "A bounded JSON-RPC A2A interface that answers questions about public UsageMax usage, integrations, and privacy boundaries.",
       capabilities: ["a2a", "public-usage", "read-only"],
@@ -116,7 +116,7 @@ export const manifest = {
       trustManifest,
       description: "A2A discovery metadata for the bounded UsageMax public observability agent.",
       capabilities: ["a2a-discovery", "agent-card"],
-      representativeQueries: ["Where is the UsageMax A2A agent card?"],
+      representativeQueries: ["Where is the UsageMax A2A agent card?", "How can an agent ask UsageMax a public usage question?"],
     },
     {
       "@context": "https://agenticresourcediscovery.org/context/v1",
@@ -127,7 +127,7 @@ export const manifest = {
       trustManifest,
       description: "A read-only MCP server for bounded UsageMax documentation search and retrieval.",
       capabilities: ["mcp", "documentation-search"],
-      representativeQueries: ["Search UsageMax documentation."],
+      representativeQueries: ["Search UsageMax documentation.", "Find the UsageMax collector privacy documentation."],
     },
     {
       "@context": "https://agenticresourcediscovery.org/context/v1",
@@ -138,7 +138,7 @@ export const manifest = {
       trustManifest,
       description: "A bounded natural-language query endpoint that answers from first-party public UsageMax resources and returns citations.",
       capabilities: ["public-query", "citations", "nlweb"],
-      representativeQueries: ["How does UsageMax count tokens?"],
+      representativeQueries: ["How does UsageMax count tokens?", "What does UsageMax expose publicly?"],
     },
     {
       "@context": "https://agenticresourcediscovery.org/context/v1",
@@ -149,7 +149,7 @@ export const manifest = {
       trustManifest,
       description: "A JSON Lines feed of the public UsageMax schema entities for machine-readable indexing.",
       capabilities: ["schema", "json-ld", "entity-discovery"],
-      representativeQueries: ["What structured entities does UsageMax publish?"],
+      representativeQueries: ["What structured entities does UsageMax publish?", "Which UsageMax schema entities are available for indexing?"],
     },
     {
       "@context": "https://agenticresourcediscovery.org/context/v1",
@@ -171,7 +171,7 @@ export const manifest = {
       trustManifest,
       description: "Public Web Bot Auth key discovery material. UsageMax does not currently require signatures for public reads.",
       capabilities: ["http-message-signatures", "bot-auth-discovery"],
-      representativeQueries: ["Where can I find the UsageMax bot-auth key directory?"],
+      representativeQueries: ["Where can I find the UsageMax bot-auth key directory?", "How does UsageMax publish bot authentication discovery material?"],
     },
   ],
 };

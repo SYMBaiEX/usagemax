@@ -58,6 +58,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
         <script id="usagemax-structured-data" type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(usageMaxStructuredData) }} />
+        <link rel="ard" href="/.well-known/ard.json" />
         <link rel="nlweb" href="/ask" title="Ask UsageMax" />
       </head>
       <body className="site-body">
