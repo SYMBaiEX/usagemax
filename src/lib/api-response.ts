@@ -22,6 +22,15 @@ export type ApiErrorBody = { error: string; message: string; hint: string; docum
 export type ApiRateLimitPolicy = { limit: number; windowSeconds: number };
 
 export const API_VERSION = "1";
+export const PUBLIC_READ_RATE_LIMIT = { limit: 60, windowSeconds: 60 } as const;
+
+export function applyRateLimitHeaders(headers: Headers, policy: ApiRateLimitPolicy = PUBLIC_READ_RATE_LIMIT) {
+  headers.set("RateLimit-Policy", `${policy.limit};w=${policy.windowSeconds}`);
+  headers.set("RateLimit-Limit", String(policy.limit));
+  headers.set("RateLimit-Reset", String(policy.windowSeconds));
+  // Remaining is intentionally omitted: this response helper does not own a
+  // shared counter, so reporting a number here would be misleading.
+}
 
 export function apiResponse(body: unknown, init?: ResponseInit) {
   const response = NextResponse.json(body, init);
@@ -29,6 +38,7 @@ export function apiResponse(body: unknown, init?: ResponseInit) {
   response.headers.set("cache-control", "public, s-maxage=5, stale-while-revalidate=30");
   response.headers.set("x-request-id", crypto.randomUUID());
   response.headers.set("x-api-version", API_VERSION);
+  applyRateLimitHeaders(response.headers);
   return response;
 }
 
@@ -44,9 +54,7 @@ export function apiError(error: string, status: number, guidance?: Partial<{ mes
   response.headers.set("x-request-id", crypto.randomUUID());
   response.headers.set("x-api-version", API_VERSION);
   if (rateLimitPolicy) {
-    response.headers.set("RateLimit-Policy", `${rateLimitPolicy.limit};w=${rateLimitPolicy.windowSeconds}`);
-    response.headers.set("RateLimit-Limit", String(rateLimitPolicy.limit));
-    response.headers.set("RateLimit-Reset", String(rateLimitPolicy.windowSeconds));
+    applyRateLimitHeaders(response.headers, rateLimitPolicy);
   }
   return response;
 }

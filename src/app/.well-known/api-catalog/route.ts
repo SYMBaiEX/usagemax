@@ -57,6 +57,12 @@ const catalog = {
           "http://www.w3.org/1999/xhtml#documentation": `${origin}/sandbox`,
         },
         {
+          href: `${origin}/api/v1/batch`,
+          type: "application/json",
+          title: "No-write batch validation alias",
+          "http://www.w3.org/1999/xhtml#documentation": `${origin}/sandbox`,
+        },
+        {
           href: `${origin}/a2a`,
           type: "application/a2a+json",
           title: "UsageMax A2A public observability agent",

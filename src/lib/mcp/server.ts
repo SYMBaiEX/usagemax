@@ -47,7 +47,7 @@ const MCP_APP_HTML = `<!doctype html>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src https://usagemax.com;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors https://chatgpt.com https://claude.ai; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://usagemax.com; img-src 'none'; font-src 'none'; media-src 'none'; object-src 'none';">
     <title>UsageMax public observability</title>
     <style>
       :root { color-scheme: light dark; font: 14px/1.4 ui-sans-serif, system-ui, sans-serif; }

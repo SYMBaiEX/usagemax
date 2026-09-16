@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { POST } from "./route";
 import { POST as batchPOST } from "../../batch/validate/route";
+import { POST as rootBatchPOST } from "../../batch/route";
 
 const valid = { events: [{ eventKey: "e1", model: "gpt-test", occurredAt: new Date(Date.now() - 60_000).toISOString() }] };
 
@@ -25,6 +26,12 @@ describe("sandbox validation API", () => {
 
   it("keeps the documented batch alias behavior identical", async () => {
     const response = await batchPOST(new Request("https://test/api/v1/batch/validate", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(valid) }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, accepted: 1, writes: false });
+  });
+
+  it("supports the short batch alias without storage", async () => {
+    const response = await rootBatchPOST(new Request("https://test/api/v1/batch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(valid) }));
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ ok: true, accepted: 1, writes: false });
   });

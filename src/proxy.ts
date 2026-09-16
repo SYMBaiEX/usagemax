@@ -11,6 +11,7 @@ const markdownRoutes: Record<string, string> = {
   "/security": "/security.md",
   "/privacy": "/privacy.md",
   "/terms": "/terms.md",
+  "/pricing": "/pricing.md",
   "/leaderboard": "/leaderboard.md",
   "/.well-known/api-catalog": "/.well-known/api-catalog.md",
   "/.well-known/oauth-protected-resource": "/.well-known/oauth-protected-resource.md",
@@ -23,8 +24,16 @@ const markdownRoutes: Record<string, string> = {
 const nonProfileRootPaths = new Set([
   "about", "account", "api-versioning.md", "api", "ask", "auth.md", "auth", "callback", "cli.md", "contact",
   "docs-mcp", "docs.md", "docs", "enterprise.md", "enterprise", "index.md", "leaderboard.md", "leaderboard", "llms.txt",
-  "methodology.md", "methodology", "not-found.md", "openapi.json", "privacy.md", "privacy", "robots.txt", "sandbox.md", "sandbox",
+  "methodology.md", "methodology", "not-found.md", "openapi.json", "pricing.md", "pricing", "privacy.md", "privacy", "robots.txt", "sandbox.md", "sandbox",
   "schema-feed.jsonl", "schemamap.xml", "security.md", "security", "sign-in", "sign-up", "sitemap.xml", "terms.md", "terms", "workspace",
+]);
+
+const knownExactPaths = new Set([
+  "/", "/about", "/account", "/api", "/api-versioning.md", "/ask", "/auth.md", "/callback", "/cli.md", "/contact",
+  "/docs", "/docs-mcp", "/docs.md", "/enterprise", "/enterprise.md", "/index.md", "/leaderboard", "/leaderboard.md", "/llms.txt",
+  "/mcp", "/methodology", "/methodology.md", "/not-found.md", "/openapi.json", "/pricing", "/pricing.md", "/privacy", "/privacy.md",
+  "/robots.txt", "/sandbox", "/sandbox.md", "/schema-feed.jsonl", "/schemamap.xml", "/security", "/security.md", "/sign-in", "/sign-up",
+  "/sitemap.xml", "/terms", "/terms.md", "/workspace",
 ]);
 
 function addVary(headers: Headers, value: string) {
@@ -47,6 +56,21 @@ function publicHeaders(headers: Headers, cacheControl: string, markdownPath?: st
   headers.set("link", links.join(", "));
 }
 
+function rewriteNotFound(request: NextRequest, authHeaders: Headers) {
+  const { requestHeaders, responseHeaders } = partitionAuthkitHeaders(request, authHeaders);
+  const response = applyResponseHeaders(NextResponse.rewrite(new URL("/not-found.md", request.url), { request: { headers: requestHeaders } }), responseHeaders);
+  publicHeaders(response.headers, "public, max-age=300, stale-while-revalidate=86400", "/not-found.md");
+  return response;
+}
+
+function isKnownRoute(pathname: string) {
+  return knownExactPaths.has(pathname)
+    || pathname.startsWith("/api/")
+    || pathname.startsWith("/auth/")
+    || pathname.startsWith("/docs/")
+    || pathname.startsWith("/.well-known/");
+}
+
 function agentHomepage() {
   return {
     schemaVersion: "1.0",
@@ -54,7 +78,7 @@ function agentHomepage() {
     name: "UsageMax",
     description: "A public observability layer for bounded AI usage telemetry.",
     canonicalUrl: "https://usagemax.com/?mode=agent",
-    capabilities: ["public aggregate usage", "leaderboard", "documentation", "OpenAPI", "MCP", "A2A"],
+    capabilities: ["public aggregate usage", "leaderboard", "documentation", "pricing", "OpenAPI", "MCP", "A2A"],
     publicData: ["network totals", "public profiles", "bounded daily rollups", "bounded live activity"],
     exclusions: ["prompts", "completions", "credentials", "private workspace data"],
     authentication: {
@@ -76,6 +100,8 @@ function agentHomepage() {
       { name: "mcp-discovery", url: "/.well-known/mcp", contentType: "application/json", authentication: "none", readOnly: true },
       { name: "a2a-agent-card", url: "/.well-known/agent-card.json", contentType: "application/json", authentication: "none", readOnly: true },
       { name: "agent-skills", url: "/.well-known/agent-skills/index.json", contentType: "application/json", authentication: "none", readOnly: true },
+      { name: "pricing", url: "/pricing.md", contentType: "text/markdown", authentication: "none", readOnly: true },
+      { name: "http-message-signatures-directory", url: "/.well-known/http-message-signatures-directory", contentType: "application/http-message-signatures-directory+json", authentication: "none", readOnly: true },
     ],
     protocols: {
       mcp: { endpoint: "/mcp", transport: "streamable-http", protocolVersion: "2025-06-18", authentication: "none", readOnly: true },
@@ -95,6 +121,8 @@ function agentHomepage() {
       a2a: "/a2a",
       ask: "/ask",
       skills: "/.well-known/agent-skills/index.json",
+      pricing: "/pricing",
+      botAuthDirectory: "/.well-known/http-message-signatures-directory",
     },
   };
 }
@@ -134,14 +162,19 @@ export default async function proxy(request: NextRequest) {
         cache: "no-store",
       });
       if (profileResponse.status === 404) {
-        const { requestHeaders, responseHeaders } = partitionAuthkitHeaders(request, headers);
-        const response = applyResponseHeaders(NextResponse.rewrite(new URL("/not-found.md", request.url), { request: { headers: requestHeaders } }), responseHeaders);
-        publicHeaders(response.headers, "public, max-age=300, stale-while-revalidate=86400", "/not-found.md");
-        return response;
+        return rewriteNotFound(request, headers);
       }
     } catch {
       // Preserve normal routing if the profile probe is unavailable.
     }
+  }
+
+  // Give agents a real markdown recovery document for unknown page paths.
+  // API paths stay with the JSON catch-all so clients never receive an HTML or
+  // markdown response where the API contract promises JSON.
+  const assetExtension = /\.(?:html?|css|js|json|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|webmanifest)$/i;
+  if (requestsMarkdown(request) && !isKnownRoute(request.nextUrl.pathname) && !assetExtension.test(request.nextUrl.pathname)) {
+    return rewriteNotFound(request, headers);
   }
 
   if (request.nextUrl.pathname === "/account" && !session.user) {

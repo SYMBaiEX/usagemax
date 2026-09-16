@@ -108,6 +108,14 @@ export function ShieldCheck({ size = 20, ...props }: IconProps) {
   );
 }
 
+export function Check({ size = 18, ...props }: IconProps) {
+  return (
+    <Icon size={size} {...props}>
+      <path d="M5 12.5L9.2 16.5L19 7.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+    </Icon>
+  );
+}
+
 export function BookOpen({ size = 20, ...props }: IconProps) {
   return (
     <Icon size={size} {...props}>

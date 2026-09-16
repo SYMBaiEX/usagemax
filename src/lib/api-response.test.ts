@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { apiError } from "./api-response";
+import { apiError, apiResponse } from "./api-response";
 
 describe("API response contract", () => {
   it("returns a typed documentation reference for JSON errors", async () => {
@@ -17,6 +17,14 @@ describe("API response contract", () => {
     const response = apiError("rate_limited", 429, undefined, { limit: 180, windowSeconds: 60 });
     expect(response.headers.get("ratelimit-policy")).toBe("180;w=60");
     expect(response.headers.get("ratelimit-limit")).toBe("180");
+    expect(response.headers.get("ratelimit-reset")).toBe("60");
+    expect(response.headers.get("ratelimit-remaining")).toBeNull();
+  });
+
+  it("publishes the bounded public-read policy without claiming a remaining count", () => {
+    const response = apiResponse({ ok: true });
+    expect(response.headers.get("ratelimit-policy")).toBe("60;w=60");
+    expect(response.headers.get("ratelimit-limit")).toBe("60");
     expect(response.headers.get("ratelimit-reset")).toBe("60");
     expect(response.headers.get("ratelimit-remaining")).toBeNull();
   });
