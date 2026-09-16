@@ -23,6 +23,10 @@ describe("UsageMax MCP", () => {
       expect(tool.annotations).toEqual({ readOnlyHint: true, destructiveHint: false, openWorldHint: false });
     }
   });
+  it("advertises the runtime defaults for optional leaderboard arguments", () => {
+    const leaderboard = USAGEMAX_TOOLS.find((tool) => tool.name === "leaderboard");
+    expect(leaderboard?.inputSchema).toMatchObject({ properties: { metric: { default: "tokens" }, period: { default: "all" } } });
+  });
   it("keeps product and documentation MCP surfaces distinct", async () => {
     const product = await handleMcp({ jsonrpc: "2.0", id: 1, method: "tools/list" }, undefined, "public");
     const docs = await handleMcp({ jsonrpc: "2.0", id: 2, method: "tools/list" }, undefined, "docs");

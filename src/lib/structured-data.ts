@@ -14,6 +14,9 @@ export const usageMaxStructuredData = {
       description: "A bounded observability layer for AI model, agent, and tool usage across connected computers.",
       applicationCategory: "DeveloperApplication",
       operatingSystem: "macOS, Windows, Linux",
+      codeRepository: repositoryUrl,
+      downloadUrl: "https://www.npmjs.com/package/usagemax",
+      softwareHelp: { "@id": "https://usagemax.com/docs" },
       sameAs,
     },
     {
@@ -41,6 +44,12 @@ export const usageMaxStructuredData = {
       description: "Bounded aggregate reporting for AI models, agents, tools, and connected computers.",
       provider: { "@id": "https://usagemax.com/#organization" },
       areaServed: "Worldwide",
+      audience: { "@type": "Audience", audienceType: "AI developers and teams" },
+      hasOfferCatalog: {
+        "@type": "OfferCatalog",
+        name: "UsageMax plans",
+        url: "https://usagemax.com/pricing",
+      },
     },
     {
       "@type": "WebSite",
