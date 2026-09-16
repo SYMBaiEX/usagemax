@@ -17,6 +17,7 @@ UsageMax is a public observability layer for bounded AI usage telemetry.
 - [Security](/security)
 - [OpenAPI](/openapi.json)
 - [MCP](/mcp)
+- [WebMCP guide](/webmcp)
 
 Public projections may include aggregate network totals, public profile totals, model mix, bounded daily rollups, and a short live activity window. They do not include prompts, completions, credentials, or private workspace data.
 `;

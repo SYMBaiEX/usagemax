@@ -11,7 +11,6 @@ function response() {
   result.headers.set("Link", '</openapi.json>; rel="service-desc"; type="application/vnd.oai.openapi+json", </api/llms.txt>; rel="describedby"; type="text/plain"');
   return result;
 }
-
 export function GET() {
   return response();
 }
@@ -19,4 +18,3 @@ export function GET() {
 export function HEAD() {
   return response();
 }
-

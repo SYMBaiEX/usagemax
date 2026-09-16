@@ -4,13 +4,16 @@ import { useEffect } from "react";
 
 type ToolDefinition = {
   name: string;
+  title: string;
   description: string;
   inputSchema: Record<string, unknown>;
-  execute: (input: Record<string, unknown>) => Promise<unknown>;
-  annotations: { readOnlyHint: true; destructiveHint: false; openWorldHint: false };
+  execute: (input: Record<string, unknown>, options: ToolExecutionOptions) => Promise<unknown>;
+  annotations: { readOnlyHint: true; untrustedContentHint: true; consequentialHint: false };
 };
 
-type ModelContext = {
+type ToolExecutionOptions = { signal: AbortSignal };
+
+export type ModelContext = {
   registerTool?: (tool: ToolDefinition, options?: { signal?: AbortSignal }) => Promise<void> | void;
   unregisterTool?: (name: string) => void;
 };
@@ -21,11 +24,15 @@ declare global {
 }
 
 export function detectWebMcpContext(documentContext: ModelContext | undefined, navigatorContext: ModelContext | undefined) {
-  return documentContext?.registerTool ? { context: documentContext, source: "document" as const } : navigatorContext?.registerTool ? { context: navigatorContext, source: "navigator" as const } : undefined;
+  return typeof documentContext?.registerTool === "function"
+    ? { context: documentContext, source: "document" as const }
+    : typeof navigatorContext?.registerTool === "function"
+      ? { context: navigatorContext, source: "navigator" as const }
+      : undefined;
 }
 
-async function readPublicJson(path: string) {
-  const response = await fetch(path, { cache: "no-store", credentials: "omit", headers: { accept: "application/json" } });
+async function readPublicJson(path: string, signal: AbortSignal) {
+  const response = await fetch(path, { cache: "no-store", credentials: "omit", headers: { accept: "application/json" }, signal });
   const body = await response.json().catch(() => null);
   if (!response.ok) {
     const message = body && typeof body === "object" && "message" in body ? String(body.message) : `UsageMax returned HTTP ${response.status}.`;
@@ -37,13 +44,15 @@ async function readPublicJson(path: string) {
 export const tools: ToolDefinition[] = [
   {
     name: "usagemax_network_stats",
+    title: "Read network statistics",
     description: "Read bounded public aggregate UsageMax network statistics.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
-    execute: async () => readPublicJson("/api/stats"),
+    annotations: { readOnlyHint: true, untrustedContentHint: true, consequentialHint: false },
+    execute: async (_input, { signal }) => readPublicJson("/api/stats", signal),
   },
   {
     name: "usagemax_leaderboard",
+    title: "Read the leaderboard",
     description: "Read the public UsageMax leaderboard for a bounded window and metric.",
     inputSchema: {
       type: "object",
@@ -53,15 +62,16 @@ export const tools: ToolDefinition[] = [
       },
       additionalProperties: false,
     },
-    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
-    execute: async (input) => {
+    annotations: { readOnlyHint: true, untrustedContentHint: true, consequentialHint: false },
+    execute: async (input, { signal }) => {
       const metric = input.metric === "spend" ? "spend" : "tokens";
       const window = input.window === "7d" || input.window === "30d" ? input.window : "all";
-      return readPublicJson(`/api/leaderboard?metric=${metric}&window=${window}`);
+      return readPublicJson(`/api/leaderboard?metric=${metric}&window=${window}`, signal);
     },
   },
   {
     name: "usagemax_public_profile",
+    title: "Read a public profile",
     description: "Read one opt-in public UsageMax profile by handle.",
     inputSchema: {
       type: "object",
@@ -69,15 +79,16 @@ export const tools: ToolDefinition[] = [
       properties: { handle: { type: "string", minLength: 1, maxLength: 80 } },
       additionalProperties: false,
     },
-    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
-    execute: async (input) => {
+    annotations: { readOnlyHint: true, untrustedContentHint: true, consequentialHint: false },
+    execute: async (input, { signal }) => {
       const handle = typeof input.handle === "string" ? input.handle.trim() : "";
       if (!/^[a-z0-9][a-z0-9_-]{0,79}$/i.test(handle)) throw new Error("Use a valid public UsageMax handle.");
-      return readPublicJson(`/api/profiles/${encodeURIComponent(handle)}`);
+      return readPublicJson(`/api/profiles/${encodeURIComponent(handle)}`, signal);
     },
   },
   {
     name: "usagemax_ask",
+    title: "Ask UsageMax",
     description: "Ask a bounded question about public UsageMax documentation and receive cited resources.",
     inputSchema: {
       type: "object",
@@ -85,49 +96,96 @@ export const tools: ToolDefinition[] = [
       properties: { query: { type: "string", minLength: 1, maxLength: 500 } },
       additionalProperties: false,
     },
-    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
-    execute: async (input) => {
+    annotations: { readOnlyHint: true, untrustedContentHint: true, consequentialHint: false },
+    execute: async (input, { signal }) => {
       const query = typeof input.query === "string" ? input.query.trim() : "";
       if (!query || query.length > 500) throw new Error("Use a question with 1–500 characters.");
-      return readPublicJson(`/ask?query=${encodeURIComponent(query)}`);
+      return readPublicJson(`/ask?query=${encodeURIComponent(query)}`, signal);
     },
   },
 ];
 
+/**
+ * Register the normative WebMCP surface. The explicit document.modelContext
+ * call is intentional: document is the current standards path, while the
+ * navigator path below is retained only for older previews.
+ */
+export async function registerDocumentWebMcpTools(signal: AbortSignal): Promise<number> {
+  if (signal.aborted || !document.modelContext || typeof document.modelContext.registerTool !== "function") return 0;
+
+  let registered = 0;
+  for (const tool of tools) {
+    if (signal.aborted) break;
+    try {
+      await document.modelContext.registerTool(tool, { signal });
+      registered += 1;
+    } catch {
+      // A browser may reject a duplicate or a not-yet-enabled origin trial;
+      // one tool failing must not affect the rest of the page.
+    }
+  }
+  return registered;
+}
+
+export async function registerNavigatorWebMcpTools(context: ModelContext, signal: AbortSignal): Promise<number> {
+  if (signal.aborted || typeof context.registerTool !== "function") return 0;
+
+  let registered = 0;
+  for (const tool of tools) {
+    if (signal.aborted) break;
+    try {
+      await context.registerTool(tool, { signal });
+      registered += 1;
+    } catch {
+      // Ignore unsupported preview behavior.
+    }
+  }
+  return registered;
+}
+
 export function WebMcpTools() {
   useEffect(() => {
-    // WebMCP is a progressive enhancement. Unsupported browsers pay only for
-    // this feature-detection branch and keep the normal UI unchanged.
     const controller = new AbortController();
-    const detected = detectWebMcpContext(document.modelContext, navigator.modelContext);
-    if (detected?.source === "document" && document.modelContext && typeof document.modelContext.registerTool === "function") {
-      for (const tool of tools) {
-        try {
-          // Keep the normative WebMCP call explicit. The browser API is
-          // document.modelContext.registerTool(), with AbortSignal lifecycle.
-          void Promise.resolve(document.modelContext.registerTool(tool, { signal: controller.signal })).catch(() => undefined);
-        } catch {
-          // A proposed browser API can change between origin-trial versions;
-          // failing closed must never affect the visible UsageMax experience.
-        }
-      }
-      return () => controller.abort();
-    }
+    let disposed = false;
+    let registrationStarted = false;
+    let retryIndex = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let legacyContext: ModelContext | undefined;
+    const retryDelays = [50, 250, 750, 1_500, 3_000] as const;
 
-    // Older previews exposed the same shape on navigator.modelContext. Keep
-    // this as a trailing fallback so the standards path remains authoritative.
-    const legacyContext = detected?.source === "navigator" ? detected.context : undefined;
-    if (!legacyContext?.registerTool) return undefined;
-    for (const tool of tools) {
-      try {
-        void Promise.resolve(navigator.modelContext?.registerTool?.(tool, { signal: controller.signal })).catch(() => undefined);
-      } catch {
-        // Ignore unsupported preview behavior.
+    // WebMCP is a progressive enhancement. A bounded retry window handles a
+    // browser that injects modelContext just after hydration without leaving
+    // an interval or background work resident on unsupported browsers.
+    const attemptRegistration = () => {
+      if (disposed || registrationStarted || controller.signal.aborted) return;
+      const detected = detectWebMcpContext(document.modelContext, navigator.modelContext);
+
+      if (detected?.source === "document") {
+        registrationStarted = true;
+        void registerDocumentWebMcpTools(controller.signal).catch(() => undefined);
+        return;
       }
-    }
+
+      if (detected?.source === "navigator") {
+        registrationStarted = true;
+        legacyContext = detected.context;
+        void registerNavigatorWebMcpTools(detected.context, controller.signal).catch(() => undefined);
+        return;
+      }
+
+      const delay = retryDelays[retryIndex];
+      if (delay === undefined) return;
+      retryIndex += 1;
+      timer = setTimeout(attemptRegistration, delay);
+    };
+
+    attemptRegistration();
+
     return () => {
+      disposed = true;
+      if (timer) clearTimeout(timer);
       controller.abort();
-      if (legacyContext.unregisterTool) for (const tool of tools) legacyContext.unregisterTool(tool.name);
+      if (legacyContext?.unregisterTool) for (const tool of tools) legacyContext.unregisterTool(tool.name);
     };
   }, []);
 

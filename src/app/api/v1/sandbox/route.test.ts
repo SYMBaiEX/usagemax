@@ -13,4 +13,3 @@ describe("sandbox descriptor API", () => {
     expect(HEAD().headers.get("content-type")).toBe("application/json; charset=utf-8");
   });
 });
-

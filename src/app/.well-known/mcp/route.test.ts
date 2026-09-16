@@ -6,7 +6,8 @@ describe("MCP discovery metadata", () => {
     const body = await GET().json();
     expect(body).toMatchObject({ type: "mcp-discovery", name: "UsageMax public product MCP", protocol: "2025-06-18", instructions: expect.stringContaining("read-only"), serverUrl: "https://usagemax.com/mcp", readOnly: true });
     expect(body.tools.map((tool: { name: string }) => tool.name)).toEqual(["public_profile", "leaderboard", "network_stats", "ask_site"]);
-    expect(body.documentationTools.map((tool: { name: string }) => tool.name)).toEqual(["docs_list", "docs_search", "docs_get"]);
+    expect(body).not.toHaveProperty("documentationTools");
+    expect(body.documentationServerUrl).toBe("https://usagemax.com/docs-mcp");
     expect(body.resources[0].uri).toBe("ui://usagemax/public-observability.html");
   });
 
