@@ -1,16 +1,20 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const originalConvexSiteUrl = process.env.NEXT_PUBLIC_CONVEX_SITE_URL;
+const originalFetch = globalThis.fetch;
+
 afterEach(() => {
-  vi.unstubAllEnvs();
+  if (originalConvexSiteUrl === undefined) delete process.env.NEXT_PUBLIC_CONVEX_SITE_URL;
+  else process.env.NEXT_PUBLIC_CONVEX_SITE_URL = originalConvexSiteUrl;
+  globalThis.fetch = originalFetch;
   vi.restoreAllMocks();
 });
 
 describe("collector API forwarding", () => {
   it("preserves upstream retry and rate-limit headers on normalized JSON errors", async () => {
-    vi.stubEnv("NEXT_PUBLIC_CONVEX_SITE_URL", "https://collector.example");
-    vi.resetModules();
+    process.env.NEXT_PUBLIC_CONVEX_SITE_URL = "https://collector.example";
     const { forwardCollectorRequest } = await import("./collector-api");
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "rate_limited" }), {
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ error: "rate_limited" }), {
       status: 429,
       headers: {
         "content-type": "application/json",
@@ -19,7 +23,7 @@ describe("collector API forwarding", () => {
         "ratelimit-limit": "180, 20000",
         "ratelimit-reset": "17, 17",
       },
-    })));
+    }));
 
     const response = await forwardCollectorRequest(new Request("https://usagemax.com/api/v1/telemetry/llm", {
       method: "POST",
@@ -35,6 +39,11 @@ describe("collector API forwarding", () => {
     expect(response.status).toBe(429);
     expect(response.headers.get("retry-after")).toBe("17");
     expect(response.headers.get("ratelimit-policy")).toBe("180;w=60, 20000;w=60");
+    expect(response.headers.get("ratelimit-limit")).toBe("180, 20000");
+    expect(response.headers.get("ratelimit-reset")).toBe("17, 17");
+    expect(response.headers.get("RateLimit-Policy")).toBe("180;w=60, 20000;w=60");
+    expect(response.headers.get("RateLimit-Limit")).toBe("180, 20000");
+    expect(response.headers.get("RateLimit-Reset")).toBe("17, 17");
     await expect(response.json()).resolves.toMatchObject({ error: "rate_limited", documentation: "https://usagemax.com/docs" });
   });
 });

@@ -36,13 +36,14 @@ function rateLimitHeaders(policy: string) {
   const limits = [...policy.matchAll(/(\d+);w=(\d+)/g)].map((match) => ({ limit: match[1], window: match[2] }));
   return {
     "rate-limit-policy": policy,
-    ...(limits.length > 0 ? { "ratelimit-limit": limits.map(({ limit }) => limit).join(", "), "ratelimit-reset": limits.map(({ window }) => window).join(", ") } : {}),
+    "RateLimit-Policy": policy,
+    ...(limits.length > 0 ? { "ratelimit-limit": limits.map(({ limit }) => limit).join(", "), "ratelimit-reset": limits.map(({ window }) => window).join(", "), "RateLimit-Limit": limits.map(({ limit }) => limit).join(", "), "RateLimit-Reset": limits.map(({ window }) => window).join(", ") } : {}),
   };
 }
 
 function safeResponseHeaders(source: Headers) {
   const headers = new Headers({ "cache-control": "no-store", "x-request-id": crypto.randomUUID(), "x-api-version": "1" });
-  for (const name of ["content-type", "location", "retry-after", "www-authenticate", "x-request-id", "rate-limit", "rate-limit-policy", "rate-limit-limit", "rate-limit-remaining", "rate-limit-reset", "ratelimit-policy", "ratelimit-limit", "ratelimit-remaining", "ratelimit-reset"]) {
+  for (const name of ["content-type", "location", "retry-after", "www-authenticate", "x-request-id", "rate-limit", "rate-limit-policy", "rate-limit-limit", "rate-limit-remaining", "rate-limit-reset", "ratelimit-policy", "ratelimit-limit", "ratelimit-remaining", "ratelimit-reset", "RateLimit-Policy", "RateLimit-Limit", "RateLimit-Remaining", "RateLimit-Reset"]) {
     const value = source.get(name);
     if (value) headers.set(name, value);
   }
