@@ -43,7 +43,7 @@ function addVary(headers: Headers, value: string) {
   headers.set("vary", [...values].join(", "));
 }
 
-function publicHeaders(headers: Headers, cacheControl: string, markdownPath?: string) {
+function publicHeaders(headers: Headers, cacheControl: string, markdownPath?: string, canonicalPath?: string, alternatePath?: string) {
   addVary(headers, "Accept");
   addVary(headers, "User-Agent");
   headers.set("cache-control", cacheControl);
@@ -53,14 +53,16 @@ function publicHeaders(headers: Headers, cacheControl: string, markdownPath?: st
     "</openapi.json>; rel=\"service-desc\"; type=\"application/vnd.oai.openapi+json\"",
     "</ask>; rel=\"nlweb\"",
   ];
+  if (canonicalPath) links.push(`<${canonicalPath}>; rel=\"canonical\"`);
   if (markdownPath) links.push(`<${markdownPath}>; rel=\"alternate\"; type=\"text/markdown\"`);
+  if (alternatePath) links.push(`<${alternatePath}>; rel=\"alternate\"; type=\"text/html\"`);
   headers.set("link", links.join(", "));
 }
 
 function rewriteNotFound(request: NextRequest, authHeaders: Headers) {
   const { requestHeaders, responseHeaders } = partitionAuthkitHeaders(request, authHeaders);
   const response = applyResponseHeaders(NextResponse.rewrite(new URL("/not-found.md", request.url), { request: { headers: requestHeaders } }), responseHeaders);
-  publicHeaders(response.headers, "public, max-age=300, stale-while-revalidate=86400", "/not-found.md");
+  publicHeaders(response.headers, "public, max-age=300, stale-while-revalidate=86400", undefined, "/not-found.md");
   return response;
 }
 
@@ -99,7 +101,7 @@ export default async function proxy(request: NextRequest) {
   if (markdownPath && requestsMarkdown(request)) {
     const { requestHeaders, responseHeaders } = partitionAuthkitHeaders(request, headers);
     const response = applyResponseHeaders(NextResponse.rewrite(new URL(markdownPath, request.url), { request: { headers: requestHeaders } }), responseHeaders);
-    publicHeaders(response.headers, "public, max-age=3600, stale-while-revalidate=86400", markdownPath);
+    publicHeaders(response.headers, "public, max-age=3600, stale-while-revalidate=86400", undefined, markdownPath, request.nextUrl.pathname);
     return response;
   }
 
@@ -142,7 +144,7 @@ export default async function proxy(request: NextRequest) {
   }
 
   const response = handleAuthkitHeaders(request, headers);
-  if (markdownPath) publicHeaders(response.headers, "public, max-age=300", markdownPath);
+  if (markdownPath) publicHeaders(response.headers, "public, max-age=300", markdownPath, request.nextUrl.pathname);
   return response;
 }
 
