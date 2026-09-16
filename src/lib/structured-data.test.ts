@@ -29,12 +29,16 @@ describe("UsageMax structured data", () => {
     const service = usageMaxStructuredData["@graph"].find((entry) => entry["@type"] === "Service");
 
     expect(software).toMatchObject({
+      isAccessibleForFree: true,
       codeRepository: "https://github.com/SYMBaiEX/usagemax",
       downloadUrl: "https://www.npmjs.com/package/usagemax",
       softwareHelp: { "@id": "https://usagemax.com/docs" },
       featureList: expect.arrayContaining(["Read-only MCP", "A2A agent", "Agent Skills"]),
     });
-    expect(service).toMatchObject({ hasOfferCatalog: { url: "https://usagemax.com/pricing" } });
+    expect(service).toMatchObject({ hasOfferCatalog: { url: "https://usagemax.com/pricing", itemListElement: expect.arrayContaining([
+      expect.objectContaining({ "@type": "Offer", name: "Personal", price: "0", priceCurrency: "USD" }),
+      expect.objectContaining({ "@type": "Offer", name: "Small teams", price: "0", priceCurrency: "USD" }),
+    ]) } });
     expect(usageMaxStructuredData["@graph"]).toContainEqual(expect.objectContaining({
       "@type": "WebAPI",
       "@id": "https://usagemax.com/#api",

@@ -14,6 +14,7 @@ export const usageMaxStructuredData = {
       description: "A bounded observability layer for AI model, agent, and tool usage across connected computers.",
       applicationCategory: "DeveloperApplication",
       operatingSystem: "macOS, Windows, Linux",
+      isAccessibleForFree: true,
       codeRepository: repositoryUrl,
       downloadUrl: "https://www.npmjs.com/package/usagemax",
       softwareHelp: { "@id": "https://usagemax.com/docs" },
@@ -51,6 +52,11 @@ export const usageMaxStructuredData = {
         "@type": "OfferCatalog",
         name: "UsageMax plans",
         url: "https://usagemax.com/pricing",
+        itemListElement: [
+          { "@type": "Offer", name: "Personal", price: "0", priceCurrency: "USD", url: "https://usagemax.com/pricing", description: "Free personal usage observability with no card required." },
+          { "@type": "Offer", name: "Small teams", price: "0", priceCurrency: "USD", url: "https://usagemax.com/pricing", description: "Free small-team usage observability with published capacity guardrails." },
+          { "@type": "Offer", name: "Enterprise", url: "https://usagemax.com/contact", description: "Enterprise capacity and controls by custom agreement." },
+        ],
       },
     },
     {
