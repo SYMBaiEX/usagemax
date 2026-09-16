@@ -8,13 +8,17 @@ const errorGuidance: Record<string, { message: string; hint: string }> = {
   invalid_detail_parameters: { message: "The detail query parameters are invalid.", hint: "Provide groupBy=model|source|device and inclusive YYYY-MM-DD from and through dates." },
   public_detail_unavailable: { message: "The public detail query is temporarily unavailable.", hint: "Retry later or use the summary endpoint." },
   screen_api_retired: { message: "The local screen API is retired.", hint: "The HUD is a separate project; use the public UsageMax APIs for usage data." },
+  invalid_sandbox_input: { message: "The sandbox validation input is invalid.", hint: "Send only bounded aggregate telemetry metadata; prompts, completions, secrets, and unknown fields are rejected." },
 };
+
+export const API_VERSION = "1";
 
 export function apiResponse(body: unknown, init?: ResponseInit) {
   const response = NextResponse.json(body, init);
   response.headers.set("access-control-allow-origin", "*");
   response.headers.set("cache-control", "public, s-maxage=5, stale-while-revalidate=30");
   response.headers.set("x-request-id", crypto.randomUUID());
+  response.headers.set("x-api-version", API_VERSION);
   return response;
 }
 
@@ -27,5 +31,6 @@ export function apiError(error: string, status: number, guidance?: Partial<{ mes
   response.headers.set("access-control-allow-origin", "*");
   response.headers.set("cache-control", "no-store");
   response.headers.set("x-request-id", crypto.randomUUID());
+  response.headers.set("x-api-version", API_VERSION);
   return response;
 }

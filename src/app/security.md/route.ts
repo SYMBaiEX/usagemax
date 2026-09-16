@@ -1,4 +1,11 @@
-const markdown = `# UsageMax security
+const markdown = `---
+title: UsageMax security
+description: UsageMax public data, collector, and bounded-read security boundary.
+canonical: https://usagemax.com/security
+last-updated: 2026-09-16
+---
+
+# UsageMax security
 
 The public contract contains counts, models, states, costs, and timestamps—not prompt or completion bodies. Public reads are bounded projections; collector credentials are write-scoped, hashed, device-bound, replay-protected, and rate-limited.
 

@@ -1,4 +1,11 @@
-const markdown = `# How UsageMax counts
+const markdown = `---
+title: How UsageMax counts
+description: UsageMax aggregation, ranking, and completeness methodology.
+canonical: https://usagemax.com/methodology
+last-updated: 2026-09-16
+---
+
+# How UsageMax counts
 
 Usage is aggregated by profile, day, and model. Stable event keys prevent replayed history from being counted twice. Public rankings cover 7-day, 30-day, and all-time windows and include public profiles only.
 

@@ -1,4 +1,11 @@
-const markdown = `# UsageMax documentation
+const markdown = `---
+title: UsageMax documentation
+description: Bounded telemetry, integration, and privacy guidance.
+canonical: https://usagemax.com/docs
+last-updated: 2026-09-16
+---
+
+# UsageMax documentation
 
 Send bounded model, tool, agent-state, and outcome metadata through the native telemetry endpoint or OpenTelemetry traces. Each native event requires an idempotent \`eventKey\`, \`model\`, and \`occurredAt\`.
 

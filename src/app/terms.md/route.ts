@@ -1,4 +1,11 @@
-const markdown = `# UsageMax terms
+const markdown = `---
+title: UsageMax terms
+description: Terms for browsing public UsageMax data and documentation.
+canonical: https://usagemax.com/terms
+last-updated: 2026-09-16
+---
+
+# UsageMax terms
 
 You may browse public profiles, rankings, documentation, and methodology pages lawfully. Do not probe, overload, or bypass limits. Telemetry may be incomplete, delayed, estimated, or unavailable.
 

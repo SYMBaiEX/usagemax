@@ -20,14 +20,14 @@ const errorGuidance: Record<string, { message: string; hint: string }> = {
 
 function error(message: string, status: number, headers?: HeadersInit) {
   const guidance = errorGuidance[message] ?? { message: "The collector request was rejected.", hint: "Check the response error code and the API documentation." };
-  return Response.json({ error: message, ...guidance }, {
+  return Response.json({ error: message, message: guidance.message, hint: guidance.hint }, {
     status,
-    headers: { "cache-control": "no-store", "x-request-id": crypto.randomUUID(), ...headers },
+    headers: { "cache-control": "no-store", "x-request-id": crypto.randomUUID(), "x-api-version": "1", ...headers },
   });
 }
 
 function safeResponseHeaders(source: Headers) {
-  const headers = new Headers({ "cache-control": "no-store", "x-request-id": crypto.randomUUID() });
+  const headers = new Headers({ "cache-control": "no-store", "x-request-id": crypto.randomUUID(), "x-api-version": "1" });
   for (const name of ["content-type", "retry-after", "www-authenticate", "x-request-id"]) {
     const value = source.get(name);
     if (value) headers.set(name, value);
@@ -79,6 +79,10 @@ export async function forwardCollectorRequest(request: Request, options: Forward
     cache: "no-store",
     signal: AbortSignal.timeout(45_000),
   });
+  if (!response.ok && response.headers.get("content-type")?.includes("application/json")) {
+    const payload = await response.json().catch(() => null) as { error?: unknown } | null;
+    return error(typeof payload?.error === "string" ? payload.error : "collector_request_failed", response.status, safeResponseHeaders(response.headers));
+  }
   return new Response(response.body, {
     status: response.status,
     headers: safeResponseHeaders(response.headers),

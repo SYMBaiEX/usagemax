@@ -1,12 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { DOCS, handleMcp } from "./server";
+import { DOCS, DOC_TOOL_DEFINITIONS, handleMcp, USAGEMAX_TOOLS } from "./server";
 
 describe("UsageMax MCP", () => {
   it("supports initialize and lists only read tools", async () => {
     const init = await handleMcp({ jsonrpc: "2.0", id: 1, method: "initialize" });
     expect("result" in init ? init.result : null).toMatchObject({ protocolVersion: "2025-06-18", capabilities: { tools: {} } });
+    expect("result" in init ? init.result : null).toMatchObject({ instructions: expect.stringContaining("read-only") });
     const list = await handleMcp({ jsonrpc: "2.0", id: 2, method: "tools/list" });
     expect(("result" in list ? list.result as { tools: { name: string }[] } : { tools: [] }).tools.map((tool) => tool.name)).toEqual(["public_profile", "leaderboard", "network_stats", "ask_site", "docs_search", "docs_get"]);
+  });
+  it("annotates every live tool as bounded read-only", () => {
+    for (const tool of [...USAGEMAX_TOOLS, ...DOC_TOOL_DEFINITIONS]) {
+      expect(tool.name).toMatch(/^[a-z][a-z0-9_]+$/);
+      expect(tool.description.length).toBeGreaterThan(10);
+      expect(tool.inputSchema).toMatchObject({ type: "object", additionalProperties: false });
+      expect(tool.annotations).toEqual({ readOnlyHint: true, destructiveHint: false, openWorldHint: false });
+    }
+  });
+  it("keeps product and documentation MCP surfaces distinct", async () => {
+    const product = await handleMcp({ jsonrpc: "2.0", id: 1, method: "tools/list" }, undefined, "public");
+    const docs = await handleMcp({ jsonrpc: "2.0", id: 2, method: "tools/list" }, undefined, "docs");
+    expect("result" in product ? (product.result as { tools: { name: string }[] }).tools.map((tool) => tool.name) : []).toEqual(["public_profile", "leaderboard", "network_stats", "ask_site"]);
+    expect("result" in docs ? (docs.result as { tools: { name: string }[] }).tools.map((tool) => tool.name) : []).toEqual(["docs_search", "docs_get"]);
   });
   it("executes bounded public and documentation reads", async () => {
     const calls: string[] = [];

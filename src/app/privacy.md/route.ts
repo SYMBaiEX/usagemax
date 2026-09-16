@@ -1,4 +1,11 @@
-const markdown = `# UsageMax privacy
+const markdown = `---
+title: UsageMax privacy
+description: Telemetry and public-profile privacy boundaries.
+canonical: https://usagemax.com/privacy
+last-updated: 2026-09-16
+---
+
+# UsageMax privacy
 
 UsageMax may receive telemetry metadata such as model, provider, token counts, status, latency, task labels, agent identifiers, and timestamps. Do not send prompts, completions, secrets, or access tokens.
 
