@@ -101,7 +101,14 @@ export const DOCS = {
   "collector": "Collector ingestion is separate from this MCP surface and requires its own authenticated device contract. This MCP server never accepts telemetry writes or collector credentials.",
 } as const;
 
+const DOC_RESOURCE_METADATA = {
+  overview: { title: "UsageMax overview", uri: "https://usagemax.com/about.md" },
+  "public-api": { title: "UsageMax public API", uri: "https://usagemax.com/api/llms.txt.md" },
+  collector: { title: "UsageMax collector boundary", uri: "https://usagemax.com/auth.md" },
+} as const;
+
 export const DOC_TOOL_DEFINITIONS = [
+  { name: "docs_list", title: "List UsageMax documentation", description: "List the bounded public UsageMax documentation resources available to this MCP server.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: readOnlyAnnotations },
   { name: "docs_search", title: "Search UsageMax documentation", description: "Search the bounded public UsageMax documentation index.", inputSchema: { type: "object", properties: { query: { type: "string", minLength: 1, maxLength: 200 } }, required: ["query"], additionalProperties: false }, annotations: readOnlyAnnotations },
   { name: "docs_get", title: "Read UsageMax documentation", description: "Retrieve one bounded public UsageMax documentation resource.", inputSchema: { type: "object", properties: { id: { type: "string", enum: Object.keys(DOCS) } }, required: ["id"], additionalProperties: false }, annotations: readOnlyAnnotations },
 ];
@@ -131,7 +138,7 @@ export async function handleMcp(request: RpcRequest, query: QueryFn = (q, args) 
   const args = request.params?.arguments;
   if (typeof name !== "string" || !args || typeof args !== "object" || Array.isArray(args)) return error(request.id, -32602, "invalid_tool_arguments");
   const toolArgs = args as Record<string, unknown>;
-  if ((surface === "public" && (name === "docs_get" || name === "docs_search")) || (surface === "docs" && !["docs_get", "docs_search"].includes(name))) return error(request.id, -32601, "tool_not_found");
+  if ((surface === "public" && DOC_TOOL_DEFINITIONS.some((tool) => tool.name === name)) || (surface === "docs" && !DOC_TOOL_DEFINITIONS.some((tool) => tool.name === name))) return error(request.id, -32601, "tool_not_found");
   if (name === "network_stats") return textResult(request.id, { stats: await query(api.public.network, {}) });
   if (name === "ask_site") {
     if (typeof toolArgs.query !== "string" || toolArgs.query.trim().length < 1 || toolArgs.query.length > 500) return error(request.id, -32602, "invalid_query");
@@ -148,6 +155,7 @@ export async function handleMcp(request: RpcRequest, query: QueryFn = (q, args) 
     const profile = await query(api.public.profile, { handle: toolArgs.handle });
     return profile ? textResult(request.id, { profile }) : error(request.id, -32004, "profile_not_found");
   }
+  if (name === "docs_list") return textResult(request.id, { resources: Object.entries(DOC_RESOURCE_METADATA).map(([id, metadata]) => ({ id, ...metadata })) });
   if (name === "docs_get") {
     const id = toolArgs.id;
     if (typeof id !== "string" || !(id in DOCS)) return error(request.id, -32004, "resource_not_found");
