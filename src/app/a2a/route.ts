@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     return rpcError(null, -32700, "parse_error");
   }
   if (body.jsonrpc !== "2.0" || typeof body.method !== "string") return rpcError(body.id, -32600, "invalid_request");
-  if (body.method !== "SendMessage") return rpcError(body.id, -32601, "method_not_found");
+  if (body.method !== "SendMessage" && body.method !== "message/send") return rpcError(body.id, -32601, "method_not_found");
   const query = messageText(body.params);
   if (!query) return rpcError(body.id, -32602, "invalid_params");
 
