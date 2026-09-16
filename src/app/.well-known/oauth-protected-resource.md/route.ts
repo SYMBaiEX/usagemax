@@ -1,8 +1,13 @@
-const markdown = `# UsageMax protected resource
+const markdown = `---
+title: UsageMax protected resource
+description: Collector authentication metadata and privacy boundary.
+canonical: https://usagemax.com/.well-known/oauth-protected-resource
+last-updated: 2026-09-16
+---
+
+# UsageMax protected resource
 
 UsageMax accepts a proprietary, installation-bound, write-only collector token in the Authorization header. It does not currently provide an OAuth authorization server, token endpoint, or delegated API exchange.
-
-<!-- title: UsageMax protected resource metadata; canonical: https://usagemax.com/.well-known/oauth-protected-resource; last-updated: 2026-09-16 -->
 
 - Resource: https://usagemax.com/api
 - [Authentication guidance](https://usagemax.com/auth.md)

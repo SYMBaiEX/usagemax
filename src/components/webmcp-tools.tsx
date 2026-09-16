@@ -15,8 +15,10 @@ type ModelContext = {
   unregisterTool?: (name: string) => void;
 };
 
-type ModelContextDocument = Document & { modelContext?: ModelContext };
-type ModelContextNavigator = Navigator & { modelContext?: ModelContext };
+declare global {
+  interface Document { modelContext?: ModelContext; }
+  interface Navigator { modelContext?: ModelContext; }
+}
 
 async function readPublicJson(path: string) {
   const response = await fetch(path, { cache: "no-store", credentials: "omit", headers: { accept: "application/json" } });
@@ -28,7 +30,7 @@ async function readPublicJson(path: string) {
   return body;
 }
 
-const tools: ToolDefinition[] = [
+export const tools: ToolDefinition[] = [
   {
     name: "usagemax_network_stats",
     description: "Read bounded public aggregate UsageMax network statistics.",
@@ -70,14 +72,29 @@ const tools: ToolDefinition[] = [
       return readPublicJson(`/api/profiles/${encodeURIComponent(handle)}`);
     },
   },
+  {
+    name: "usagemax_ask",
+    description: "Ask a bounded question about public UsageMax documentation and receive cited resources.",
+    inputSchema: {
+      type: "object",
+      required: ["query"],
+      properties: { query: { type: "string", minLength: 1, maxLength: 500 } },
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+    execute: async (input) => {
+      const query = typeof input.query === "string" ? input.query.trim() : "";
+      if (!query || query.length > 500) throw new Error("Use a question with 1–500 characters.");
+      return readPublicJson(`/ask?query=${encodeURIComponent(query)}`);
+    },
+  },
 ];
 
 export function WebMcpTools() {
   useEffect(() => {
     // WebMCP is a progressive enhancement. Unsupported browsers pay only for
     // this feature-detection branch and keep the normal UI unchanged.
-    const context = (document as ModelContextDocument).modelContext
-      ?? (navigator as ModelContextNavigator).modelContext;
+    const context = document.modelContext ?? navigator.modelContext;
     if (!context?.registerTool) return undefined;
 
     const cleanups: Array<() => void> = [];
