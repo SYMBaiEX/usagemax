@@ -1,14 +1,15 @@
 export const dynamic = "force-static";
 
-// This is discovery material only. UsageMax does not currently require Web
-// Bot Auth signatures, so no private signing key is stored in the repository
-// or exposed by the application.
+// This endpoint publishes public verification material only. UsageMax does not
+// currently require Web Bot Auth signatures, so no private signing key is
+// stored in the repository or exposed by the application.
 const directory = {
   keys: [{
     kty: "OKP",
     crv: "Ed25519",
-    alg: "EdDSA",
+    alg: "ed25519",
     use: "sig",
+    key_ops: ["verify"],
     kid: "L2WcRRr3QYkLJnEdYS_8IKoEkRrq7XMOgZCRRbza6Zg",
     x: "YOM4beNwhZvQzFh7tvtCRlAL4cyDWLyjF0UFuaaeKuw",
     nbf: 1789516800,

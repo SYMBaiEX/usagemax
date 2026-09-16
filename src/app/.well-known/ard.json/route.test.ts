@@ -13,7 +13,11 @@ describe("Agentic Resource Discovery manifest", () => {
   });
 
   it("supports cacheable JSON metadata HEAD requests", () => {
-    expect(HEAD().status).toBe(200);
-    expect(HEAD().headers.get("content-type")).toContain("application/json");
+    const response = HEAD();
+    expect(response.status).toBe(200);
+    expect(response.headers.get("access-control-allow-origin")).toBe("*");
+    expect(response.headers.get("cache-control")).toBe("public, max-age=3600");
+    expect(response.headers.get("content-type")).toContain("application/json");
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
   });
 });

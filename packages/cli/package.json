@@ -4,7 +4,12 @@
   "description": "Link local coding-agent usage to your UsageMax profile",
   "keywords": [
     "usagemax",
+    "ai-usage",
+    "usage-analytics",
     "coding-agents",
+    "agent-usage",
+    "telemetry",
+    "observability",
     "usage",
     "ccusage",
     "claude-code",

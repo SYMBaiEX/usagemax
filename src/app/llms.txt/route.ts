@@ -57,11 +57,18 @@ source code, credentials, or private workspace data.
 - [Usage observability skill](https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/skills/usage-observability/SKILL.md): public-data integration guidance
 - [Enterprise reporting skill](https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/skills/enterprise-reporting/SKILL.md): tenant-safe reporting guidance
 
-Install either source skill from the default branch with
-\`npx skills add SYMBaiEX/usagemax --skill usage-observability\` or
-\`npx skills add SYMBaiEX/usagemax --skill enterprise-reporting\`. The local
+Install a selected source skill from the default branch with
+\`npx skills add SYMBaiEX/usagemax --skill usage-observability\`,
+\`npx skills add SYMBaiEX/usagemax --skill enterprise-reporting\`, or
+\`npx skills add SYMBaiEX/usagemax --skill collector-diagnostics\`. The local
 files and digest-pinned index do not by themselves claim a skills.sh listing or
 install usage.
+
+Install the collector with \`bunx usagemax@latest --help\`,
+\`npm exec --yes usagemax@latest -- --help\`, or
+\`npm install --global usagemax\` followed by \`usagemax --help\`. The
+collector is a short-lived local process; its package release and the website
+release are versioned independently.
 
 ## Agent mode
 

@@ -6,7 +6,9 @@ aggregates, and exits.
 
 [UsageMax](https://usagemax.com) · [Account](https://usagemax.com/account) ·
 [CLI documentation](https://usagemax.com/cli.md) ·
-[API contract](https://usagemax.com/openapi.json)
+[API contract](https://usagemax.com/openapi.json) ·
+[npm package](https://www.npmjs.com/package/usagemax) ·
+[source repository](https://github.com/SYMBaiEX/usagemax/tree/main/packages/cli)
 
 ## Requirements
 
@@ -19,6 +21,9 @@ aggregates, and exits.
 ```bash
 # Create a one-use code at https://usagemax.com/account.
 bunx usagemax@latest link UMX-XXXX-XXXX-XXXX-XXXX
+
+# npm users can run the same one-shot command with npx.
+npx --yes usagemax@latest link UMX-XXXX-XXXX-XXXX-XXXX
 
 # Preview, then upload changed local usage.
 bunx usagemax sync --dry-run --explain
@@ -98,9 +103,9 @@ printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
       --json
 ```
 
-The `token status` command is included in CLI `0.3.6`. If the npm `latest` tag
-still points to an older release, run `node packages/cli/src/cli.js token
-status` from the UsageMax repository until `0.3.6` is published.
+The `token status` command is included in CLI `0.3.6`. If the public npm tag
+does not yet contain `0.3.6`, run `node packages/cli/src/cli.js token status`
+from the UsageMax repository until that release is published.
 
 The response is read-only and contains only status, type, scopes, profile/name,
 activation state, and a binding result of `unbound`, `bound`, `matched`, or
@@ -187,5 +192,7 @@ bun run --cwd packages/cli test
 bun run --cwd packages/cli pack:check
 ```
 
-The package is MIT-licensed. See the repository [LICENSE](../../LICENSE),
-[security policy](../../SECURITY.md), and [contributing guide](../../CONTRIBUTING.md).
+The package is MIT-licensed. See the included [LICENSE](LICENSE), the
+repository [LICENSE](https://github.com/SYMBaiEX/usagemax/blob/main/LICENSE),
+[security policy](https://github.com/SYMBaiEX/usagemax/blob/main/SECURITY.md),
+and [contributing guide](https://github.com/SYMBaiEX/usagemax/blob/main/CONTRIBUTING.md).

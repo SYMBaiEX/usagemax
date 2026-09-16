@@ -246,12 +246,13 @@ server.json      MCP Registry submission metadata for the public remote server
 The local artifacts are ready for validation, but they are not external
 listings. [server.json](server.json) describes only the public
 `https://usagemax.com/mcp` remote; it contains no package, credential, or
-published Registry ID. The two `skills/` cards have valid `name` and
+published Registry ID. The three `skills/` cards have valid `name` and
 `description` frontmatter and can be installed from the public source with:
 
 ```bash
 npx skills add SYMBaiEX/usagemax --skill usage-observability
 npx skills add SYMBaiEX/usagemax --skill enterprise-reporting
+npx skills add SYMBaiEX/usagemax --skill collector-diagnostics
 ```
 
 No skills.sh install count, listing, or security audit is claimed until the
@@ -281,6 +282,7 @@ skills.sh API](https://www.skills.sh/docs/api):
 ```bash
 npx --yes skills add SYMBaiEX/usagemax --skill usage-observability
 npx --yes skills add SYMBaiEX/usagemax --skill enterprise-reporting
+npx --yes skills add SYMBaiEX/usagemax --skill collector-diagnostics
 curl -fsS --get \
   --data-urlencode 'q=UsageMax' \
   --data-urlencode 'owner=SYMBaiEX' \

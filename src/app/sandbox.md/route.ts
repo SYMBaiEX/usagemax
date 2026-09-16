@@ -29,6 +29,23 @@ Send a JSON POST to [POST /api/v1/sandbox/validate](https://usagemax.com/api/v1/
 ~~~
 
 The [sandbox descriptor](https://usagemax.com/api/v1/sandbox) is machine-readable. A successful response includes \`writes: false\`. Prompts, completions, credentials, source code, file paths, and arbitrary fields are rejected; use the [OpenAPI contract](https://usagemax.com/openapi.json) for the current schema.
+
+## Try it without an account
+
+This request is deliberately content-free and does not need a token, device ID,
+or UsageMax account. It validates one observability event and cannot change
+production totals:
+
+~~~bash
+curl -fsS -w '\\nHTTP %{http_code}\\n' \\
+  -X POST https://usagemax.com/api/v1/sandbox/validate \\
+  -H 'content-type: application/json' \\
+  --data '{"events":[{"eventKey":"sandbox-example-1","eventType":"agent_state","accountingMode":"observability","source":"local-test","provider":"usagemax","model":"relay-activity","inputTokens":0,"outputTokens":0,"cacheReadTokens":0,"cacheWriteTokens":0,"reasoningTokens":0,"totalTokens":0,"costMicros":0,"status":"ok","state":"diagnostic","occurredAt":"2026-09-16T12:00:00Z","schemaVersion":1,"completeness":"unknown"}]}'
+~~~
+
+The expected response is HTTP 200 with \`ok: true\`, \`accepted: 1\`, and
+\`writes: false\`. Use a current UTC timestamp when testing outside the
+documented example date.
 `;
 
 export function GET() {
