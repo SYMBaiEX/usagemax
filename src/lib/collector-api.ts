@@ -8,6 +8,7 @@ type ForwardOptions = {
   auth?: "optional" | "required";
   device?: "optional" | "required";
   requireJson?: boolean;
+  rateLimitPolicy?: string;
 };
 
 const errorGuidance: Record<string, { message: string; hint: string }> = {
@@ -18,17 +19,17 @@ const errorGuidance: Record<string, { message: string; hint: string }> = {
   payload_too_large: { message: "The request body exceeds the endpoint limit.", hint: "Use the documented batch limits and split the request." },
 };
 
-function error(message: string, status: number, headers?: HeadersInit) {
+function error(message: string, status: number, headers?: HeadersInit, rateLimitPolicy = "180;w=60") {
   const guidance = errorGuidance[message] ?? { message: "The collector request was rejected.", hint: "Check the response error code and the API documentation." };
   return Response.json({ error: message, message: guidance.message, hint: guidance.hint }, {
     status,
-    headers: { "cache-control": "no-store", "x-request-id": crypto.randomUUID(), "x-api-version": "1", ...headers },
+    headers: { "cache-control": "no-store", "x-request-id": crypto.randomUUID(), "x-api-version": "1", "rate-limit-policy": rateLimitPolicy, ...headers },
   });
 }
 
 function safeResponseHeaders(source: Headers) {
   const headers = new Headers({ "cache-control": "no-store", "x-request-id": crypto.randomUUID(), "x-api-version": "1" });
-  for (const name of ["content-type", "retry-after", "www-authenticate", "x-request-id"]) {
+  for (const name of ["content-type", "retry-after", "www-authenticate", "x-request-id", "rate-limit", "rate-limit-policy", "rate-limit-limit", "rate-limit-remaining", "rate-limit-reset"]) {
     const value = source.get(name);
     if (value) headers.set(name, value);
   }
@@ -36,33 +37,34 @@ function safeResponseHeaders(source: Headers) {
 }
 
 export async function forwardCollectorRequest(request: Request, options: ForwardOptions) {
-  if (!convexSiteUrl) return error("api_not_configured", 503);
+  const rateLimitPolicy = options.rateLimitPolicy ?? "180;w=60";
+  if (!convexSiteUrl) return error("api_not_configured", 503, undefined, rateLimitPolicy);
 
   const authorization = request.headers.get("authorization") ?? "";
   if (options.auth === "required" && !TOKEN_PATTERN.test(authorization)) {
-    return error("unauthorized", 401, { "WWW-Authenticate": 'Bearer resource_metadata="https://usagemax.com/.well-known/oauth-protected-resource"' });
+    return error("unauthorized", 401, { "WWW-Authenticate": 'Bearer resource_metadata="https://usagemax.com/.well-known/oauth-protected-resource"' }, rateLimitPolicy);
   }
   if (options.auth === "optional" && authorization && !TOKEN_PATTERN.test(authorization)) {
-    return error("unauthorized", 401, { "WWW-Authenticate": 'Bearer resource_metadata="https://usagemax.com/.well-known/oauth-protected-resource"' });
+    return error("unauthorized", 401, { "WWW-Authenticate": 'Bearer resource_metadata="https://usagemax.com/.well-known/oauth-protected-resource"' }, rateLimitPolicy);
   }
 
   const installationId = request.headers.get("x-usagemax-device-id") ?? "";
   if (options.device === "required" && !DEVICE_PATTERN.test(installationId)) {
-    return error("invalid_device_id", 400);
+    return error("invalid_device_id", 400, undefined, rateLimitPolicy);
   }
   if (options.device === "optional" && installationId && !DEVICE_PATTERN.test(installationId)) {
-    return error("invalid_device_id", 400);
+    return error("invalid_device_id", 400, undefined, rateLimitPolicy);
   }
 
   if (options.requireJson && !request.headers.get("content-type")?.toLowerCase().includes("application/json")) {
-    return error("content_type_must_be_application_json", 415);
+    return error("content_type_must_be_application_json", 415, undefined, rateLimitPolicy);
   }
   const declaredLength = Number(request.headers.get("content-length") ?? 0);
   if (!Number.isFinite(declaredLength) || declaredLength < 0 || declaredLength > options.maxBytes) {
-    return error("payload_too_large", 413);
+    return error("payload_too_large", 413, undefined, rateLimitPolicy);
   }
   const body = request.method === "POST" ? await request.arrayBuffer() : new ArrayBuffer(0);
-  if (body.byteLength > options.maxBytes) return error("payload_too_large", 413);
+  if (body.byteLength > options.maxBytes) return error("payload_too_large", 413, undefined, rateLimitPolicy);
 
   const headers = new Headers();
   if (authorization) headers.set("authorization", authorization);
@@ -81,11 +83,13 @@ export async function forwardCollectorRequest(request: Request, options: Forward
   });
   if (!response.ok && response.headers.get("content-type")?.includes("application/json")) {
     const payload = await response.json().catch(() => null) as { error?: unknown } | null;
-    return error(typeof payload?.error === "string" ? payload.error : "collector_request_failed", response.status, safeResponseHeaders(response.headers));
+    return error(typeof payload?.error === "string" ? payload.error : "collector_request_failed", response.status, safeResponseHeaders(response.headers), rateLimitPolicy);
   }
+  const responseHeaders = safeResponseHeaders(response.headers);
+  if (!responseHeaders.has("rate-limit-policy")) responseHeaders.set("rate-limit-policy", rateLimitPolicy);
   return new Response(response.body, {
     status: response.status,
-    headers: safeResponseHeaders(response.headers),
+    headers: responseHeaders,
   });
 }
 

@@ -9,6 +9,10 @@ const errorGuidance: Record<string, { message: string; hint: string }> = {
   public_detail_unavailable: { message: "The public detail query is temporarily unavailable.", hint: "Retry later or use the summary endpoint." },
   screen_api_retired: { message: "The local screen API is retired.", hint: "The HUD is a separate project; use the public UsageMax APIs for usage data." },
   invalid_sandbox_input: { message: "The sandbox validation input is invalid.", hint: "Send only bounded aggregate telemetry metadata; prompts, completions, secrets, and unknown fields are rejected." },
+  api_root: { message: "Choose a documented UsageMax API endpoint.", hint: "Use /api/stats or /api/leaderboard for public reads; collector writes require the documented bearer credential and device header." },
+  invalid_dataset: { message: "The export dataset is not supported.", hint: "Use dataset=daily, dataset=models, dataset=ledger, or dataset=audit." },
+  forbidden: { message: "The authenticated account cannot perform this operation.", hint: "Refresh your UsageMax session or ask a workspace administrator for access." },
+  service_unavailable: { message: "The UsageMax data service is temporarily unavailable.", hint: "Retry later and include the x-request-id if the problem persists." },
 };
 
 export const API_VERSION = "1";

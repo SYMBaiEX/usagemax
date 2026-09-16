@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { access, mkdir, readFile, realpath, rename, unlink, writeFile } from "node:fs/promises";
+import { access, chmod, copyFile, mkdir, readFile, readdir, realpath, rename, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -27,16 +27,71 @@ export function assertDurablePath(path) {
   }
 }
 
+export function brandedRuntimePath(directory, platform = process.platform) {
+  if (platform !== "darwin" && platform !== "win32") return null;
+  return platform === "win32"
+    ? join(directory, "runtime", "UsageMax.exe")
+    : join(directory, "runtime", "bin", "UsageMax");
+}
+
+/**
+ * Give scheduled jobs a stable product-facing image name on platforms where
+ * the JavaScript runtime otherwise appears as `node` in process browsers.
+ * The copied runtime is intentionally private to this installation and is
+ * refreshed on every service install, so upgrading Node or UsageMax never
+ * leaves the scheduler pointing at an ephemeral cache path.
+ */
+export async function ensureBrandedRuntime(directory, executable, platform = process.platform) {
+  const target = brandedRuntimePath(directory, platform);
+  if (!target) return executable;
+  const source = await realpath(executable);
+  const runtimeBinDirectory = dirname(target);
+  if (source === target) return target;
+  await mkdir(runtimeBinDirectory, { recursive: true, mode: 0o700 });
+  const temporary = join(runtimeBinDirectory, `.${platform === "win32" ? "UsageMax.exe" : "UsageMax"}.${randomUUID()}.tmp`);
+  try {
+    await copyFile(source, temporary);
+    if (platform !== "win32") await chmod(temporary, 0o700);
+    await rename(temporary, target);
+    if (platform === "darwin") {
+      // Homebrew Node uses @rpath/libnode.<n>.dylib next to its bin folder;
+      // the official Node distribution is self-contained. Copy only adjacent
+      // dylibs when they exist, keeping both layouts runnable.
+      const sourceLibraryDirectory = resolve(dirname(source), "../lib");
+      const runtimeLibraryDirectory = resolve(runtimeBinDirectory, "../lib");
+      const sourceLibraries = await readdir(sourceLibraryDirectory, { withFileTypes: true }).catch((error) => {
+        if (error?.code === "ENOENT") return [];
+        throw error;
+      });
+      const libraries = sourceLibraries.filter((entry) => entry.isFile() && entry.name.endsWith(".dylib"));
+      if (libraries.length) await mkdir(runtimeLibraryDirectory, { recursive: true, mode: 0o700 });
+      for (const library of libraries) {
+        const libraryTemporary = join(runtimeLibraryDirectory, `.${library.name}.${randomUUID()}.tmp`);
+        try {
+          await copyFile(join(sourceLibraryDirectory, library.name), libraryTemporary);
+          await chmod(libraryTemporary, 0o700);
+          await rename(libraryTemporary, join(runtimeLibraryDirectory, library.name));
+        } finally {
+          await unlink(libraryTemporary).catch(() => undefined);
+        }
+      }
+    }
+  } finally {
+    await unlink(temporary).catch(() => undefined);
+  }
+  return target;
+}
+
 export function servicePlan({ directory, executable, cli, minutes = 15, platform = process.platform, home = homedir(), uid = process.getuid?.(), configHome = join(home, ".config"), now = Date.now() }) {
   minutes = intervalMinutes(minutes);
   for (const path of [directory, executable, cli, home, configHome]) if (/[\x00-\x1f]/.test(path)) throw new Error("Scheduler paths cannot contain control characters.");
   const id = createHash("sha256").update(directory).digest("hex").slice(0, 12);
   const name = `com.UsageMax.sync.${id}`;
   const args = [cli, "service", "run", "--config-dir", directory];
-  // POSIX schedulers can execute the published shebang entry point directly,
-  // making the process title visible as UsageMax. Windows Task Scheduler needs
-  // node.exe to execute the JavaScript entry point and may retain its image name.
-  const command = platform === "win32"
+  // Linux can execute the published shebang entry point directly. macOS and
+  // Windows launch the staged UsageMax runtime so process browsers do not show
+  // the generic JavaScript runtime image name.
+  const command = platform === "win32" || platform === "darwin"
     ? [executable, ...args]
     : [cli, "service", "run", "--config-dir", directory];
   if (platform === "darwin") {
@@ -93,7 +148,8 @@ export async function manageService(action, { directory, cli, minutes, env = pro
   const settingsPath = join(directory, "service.json");
   const settings = await readJson(settingsPath);
   const configHome = settings?.configHome || env.XDG_CONFIG_HOME || join(home, ".config");
-  const plan = servicePlan({ directory, cli, executable: process.execPath, minutes: minutes ?? settings?.minutes ?? 15, configHome, home, platform });
+  const executable = brandedRuntimePath(directory, platform) || process.execPath;
+  const plan = servicePlan({ directory, cli, executable, minutes: minutes ?? settings?.minutes ?? 15, configHome, home, platform });
   if (action === "status") {
     let registered = false;
     try { await executeCommand(plan.probe); registered = true; } catch { /* Not installed, inactive, or unavailable. */ }
@@ -110,8 +166,9 @@ export async function manageService(action, { directory, cli, minutes, env = pro
   }
   if (action !== "install") throw new Error("Use service install [--every 15], status, run, or uninstall.");
   assertDurablePath(await realpath(cli));
-  if (platform === "win32") assertDurablePath(await realpath(process.execPath));
+  if (platform === "darwin" || platform === "win32") assertDurablePath(await realpath(process.execPath));
   await access(join(directory, "config.json"));
+  if (platform === "darwin" || platform === "win32") await ensureBrandedRuntime(directory, process.execPath, platform);
   // Check the user manager before writing anything. WSL without systemd fails clearly.
   if (plan.backend === "systemd") await executeCommand(["systemctl", ["--user", "show-environment"]]);
   if (settings) {

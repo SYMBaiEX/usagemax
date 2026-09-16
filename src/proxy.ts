@@ -15,6 +15,7 @@ const markdownRoutes: Record<string, string> = {
   "/.well-known/api-catalog": "/.well-known/api-catalog.md",
   "/.well-known/oauth-protected-resource": "/.well-known/oauth-protected-resource.md",
   "/api/llms.txt": "/api/llms.txt.md",
+  "/sandbox": "/sandbox.md",
 };
 
 function addVary(headers: Headers, value: string) {

@@ -1,4 +1,5 @@
 const repositoryUrl = "https://github.com/SYMBaiEX/usagemax";
+const sameAs = [repositoryUrl, "https://github.com/SYMBaiEX", "https://www.npmjs.com/package/usagemax"];
 
 export const usageMaxStructuredData = {
   "@context": "https://schema.org",
@@ -11,20 +12,30 @@ export const usageMaxStructuredData = {
       description: "A bounded observability layer for AI model, agent, and tool usage across connected computers.",
       applicationCategory: "DeveloperApplication",
       operatingSystem: "macOS, Windows, Linux",
-      sameAs: [repositoryUrl],
+      sameAs,
     },
     {
       "@type": "Organization",
       "@id": "https://usagemax.com/#organization",
       name: "UsageMax",
       url: "https://usagemax.com",
-      sameAs: [repositoryUrl],
+      sameAs,
       contactPoint: {
         "@type": "ContactPoint",
         contactType: "customer support",
         email: "hello@usagemax.com",
         url: "https://usagemax.com/contact",
       },
+    },
+    {
+      "@type": "Service",
+      "@id": "https://usagemax.com/#service",
+      name: "UsageMax AI usage observability",
+      serviceType: "AI usage observability",
+      url: "https://usagemax.com/docs",
+      description: "Bounded aggregate reporting for AI models, agents, tools, and connected computers.",
+      provider: { "@id": "https://usagemax.com/#organization" },
+      areaServed: "Worldwide",
     },
     {
       "@type": "WebSite",

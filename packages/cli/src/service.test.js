@@ -6,9 +6,9 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { assertDurablePath, capturedEnvironment, intervalMinutes, manageService, runScheduledSync, servicePlan } from "./service.js";
+import { assertDurablePath, brandedRuntimePath, capturedEnvironment, ensureBrandedRuntime, intervalMinutes, manageService, runScheduledSync, servicePlan } from "./service.js";
 
-const options = { directory: "/users/test/config", executable: "/opt/node", cli: "/opt/Usage Max/src/cli.js", home: "/users/test", uid: 123, now: 0 };
+const options = { directory: "/users/test/config", executable: "/opt/UsageMax", cli: "/opt/Usage Max/src/cli.js", home: "/users/test", uid: 123, now: 0 };
 
 test("intervals are bounded and integer-only", () => {
   assert.equal(intervalMinutes(), 15);
@@ -22,14 +22,35 @@ test("ephemeral launchers fail with a global-install remedy", () => {
   assert.doesNotThrow(() => assertDurablePath("/home/a/.bun/install/global/node_modules/usagemax/src/cli.js"));
 });
 
+test("branded runtime naming is platform-scoped", async () => {
+  assert.equal(brandedRuntimePath("/tmp/usage", "darwin"), "/tmp/usage/runtime/bin/UsageMax");
+  assert.equal(brandedRuntimePath("C:\\Users\\me\\UsageMax", "win32"), "C:\\Users\\me\\UsageMax/runtime/UsageMax.exe");
+  assert.equal(brandedRuntimePath("/tmp/usage", "linux"), null);
+  assert.equal(await ensureBrandedRuntime("/tmp/usage", "/opt/node", "linux"), "/opt/node");
+});
+
+test("stages a refreshed product-named runtime atomically", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "usagemax-runtime-"));
+  try {
+    const executable = join(directory, "node");
+    await writeFile(executable, "runtime image");
+    const target = await ensureBrandedRuntime(directory, executable, "darwin");
+    assert.equal(target, join(directory, "runtime", "bin", "UsageMax"));
+    assert.equal(await readFile(target, "utf8"), "runtime image");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("only explicit discovery environment is persisted; no credentials", () => {
   assert.deepEqual(capturedEnvironment({ PATH: "/bin", CODEX_HOME: "/logs", CLAUDE_CONFIG_DIR: "", OPENAI_API_KEY: "secret", USAGEMAX_TOKEN: "secret", NODE_OPTIONS: "--import=evil", HOME: "/another-user" }), { PATH: "/bin", CODEX_HOME: "/logs", CLAUDE_CONFIG_DIR: "" });
 });
 
-test("launchd is a low-priority interval job with no KeepAlive, shell, or log growth", () => {
+test("launchd is a low-priority interval job with a branded runtime and no KeepAlive, shell, or log growth", () => {
   const plan = servicePlan({ ...options, platform: "darwin" });
   const plist = plan.files[0][1];
   assert.match(plist, /<key>StartInterval<\/key><integer>9\d\d<\/integer>/);
+  assert.match(plist, /<string>\/opt\/UsageMax<\/string>/);
   assert.match(plist, /<string>\/opt\/Usage Max\/src\/cli.js<\/string>/);
   assert.doesNotMatch(plist, /<string>\/opt\/node<\/string>/);
   assert.match(plist, /LowPriorityIO/);

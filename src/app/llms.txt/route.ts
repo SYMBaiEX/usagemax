@@ -1,13 +1,8 @@
-const llmsText = `---
-title: UsageMax agent guide
-description: Public UsageMax resources and bounded data contract.
-canonical: https://usagemax.com/llms.txt
-last-updated: 2026-09-16
----
-
-# UsageMax
+const llmsText = `# UsageMax
 
 > UsageMax is a public observability layer for builders running serious AI systems. It turns reported model, tool, agent, and outcome telemetry into compact, bounded public projections.
+
+<!-- title: UsageMax agent guide; canonical: https://usagemax.com/llms.txt; last-updated: 2026-09-16 -->
 
 ## When to use UsageMax
 
@@ -45,13 +40,21 @@ source code, credentials, or private workspace data.
 - [Protected-resource metadata](https://usagemax.com/.well-known/oauth-protected-resource): collector authentication metadata
 - [CLI package](https://www.npmjs.com/package/usagemax): installable local collector
 
+## Source and agent distribution
+
+- [UsageMax source repository](https://github.com/SYMBaiEX/usagemax): canonical open-source implementation
+- [Agent rules](https://github.com/SYMBaiEX/usagemax/blob/main/AGENTS.md): contributor and runtime guidance
+- [Agent Plugin manifest](https://github.com/SYMBaiEX/usagemax/blob/main/plugin.json): installable plugin metadata
+- [Usage observability skill](https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/skills/usage-observability/SKILL.md): public-data integration guidance
+- [Enterprise reporting skill](https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/skills/enterprise-reporting/SKILL.md): tenant-safe reporting guidance
+
 ## Public data contract
 
 The public UI reads bounded Convex projections for network totals, leaderboard entries, public profile totals and model mix, daily rollups, active agents, and a short live event window. It does not expose prompts, completions, credentials, or raw unbounded event history.
 
 ## Ingestion
 
-Telemetry can be sent to the native endpoint at /api/v1/telemetry/llm or the OpenTelemetry traces endpoint at /api/v1/traces. Send only metadata intended for processing; do not send secrets or prompt content.
+Telemetry can be sent to the native endpoint at /api/v1/telemetry/llm or the OpenTelemetry traces endpoint at /api/v1/traces. Send only metadata intended for processing; do not send secrets or prompt content. Use /api/v1/sandbox for no-write validation before sending a collector request.
 
 ## Authentication and limits
 

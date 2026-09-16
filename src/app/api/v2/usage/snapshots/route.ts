@@ -9,6 +9,7 @@ export function POST(request: Request) {
     auth: "required",
     device: "required",
     requireJson: true,
+    rateLimitPolicy: "180;w=60, 20000;w=60",
   });
 }
 

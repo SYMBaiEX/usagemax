@@ -2,6 +2,7 @@ import { withAuth } from "@workos-inc/authkit-nextjs";
 import { fetchMutation, fetchQuery } from "convex/nextjs";
 import { api } from "../../../../../convex/_generated/api";
 import type { FunctionReturnType } from "convex/server";
+import { apiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -9,10 +10,10 @@ type Dataset = "daily" | "models" | "ledger" | "audit";
 export async function GET(request: Request) {
   const { user, accessToken } = await withAuth();
   if (!user || !accessToken)
-    return new Response("Sign in to export.", { status: 401 });
+    return apiError("unauthorized", 401, { hint: "Sign in to UsageMax before requesting a workspace export." });
   const dataset = new URL(request.url).searchParams.get("dataset") as Dataset;
   if (!["daily", "models", "ledger", "audit"].includes(dataset))
-    return new Response("Unknown dataset", { status: 400 });
+    return apiError("invalid_dataset", 400);
   const options = { token: accessToken };
   type Page = FunctionReturnType<typeof api.personal.exportPage>;
   let first: Page;
@@ -34,9 +35,7 @@ export async function GET(request: Request) {
     );
     await fetchMutation(api.personal.beginExport, { dataset }, options);
   } catch {
-    return new Response("Export access unavailable. Refresh your session.", {
-      status: 403,
-    });
+    return apiError("forbidden", 403, { hint: "Refresh your UsageMax session and confirm that your workspace role permits exports." });
   }
   let cancelled = false;
   let current: Page | null = first;
