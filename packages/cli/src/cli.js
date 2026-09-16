@@ -10,7 +10,7 @@ import process from "node:process";
 import { promisify } from "node:util";
 
 import { prepareArchiveRecovery } from "./archives.js";
-import { buildSessionPlan, buildSnapshotPlan, normalizeLinkCode, scanPolicy, sourceSummary, validHttpsUrl } from "./core.js";
+import { buildSessionPlan, buildSnapshotPlan, normalizeLinkCode, reportDateArgs, scanPolicy, sourceSummary, validHttpsUrl } from "./core.js";
 import { stableInstallationId } from "./installation.js";
 import { requestSnapshot } from "./transport.js";
 import { resumeUpload, restartExpiredUpload, withConfigLock } from "./resume.js";
@@ -18,7 +18,7 @@ import { CCUSAGE_VERSION, ccusageEnvironment, ccusageHome, discoverProviderArchi
 
 const require = createRequire(import.meta.url);
 const executeFile = promisify(execFile);
-const VERSION = "0.3.1";
+const VERSION = "0.3.2";
 const PUBLIC_API_ORIGIN = "https://usagemax.com/api";
 const DEFAULT_LINK_ENDPOINT = `${PUBLIC_API_ORIGIN}/v1/devices/link`;
 const CONFIG_FILE = "config.json";
@@ -123,12 +123,7 @@ async function ccusageJson(config, { full = false, env } = {}) {
   // Reconcile yesterday once after the UTC date changes. All other incremental
   // scans parse only today; a metadata fingerprint avoids invoking ccusage when
   // no supported local source changed at all.
-  if (full) {
-    args.push("--since", "2024-01-01", "--until", new Date().toISOString().slice(0, 10));
-  } else if (config?.lastSyncAt) {
-    const today = new Date().toISOString().slice(0, 10);
-    args.push("--last", config.lastReconciledDay === today ? "1" : "2");
-  }
+  args.push(...reportDateArgs(config, { full }));
   const { stdout } = await executeFile(process.execPath, args, {
     encoding: "utf8",
     maxBuffer: MAX_REPORT_BYTES,

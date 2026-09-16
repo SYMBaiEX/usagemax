@@ -7,7 +7,7 @@ import type { telemetryEventValidator } from "./telemetry";
 
 type NormalizedEvent = typeof telemetryEventValidator.type;
 type JsonObject = Record<string, unknown>;
-const RECOMMENDED_CLI_VERSION = "0.3.1";
+const RECOMMENDED_CLI_VERSION = "0.3.2";
 
 function newCollectorToken() {
   const bytes = new Uint8Array(32);

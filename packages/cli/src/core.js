@@ -427,3 +427,11 @@ export function sourceSummary(report) {
   });
   return [...new Set(sources)].sort();
 }
+// Explicit UTC dates work with ccusage's combined daily/session sections.
+export function reportDateArgs(config, { full = false, now = Date.now() } = {}) {
+  const today = new Date(now).toISOString().slice(0, 10);
+  const since = full || !config?.lastSyncAt ? "2024-01-01"
+    : config.lastReconciledDay === today ? today
+      : new Date(Date.parse(today + "T00:00:00Z") - 86_400_000).toISOString().slice(0, 10);
+  return ["--since", since, "--until", today];
+}

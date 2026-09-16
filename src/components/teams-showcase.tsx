@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useId, useState } from "react";
 import { ArrowUpRight, LockClosed, UsageMark } from "./icons";
 import { ProfileAvatar } from "./profile-avatar";
+import { CtaArtwork } from "./cta-artwork";
 import styles from "./product-stories.module.css";
 
 const views = ["Usage", "Access", "Collectors"] as const;
@@ -33,6 +34,7 @@ export function TeamsShowcase({ variant = "home" }: { variant?: "home" | "page" 
           <p>Shared usage. Individual access.<br />Every connected computer, accounted for.</p>
           {variant === "home" ? <Link className={styles.storyLink} href="/enterprise">Explore team features <ArrowUpRight size={16} /></Link> : <Link className={styles.storyLink} href="/security">Explore the security model <ArrowUpRight size={16} /></Link>}
         </div>
+        <div className={styles.teamArtwork}><CtaArtwork aboveFold={variant === "page"} /></div>
       </div>
 
       <div className={styles.previewFrame}>

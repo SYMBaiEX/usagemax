@@ -18,8 +18,8 @@ describe("product illustrations", () => {
     expect(html).toContain(variant === "home" ? 'href="/enterprise"' : 'href="/security"');
     expect(html).not.toContain('href="#"');
     for (const value of ["4.8M", "3.7M", "1.5M"]) expect(html).toContain(value);
-    expect(html).not.toContain("cta-light.webp");
-    expect(html).not.toContain("cta-dark.webp");
+    expect(html).toContain("cta-light.webp");
+    expect(html).toContain("cta-dark.webp");
     expect(html).toContain("Workspace preview");
   });
 
