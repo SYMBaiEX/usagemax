@@ -5,7 +5,7 @@ const trustManifest = {
   attestations: [{ type: "source-repository", url: "https://github.com/SYMBaiEX/usagemax" }],
 };
 
-const manifest = {
+export const manifest = {
   specVersion: "0.91",
   icon: `${origin}/brand/icon-192.png`,
   entries: [
@@ -44,8 +44,8 @@ const manifest = {
       type: "application/mcp-server-card+json",
       url: `${origin}/.well-known/mcp/server-card.json`,
       trustManifest,
-      description: "A stateless, unauthenticated, read-only MCP server for bounded public UsageMax projections and documentation.",
-      capabilities: ["mcp", "public-usage", "documentation-search"],
+      description: "A stateless, unauthenticated, read-only MCP server for bounded public UsageMax projections, documentation, and an optional inline observability view.",
+      capabilities: ["mcp", "mcp-apps", "public-usage", "documentation-search"],
       representativeQueries: [
         "Show UsageMax network usage statistics.",
         "Look up a public UsageMax profile.",

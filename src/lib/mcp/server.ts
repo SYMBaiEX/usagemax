@@ -5,6 +5,8 @@ import { answerForQuery } from "@/lib/nlweb";
 export const MCP_MAX_BODY_BYTES = 64 * 1024;
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 export const MCP_SERVER_VERSION = "1.0.0";
+export const MCP_APP_RESOURCE_URI = "ui://usagemax/public-observability.html";
+export const MCP_APP_RESOURCE_MIME = "text/html;profile=mcp-app";
 
 type RpcRequest = { jsonrpc: "2.0"; id?: string | number | null; method: string; params?: Record<string, unknown> };
 type QueryFn = (query: unknown, args: Record<string, unknown>) => Promise<unknown>;
@@ -14,9 +16,73 @@ const readOnlyAnnotations = { readOnlyHint: true, destructiveHint: false, openWo
 export const USAGEMAX_TOOLS = [
   { name: "public_profile", title: "Read public profile", description: "Read one opt-in public UsageMax profile and aggregate statistics.", inputSchema: { type: "object", properties: { handle: { type: "string", minLength: 1, maxLength: 80 } }, required: ["handle"], additionalProperties: false }, annotations: readOnlyAnnotations },
   { name: "leaderboard", title: "Read public leaderboard", description: "Read the public UsageMax leaderboard (maximum 100 rows).", inputSchema: { type: "object", properties: { metric: { type: "string", enum: ["tokens", "spend"] }, period: { type: "string", enum: ["7d", "30d", "all"] } }, additionalProperties: false }, annotations: readOnlyAnnotations },
-  { name: "network_stats", title: "Read network statistics", description: "Read aggregate public UsageMax network statistics.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: readOnlyAnnotations },
+  { name: "network_stats", title: "Read network statistics", description: "Read aggregate public UsageMax network statistics and render the optional inline observability view.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: readOnlyAnnotations, _meta: { ui: { resourceUri: MCP_APP_RESOURCE_URI } } },
   { name: "ask_site", title: "Ask UsageMax documentation", description: "Ask a bounded natural-language question about UsageMax and receive cited public resources.", inputSchema: { type: "object", properties: { query: { type: "string", minLength: 1, maxLength: 500 } }, required: ["query"], additionalProperties: false }, annotations: readOnlyAnnotations },
 ];
+
+export const MCP_APP_RESOURCES = [
+  {
+    uri: MCP_APP_RESOURCE_URI,
+    name: "UsageMax public observability view",
+    title: "UsageMax public observability",
+    description: "A small, sandboxed, read-only view for the network statistics tool.",
+    mimeType: MCP_APP_RESOURCE_MIME,
+    _meta: { ui: { prefersBorder: false } },
+  },
+] as const;
+
+const MCP_APP_HTML = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
+    <title>UsageMax public observability</title>
+    <style>
+      :root { color-scheme: light dark; font: 14px/1.4 ui-sans-serif, system-ui, sans-serif; }
+      body { margin: 0; padding: 18px; color: #20201e; background: #f7f3eb; }
+      @media (prefers-color-scheme: dark) { body { color: #f5efe6; background: #1b1917; } }
+      header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+      h1 { margin: 0; font-size: 18px; letter-spacing: -.02em; }
+      .status { color: #b74316; font-size: 12px; font-weight: 650; }
+      .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+      .metric { min-height: 66px; padding: 12px; border: 1px solid color-mix(in srgb, currentColor 18%, transparent); border-radius: 12px; }
+      .label { display: block; margin-bottom: 6px; color: color-mix(in srgb, currentColor 65%, transparent); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+      .value { font-size: 22px; font-variant-numeric: tabular-nums; font-weight: 700; }
+      .empty { margin: 18px 0 0; color: color-mix(in srgb, currentColor 68%, transparent); }
+    </style>
+  </head>
+  <body>
+    <header><h1>UsageMax</h1><span class="status" id="status">waiting for a public read</span></header>
+    <section class="grid" aria-label="UsageMax network statistics">
+      <div class="metric"><span class="label">Tokens</span><strong class="value" id="tokens">—</strong></div>
+      <div class="metric"><span class="label">Profiles</span><strong class="value" id="profiles">—</strong></div>
+      <div class="metric"><span class="label">Events today</span><strong class="value" id="events">—</strong></div>
+    </section>
+    <p class="empty" id="message">Call the network statistics tool to populate this view.</p>
+    <script>
+      (function () {
+        var number = new Intl.NumberFormat();
+        function text(id, value) { document.getElementById(id).textContent = typeof value === 'number' ? number.format(value) : '—'; }
+        function render(value) {
+          var stats = value && value.stats ? value.stats : value;
+          if (!stats || typeof stats !== 'object') return;
+          text('tokens', stats.totalTokens);
+          text('profiles', stats.profiles);
+          text('events', stats.eventsToday);
+          document.getElementById('status').textContent = 'live public projection';
+          document.getElementById('message').textContent = 'Read-only data. No credentials or private workspace state is available to this view.';
+        }
+        window.addEventListener('message', function (event) {
+          var message = event && event.data;
+          var value = message && message.params && (message.params.structuredContent || message.params.content);
+          if (Array.isArray(value) && value[0] && value[0].text) { try { value = JSON.parse(value[0].text); } catch (_) {} }
+          render(value);
+        });
+      }());
+    </script>
+  </body>
+</html>`;
 
 export const DOCS = {
   "overview": "UsageMax is a read-only public projection of content-free AI usage telemetry. It does not expose prompts, completions, source code, file paths, tool arguments, or secrets.",
@@ -35,8 +101,14 @@ const textResult = (id: RpcRequest["id"], value: unknown) => result(id, { conten
 
 export async function handleMcp(request: RpcRequest, query: QueryFn = (q, args) => fetchQuery(q as never, args as never), surface: "all" | "public" | "docs" = "all") {
   if (request.jsonrpc !== "2.0" || typeof request.method !== "string") return error(request.id, -32600, "invalid_request");
-  if (request.method === "initialize") return result(request.id, { protocolVersion: MCP_PROTOCOL_VERSION, capabilities: { tools: {} }, serverInfo: { name: surface === "docs" ? "UsageMax documentation MCP" : "UsageMax public product MCP", version: MCP_SERVER_VERSION }, instructions: "Use tools/list to discover bounded read-only tools. This stateless server accepts JSON-RPC over POST only; it has no resources, prompts, actions, mutations, credentials, or SSE stream." });
+  if (request.method === "initialize") return result(request.id, { protocolVersion: MCP_PROTOCOL_VERSION, capabilities: { tools: {}, ...(surface === "docs" ? {} : { resources: { listChanged: false, subscribe: false } }) }, serverInfo: { name: surface === "docs" ? "UsageMax documentation MCP" : "UsageMax public product MCP", version: MCP_SERVER_VERSION }, instructions: "Use tools/list to discover bounded read-only tools. This stateless server accepts JSON-RPC over POST only; it has no prompts, actions, mutations, credentials, or SSE stream. The product surface also exposes one optional read-only MCP App resource." });
   if (request.method === "tools/list") return result(request.id, { tools: surface === "docs" ? DOC_TOOL_DEFINITIONS : surface === "public" ? USAGEMAX_TOOLS : [...USAGEMAX_TOOLS, ...DOC_TOOL_DEFINITIONS] });
+  if (request.method === "resources/list") return result(request.id, { resources: surface === "docs" ? [] : MCP_APP_RESOURCES });
+  if (request.method === "resources/read") {
+    const uri = request.params?.uri;
+    if (surface === "docs" || uri !== MCP_APP_RESOURCE_URI) return error(request.id, -32004, "resource_not_found");
+    return result(request.id, { contents: [{ uri: MCP_APP_RESOURCE_URI, mimeType: MCP_APP_RESOURCE_MIME, text: MCP_APP_HTML, _meta: { ui: { prefersBorder: false } } }] });
+  }
   if (request.method !== "tools/call") return error(request.id, -32601, "method_not_found");
   const name = request.params?.name;
   const args = request.params?.arguments;

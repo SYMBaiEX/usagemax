@@ -23,8 +23,16 @@ function error(message: string, status: number, headers?: HeadersInit, rateLimit
   const guidance = errorGuidance[message] ?? { message: "The collector request was rejected.", hint: "Check the response error code and the API documentation." };
   return Response.json({ error: message, message: guidance.message, hint: guidance.hint }, {
     status,
-    headers: { "cache-control": "no-store", "x-request-id": crypto.randomUUID(), "x-api-version": "1", "rate-limit-policy": rateLimitPolicy, ...headers },
+    headers: { "cache-control": "no-store", "x-request-id": crypto.randomUUID(), "x-api-version": "1", ...rateLimitHeaders(rateLimitPolicy), ...headers },
   });
+}
+
+function rateLimitHeaders(policy: string) {
+  const limits = [...policy.matchAll(/(\d+);w=(\d+)/g)].map((match) => ({ limit: match[1], window: match[2] }));
+  return {
+    "rate-limit-policy": policy,
+    ...(limits.length > 0 ? { "ratelimit-limit": limits.map(({ limit }) => limit).join(", "), "ratelimit-reset": limits.map(({ window }) => window).join(", ") } : {}),
+  };
 }
 
 function safeResponseHeaders(source: Headers) {
@@ -86,7 +94,9 @@ export async function forwardCollectorRequest(request: Request, options: Forward
     return error(typeof payload?.error === "string" ? payload.error : "collector_request_failed", response.status, safeResponseHeaders(response.headers), rateLimitPolicy);
   }
   const responseHeaders = safeResponseHeaders(response.headers);
-  if (!responseHeaders.has("rate-limit-policy")) responseHeaders.set("rate-limit-policy", rateLimitPolicy);
+  for (const [name, value] of Object.entries(rateLimitHeaders(rateLimitPolicy))) {
+    if (!responseHeaders.has(name)) responseHeaders.set(name, value);
+  }
   return new Response(response.body, {
     status: response.status,
     headers: responseHeaders,

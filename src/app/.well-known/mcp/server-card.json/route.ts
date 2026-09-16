@@ -1,4 +1,4 @@
-import { MCP_SERVER_VERSION, USAGEMAX_TOOLS } from "@/lib/mcp/server";
+import { MCP_APP_RESOURCES, MCP_SERVER_VERSION, USAGEMAX_TOOLS } from "@/lib/mcp/server";
 
 export const dynamic = "force-static";
 
@@ -10,12 +10,13 @@ export function GET() {
     serverUrl: "https://usagemax.com/mcp",
     icon: "https://usagemax.com/brand/icon-192.png",
     transport: "streamable-http",
-    tools: USAGEMAX_TOOLS.map(({ name, title, description, inputSchema, annotations }) => ({ name, title, description, inputSchema, annotations })),
+    tools: USAGEMAX_TOOLS.map(({ name, title, description, inputSchema, annotations, _meta }) => ({ name, title, description, inputSchema, annotations, ...(_meta ? { _meta } : {}) })),
+    resources: MCP_APP_RESOURCES,
     endpoints: [
       { url: "https://usagemax.com/mcp", methods: ["POST"], tools: USAGEMAX_TOOLS.map(({ name }) => name) },
     ],
     authentication: { schemes: [] },
-    capabilities: { tools: { listChanged: false }, resources: false, prompts: false },
+    capabilities: { tools: { listChanged: false }, resources: { listChanged: false, subscribe: false }, prompts: false },
     documentationServer: "https://usagemax.com/docs-mcp",
     documentationServerCard: "https://usagemax.com/.well-known/mcp/docs-server-card.json",
     limitations: ["No mutations", "No private or account data", "No telemetry ingestion", "JSON responses only; no SSE streaming", "Request bodies capped at 64 KiB", "Origin validation is enforced when Origin is supplied"],
