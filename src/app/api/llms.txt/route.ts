@@ -8,6 +8,7 @@ The UsageMax HTTP API has public read operations and authenticated, content-free
 - [Protected-resource metadata](/.well-known/oauth-protected-resource): collector credential metadata
 - [Authentication](/auth.md): credential, header, revocation, and error guidance
 - [API catalog](/.well-known/api-catalog): RFC 9727 Linkset discovery
+- [AI Catalog compatibility](/.well-known/ai-catalog.json): equivalent legacy discovery catalog
 - [Network stats](/api/stats): bounded public aggregate totals
 - [Leaderboard](/api/leaderboard?metric=tokens&window=all): bounded public rankings
 - [Public profile](/api/profiles/{handle}): opt-in profile projection
