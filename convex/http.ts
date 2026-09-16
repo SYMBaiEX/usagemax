@@ -141,7 +141,7 @@ function nativeEvent(value: unknown, now: number): Omit<NormalizedEvent, "eventH
     traceId: optionalText(event.traceId, 64),
     spanId: optionalText(event.spanId, 32),
     occurredAt: timestamp(event.occurredAt, now),
-    schemaVersion: 1,
+    schemaVersion: event.schemaVersion === 1 || (event.state === "synced" && event.pricingSource === "ccusage / LiteLLM") ? 1 : 2,
     completeness,
   };
 }
@@ -267,7 +267,7 @@ function otelEvents(body: JsonObject, now: number): Omit<NormalizedEvent, "event
           traceId,
           spanId,
           occurredAt: timestamp(Number.isFinite(start) ? start : now, now),
-          schemaVersion: 1,
+          schemaVersion: 2,
           completeness: "reported",
         });
       }

@@ -327,6 +327,7 @@ export default defineSchema({
     occurredAt: v.number(),
     receivedAt: v.number(),
     schemaVersion: v.number(),
+    bucketVersion: v.optional(v.number()),
     completeness: v.union(v.literal("reported"), v.literal("estimated"), v.literal("unknown")),
   })
     .index("by_workspaceId_and_eventKey", ["workspaceId", "eventKey"])

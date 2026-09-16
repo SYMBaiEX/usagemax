@@ -1,3 +1,4 @@
+import { bucketFields, eventBuckets } from "./tokenBuckets";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
@@ -80,17 +81,8 @@ const emptyRollup = (): Rollup => ({
 });
 
 function addEvent(target: Rollup, event: Event) {
-  target.inputTokens += event.inputTokens;
-  target.outputTokens += event.outputTokens;
-  target.cacheReadTokens += event.cacheReadTokens;
-  target.cacheWriteTokens += event.cacheWriteTokens;
-  target.reasoningTokens += event.reasoningTokens;
-  // Schema v2 follows the native contract where cache tokens are subsets of
-  // input. V1 aggregate collectors reported cache as a separate bucket.
-  target.unclassifiedTokens += Math.max(0, event.totalTokens
-    - event.inputTokens
-    - event.outputTokens
-    - (event.schemaVersion >= 2 ? 0 : event.cacheReadTokens + event.cacheWriteTokens));
+  const buckets = eventBuckets(event);
+  for (const field of bucketFields) target[field] += buckets[field];
   target.totalTokens += event.totalTokens;
   target.costMicros += event.costMicros;
   const isAggregate = event.state === "synced" && event.pricingSource === "ccusage / LiteLLM";
@@ -176,7 +168,10 @@ export const commitBatch = internalMutation({
         .withIndex("by_collectorId_and_eventKey", (q) => q.eq("collectorId", collector._id).eq("eventKey", event.eventKey))
         .unique();
       if (prior) {
-        if (prior.eventHash === event.eventHash) duplicates += 1;
+        const versionOnlyUpgrade = prior.schemaVersion === 1 && event.schemaVersion === 2
+          && Object.entries(event).every(([key, value]) => key === "eventHash" || key === "schemaVersion"
+            || (prior as unknown as Record<string, unknown>)[key] === value);
+        if (prior.eventHash === event.eventHash || versionOnlyUpgrade) duplicates += 1;
         else {
           conflicts += 1;
           await ctx.db.insert("quarantine", {
@@ -193,6 +188,7 @@ export const commitBatch = internalMutation({
         profileId: collector.profileId,
         collectorId: collector._id,
         ...event,
+        bucketVersion: 1,
         receivedAt: args.receivedAt,
       });
       acceptedEvents.push(event);
