@@ -5,12 +5,12 @@
 .headerRight > a { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--ink-soft); }
 .headerRight > a:hover, .footer a:hover { color: var(--orange); }
 .layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); flex: 1; width: 100%; max-width: 1480px; margin: 0 auto; min-height: 600px; }
-.exhibit { position: relative; isolation: isolate; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; border-radius: var(--radius-panel, 18px); background: var(--surface-inset, #ece9df); padding: 34px 42px 28px; color: var(--ink); min-height: 600px; box-shadow: var(--shadow-float, 0 24px 56px -20px #3a383640); }
-.exhibit::before { content: ""; position: absolute; z-index: -1; inset: 0; background: radial-gradient(ellipse at 70% 15%, #fff9e8, transparent 58%), linear-gradient(140deg, transparent 40%, #cfcdcb70); box-shadow: inset 0 1px 0 var(--edge-highlight, #fff), inset 0 -30px 70px -40px #5e5c5a30; }
+.exhibit { position: relative; isolation: isolate; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; border-radius: var(--radius-panel, 18px); background: var(--surface-inset, #e7e7eb); padding: 34px 42px 28px; color: var(--ink); min-height: 600px; box-shadow: var(--shadow-float, 0 24px 56px -20px #38383c40); }
+.exhibit::before { content: ""; position: absolute; z-index: -1; inset: 0; background: radial-gradient(ellipse at 70% 15%, #f5f5f9, transparent 58%), linear-gradient(140deg, transparent 40%, #cdcdd170); box-shadow: inset 0 1px 0 var(--edge-highlight, #fff), inset 0 -30px 70px -40px #5c5c6030; }
 .sculpture { position: relative; align-self: center; flex-shrink: 0; width: calc(100% + 84px); aspect-ratio: 560/420; margin: -34px -42px -12px; pointer-events: none; }
 .ribbon { position: absolute; inset: 0; width: 100%; height: 100%; animation: sculptureFloat 14s ease-in-out infinite; }
-.sculptureShadow { position: absolute; left: 25%; right: 17%; top: 78%; height: 12px; background: #5a58562b; border-radius: 50%; filter: blur(16px); transform: rotate(-15deg); }
-.core { position: absolute; inset: 47.6% auto auto 50%; width: 12%; color: #ad492d; transform: translate(-50%, -50%) rotate(-16deg); }
+.sculptureShadow { position: absolute; left: 25%; right: 17%; top: 78%; height: 12px; background: #58585c2b; border-radius: 50%; filter: blur(16px); transform: rotate(-15deg); }
+.core { position: absolute; inset: 47.6% auto auto 50%; width: 12%; color: var(--orange); transform: translate(-50%, -50%) rotate(-16deg); }
 .core svg { width: 100%; height: auto; }
 .exhibitCopy { position: relative; }
 .kicker { color: var(--ink-soft); font: 550 11px/1.5 var(--font-mono); margin-bottom: 16px; }
@@ -34,10 +34,10 @@
 .provider:not([aria-disabled="true"]):hover > svg:last-child { opacity: 1; transform: translateX(2px); }
 .provider[aria-disabled="true"] { cursor: wait; }
 .provider[aria-disabled="true"] > svg:last-child { opacity: .25; }
-.github { color: var(--button-text, #fff); background: var(--button-bg, #3a3836); box-shadow: var(--shadow-control, 0 3px 8px #33312f30); }
+.github { color: var(--button-text, #fff); background: var(--button-bg, #38383c); box-shadow: var(--shadow-control, 0 3px 8px #31313530); }
 .github:not([aria-disabled="true"]):hover { background: var(--button-hover, #a93517); transform: translateY(-1px); }
-.google { color: var(--ink); background: var(--surface-card, #fffefa); box-shadow: var(--shadow-control, 0 3px 8px #33312f30); }
-.google:not([aria-disabled="true"]):hover { background: var(--surface-hover, #ebe9e7); transform: translateY(-1px); }
+.google { color: var(--ink); background: var(--surface-card, #fdfdff); box-shadow: var(--shadow-control, 0 3px 8px #31313530); }
+.google:not([aria-disabled="true"]):hover { background: var(--surface-hover, #e9e9ed); transform: translateY(-1px); }
 .sso { display: flex; justify-content: space-between; align-items: center; min-height: 46px; margin-top: 14px; padding: 8px 17px; font-size: 12px; color: var(--ink-soft); border-radius: var(--radius-control, 8px); }
 .sso > span { display: inline-flex; align-items: center; gap: 14px; }
 .sso > svg { opacity: .45; }
@@ -52,15 +52,15 @@
 .footer { display: flex; justify-content: space-between; align-items: center; min-height: 50px; padding: 10px 0; gap: 20px; font-size: 11px; color: var(--ink-faint); }
 .footer > div { display: flex; gap: 26px; }
 .footer a { display: inline-flex; align-items: center; gap: 4px; }
-.error { padding: 13px 15px; background: var(--danger-soft, #fae6e2); color: var(--red); font-size: 12px; line-height: 1.65; border-radius: var(--radius-control, 8px); margin-bottom: 18px; box-shadow: var(--shadow-inset); }
+.error { padding: 13px 15px; background: var(--danger-soft, #ebebef); color: var(--red); font-size: 12px; line-height: 1.65; border-radius: var(--radius-control, 8px); margin-bottom: 18px; box-shadow: var(--shadow-inset); }
 .error a { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; text-decoration: underline; text-underline-offset: 3px; }
 .contextNote { font-size: 12px; line-height: 1.65; color: var(--ink-soft); margin-bottom: 20px; background: var(--surface-inset, var(--paper-deep)); border-radius: var(--radius-control, 8px); padding: 12px; box-shadow: var(--shadow-inset); }
 
 /* Signal is a different composition, not a color inversion of Studio. */
 :global([data-theme="dark"]) .layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); }
 :global([data-theme="dark"]) .access { order: -1; padding-left: 12px; }
-:global([data-theme="dark"]) .exhibit { background: var(--surface-card, #1e1c1a); padding: 36px; }
-:global([data-theme="dark"]) .exhibit::before { background: radial-gradient(ellipse at 52% 33%, var(--accent-glow, #ff85332b), transparent 56%), radial-gradient(ellipse at 95% 80%, #5a585647, transparent 65%); box-shadow: inset 0 1px 0 var(--edge-highlight, #dcdad821), inset 0 -40px 80px -30px #0c0a0880; }
+:global([data-theme="dark"]) .exhibit { background: var(--surface-card, #1c1c20); padding: 36px; }
+:global([data-theme="dark"]) .exhibit::before { background: radial-gradient(ellipse at 52% 33%, var(--accent-glow, #ff85332b), transparent 56%), radial-gradient(ellipse at 95% 80%, #58585c47, transparent 65%); box-shadow: inset 0 1px 0 var(--edge-highlight, #dadade21), inset 0 -40px 80px -30px #0a0a0e80; }
 :global([data-theme="dark"]) .sculpture { opacity: .95; }
 :global([data-theme="dark"]) .ribbon { filter: drop-shadow(0 0 12px #ff7a2420); }
 :global([data-theme="dark"]) .sculptureShadow { background: #ff7a1817; }
