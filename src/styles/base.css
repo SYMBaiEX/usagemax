@@ -1,0 +1,50 @@
+* { box-sizing: border-box; }
+html { background: var(--paper); scroll-padding-top: 88px; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: var(--weight-body) 14px/1.6 var(--font-sans); -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+button, input, textarea, select { font: inherit; color: inherit; }
+input::placeholder, textarea::placeholder { color: var(--ink-faint); opacity: 1; }
+select option { color: var(--ink); background: var(--paper-raised); }
+button, summary, select { cursor: pointer; }
+button { -webkit-tap-highlight-color: transparent; }
+button:disabled { cursor: not-allowed; opacity: .5; }
+a, button, input, select, textarea, summary { outline-offset: 4px; }
+:focus-visible { outline: 2px solid var(--focus-ring); }
+::selection { color: var(--button-text); background: var(--button-bg); }
+h1, h2, h3, p, figure { margin: 0; }
+h1, h2, h3 { text-wrap: balance; }
+p { overflow-wrap: break-word; }
+svg { flex-shrink: 0; }
+pre, code { font-family: var(--font-mono); }
+.site-body { min-height: 100vh; }
+.site-main { min-height: 65vh; }
+.shell { width: min(1184px, calc(100% - 96px)); margin-inline: auto; }
+.page-surface { overflow: clip; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.skip-link { position: fixed; z-index: 30; left: 16px; top: 8px; background: var(--button-bg); color: var(--button-text); padding: 10px 16px; transform: translateY(-150%); }
+.skip-link:focus { transform: none; }
+.section-index, .eyebrow, .docs-section-kicker, .metric-label, .feed-label { color: var(--ink-faint); font: 500 var(--text-micro)/1.5 var(--font-mono); letter-spacing: .07em; text-transform: uppercase; }
+.eyebrow { display: flex; align-items: center; gap: 10px; }
+.eyebrow-line { width: 5px; height: 5px; border-radius: 50%; background: var(--orange); }
+.text-accent { color: var(--green); font: inherit; letter-spacing: inherit; }
+.text-link, .arrow-link { display: inline-flex; align-items: center; gap: 10px; min-height: 40px; font-size: 12px; font-weight: 600; }
+.text-link:hover, .arrow-link:hover { color: var(--orange); }
+.inline-links { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
+.button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 40px; padding: 10px 15px; border: 1px solid var(--line-strong); border-radius: var(--radius-control); background: var(--surface-card); box-shadow: var(--shadow-control); font-size: 12px; font-weight: 600; line-height: 1.4; transition: background .16s, border-color .16s, transform .16s; }
+.button-primary, .button-acid, .button-dark { background: var(--button-bg); border-color: transparent; color: var(--button-text); box-shadow: var(--shadow-control); }
+.button-primary:hover, .button-acid:hover, .button-dark:hover { background: var(--button-hover); border-color: transparent; }
+.button-outline:hover, .button-light:hover { background: var(--paper-deep); border-color: var(--ink-faint); }
+.button-quiet { border-color: transparent; background: transparent; box-shadow: none; }
+.button-quiet:hover { color: var(--orange); }
+.button-danger { color: var(--red); border-color: color-mix(in srgb, var(--red) 35%, transparent); background: var(--danger-soft); }
+.button-danger:hover { background: color-mix(in srgb, var(--red) 12%, var(--danger-soft)); }
+.live-pill { display: inline-flex; gap: 6px; align-items: center; color: var(--ink-faint); font: var(--text-micro) var(--font-mono); text-transform: uppercase; letter-spacing: .03em; }
+.live-pill i, .live-dot { display: inline-block; width: 5px; height: 5px; background: var(--green); border-radius: 50%; }
+.verify-badge { display: inline-grid; place-items: center; width: 15px; height: 15px; font: var(--text-micro) var(--font-sans); background: var(--green); color: var(--paper-raised); border-radius: 50%; }
+.avatar { display: inline-grid; place-items: center; flex-shrink: 0; background: hsl(var(--avatar-hue, 85) 30% 86%); color: hsl(var(--avatar-hue, 85) 32% 28%); font: 500 11px var(--font-mono); border-radius: 50%; }
+.avatar-small { width: 32px; height: 32px; }
+.avatar-large { width: 62px; height: 62px; font-size: 20px; border-radius: 17px; box-shadow: 0 5px 15px #2a453610; }
+@media (forced-colors: active) {
+  button, .button, input, select, textarea { border: 1px solid ButtonText !important; }
+  :focus-visible { outline-color: Highlight; }
+}

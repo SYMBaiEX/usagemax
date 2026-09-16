@@ -1,0 +1,39 @@
+/* Navigation and quiet, editorial footer. */
+.site-footer { --focus-ring: var(--focus-ring-inverse); }
+.site-header { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--paper) 96%, transparent); box-shadow: 0 4px 22px -20px var(--ink); }
+.header-inner { display: flex; align-items: center; gap: 28px; height: 64px; }
+.brand { display: inline-flex; align-items: center; gap: 9px; flex-shrink: 0; }
+.brand-mark { display: grid; place-items: center; background: var(--orange); color: white; width: 29px; height: 29px; border-radius: 7px; }
+.brand-mark svg { width: 23px; height: 23px; }
+.brand-wordmark { font-size: 19px; font-weight: 700; letter-spacing: -.06em; }
+.brand-wordmark > span { color: inherit; }
+.desktop-nav { margin-left: auto; display: flex; align-self: center; align-items: center; gap: 4px; }
+.desktop-nav a { position: relative; display: flex; align-items: center; padding: 8px 14px; font-size: 12px; color: var(--ink-soft); }
+.desktop-nav a:hover, .desktop-nav a[aria-current="page"] { color: var(--ink); }
+.desktop-nav a[aria-current="page"] { background: var(--surface-inset); box-shadow: var(--shadow-inset); border-radius: var(--radius-control); color: var(--orange-dark); }
+.header-actions { display: flex; align-items: center; gap: 10px; }
+.header-login, .header-cta { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 8px 12px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.header-login { max-width: 150px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.header-login:hover { background: var(--paper-deep); }
+.header-cta { color: var(--button-text); background: var(--button-bg); border-radius: var(--radius-control); box-shadow: var(--shadow-control); }
+.header-cta:hover { background: var(--button-hover); }
+.header-auth-loading { width: 72px; height: 36px; }
+.mobile-nav { display: none; margin-left: auto; position: relative; }
+.mobile-nav summary { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px; list-style: none; font-size: 12px; }
+.mobile-nav summary::-webkit-details-marker { display: none; }
+.mobile-nav nav { position: absolute; right: 0; top: 44px; width: 245px; padding: 8px; background: var(--paper-raised); border: 1px solid var(--line); box-shadow: var(--shadow-float); border-radius: var(--radius-control); }
+.mobile-nav nav a { display: flex; align-items: center; justify-content: space-between; padding: 12px; font-size: 12px; }
+.mobile-nav nav a:hover, .mobile-nav a[aria-current="page"] { background: var(--paper-deep); color: var(--orange-dark); }
+.site-footer { background: radial-gradient(ellipse at 0 100%, #476b452b, transparent 60%), var(--footer-bg); color: var(--footer-ink); box-shadow: inset 0 1px 0 #ffffff10; border-radius: 16px 16px 0 0; margin: 20px 20px 0; }
+.footer-main { display: flex; justify-content: space-between; gap: 64px; padding-block: 40px; }
+.footer-brand-block p { color: var(--footer-muted); font-size: 11px; margin-top: 12px; max-width: 300px; }
+.footer-brand-block .footer-statement { color: var(--footer-ink); font-size: 20px; line-height: 1.12; letter-spacing: -.04em; font-weight: 600; margin-top: 20px; }
+.footer-links { display: grid; grid-template-columns: repeat(3, minmax(90px, 1fr)); gap: 56px; }
+.footer-links > div { display: flex; flex-direction: column; gap: 9px; align-items: flex-start; }
+.footer-heading { color: var(--footer-muted); font: var(--text-micro) var(--font-mono); text-transform: uppercase; letter-spacing: .06em; margin: 0 0 7px; }
+.footer-links a { font-size: 11px; min-height: 24px; }
+.footer-links a:hover { color: #f8a279; }
+.footer-bottom { padding-block: 20px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; color: var(--footer-muted); font-size: var(--text-micro); }
+.footer-wordmark { display: flex; justify-content: space-between; align-items: center; color: var(--footer-ink); font-size: clamp(60px, 12vw, 170px); font-weight: 600; line-height: 1; letter-spacing: -.075em; padding: 20px 0; }
+.footer-wordmark > span { color: var(--footer-accent); font-size: .75em; }
+.footer-status { display: flex; align-items: center; gap: 6px; }

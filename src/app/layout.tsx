@@ -5,7 +5,6 @@ import { Providers } from "@/components/providers";
 import { SiteFooter, SiteHeader } from "@/components/site-shell";
 import { SiteFrame } from "@/components/site-frame";
 import "./globals.css";
-import "./themes.css";
 import { themeBootstrap } from "@/lib/theme";
 
 const instrumentSans = Instrument_Sans({
@@ -49,7 +48,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: [{ media: "(prefers-color-scheme: light)", color: "#f6f5f1" }, { media: "(prefers-color-scheme: dark)", color: "#0c0d0f" }],
+  themeColor: [{ media: "(prefers-color-scheme: light)", color: "#f7f5ef" }, { media: "(prefers-color-scheme: dark)", color: "#0b1115" }],
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
