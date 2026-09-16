@@ -15,6 +15,7 @@ import type * as collectorAccess from "../collectorAccess.js";
 import type * as connections from "../connections.js";
 import type * as coverageAlerts from "../coverageAlerts.js";
 import type * as crons from "../crons.js";
+import type * as devices from "../devices.js";
 import type * as finance from "../finance.js";
 import type * as http from "../http.js";
 import type * as imports from "../imports.js";
@@ -51,6 +52,7 @@ declare const fullApi: ApiFromModules<{
   connections: typeof connections;
   coverageAlerts: typeof coverageAlerts;
   crons: typeof crons;
+  devices: typeof devices;
   finance: typeof finance;
   http: typeof http;
   imports: typeof imports;
