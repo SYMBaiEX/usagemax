@@ -1,3 +1,4 @@
+import { bucketFields, eventBuckets, legacyEventBuckets } from "./tokenBuckets";
 import { ConvexError, v } from "convex/values";
 
 import type { Id } from "./_generated/dataModel";
@@ -11,6 +12,7 @@ type Usage = {
   cacheReadTokens: number;
   cacheWriteTokens: number;
   reasoningTokens: number;
+  unclassifiedTokens: number;
   totalTokens: number;
   costMicros: number;
   requests: number;
@@ -23,6 +25,7 @@ const emptyUsage = (): Usage => ({
   cacheReadTokens: 0,
   cacheWriteTokens: 0,
   reasoningTokens: 0,
+  unclassifiedTokens: 0,
   totalTokens: 0,
   costMicros: 0,
   requests: 0,
@@ -38,12 +41,11 @@ function add(target: Usage, event: {
   totalTokens: number;
   costMicros: number;
   status: string;
+  schemaVersion: number;
+  bucketVersion?: number;
 }) {
-  target.inputTokens += event.inputTokens;
-  target.outputTokens += event.outputTokens;
-  target.cacheReadTokens += event.cacheReadTokens;
-  target.cacheWriteTokens += event.cacheWriteTokens ?? 0;
-  target.reasoningTokens += event.reasoningTokens;
+  const buckets = event.bucketVersion ? eventBuckets(event) : legacyEventBuckets(event);
+  for (const field of bucketFields) target[field] += buckets[field];
   target.totalTokens += event.totalTokens;
   target.costMicros += event.costMicros;
   target.requests += 1;
@@ -208,6 +210,7 @@ export const repairDuplicateCollector = internalMutation({
       await ctx.db.patch(row._id, {
         inputTokens: subtract(row.inputTokens, usage.inputTokens, "daily.input"),
         outputTokens: subtract(row.outputTokens, usage.outputTokens, "daily.output"),
+        unclassifiedTokens: subtract(row.unclassifiedTokens, usage.unclassifiedTokens, "daily.unclassified"),
         cacheReadTokens: subtract(row.cacheReadTokens, usage.cacheReadTokens, "daily.cacheRead"),
         cacheWriteTokens: subtract(row.cacheWriteTokens, usage.cacheWriteTokens, "daily.cacheWrite"),
         reasoningTokens: subtract(row.reasoningTokens, usage.reasoningTokens, "daily.reasoning"),
@@ -227,6 +230,7 @@ export const repairDuplicateCollector = internalMutation({
       await ctx.db.patch(row._id, {
         totalTokens: subtract(row.totalTokens, usage.totalTokens, "day.total"),
         outputTokens: subtract(row.outputTokens, usage.outputTokens, "day.output"),
+        unclassifiedTokens: subtract(row.unclassifiedTokens, usage.unclassifiedTokens, "day.unclassified"),
         costMicros: subtract(row.costMicros, usage.costMicros, "day.cost"),
         requests: subtract(row.requests, usage.requests, "day.requests"),
         errors: subtract(row.errors, usage.errors, "day.errors"),
@@ -245,6 +249,7 @@ export const repairDuplicateCollector = internalMutation({
       if (!row) throw new ConvexError("DUPLICATE_REPAIR_MISSING_SOURCE");
       await ctx.db.patch(row._id, {
         outputTokens: subtract(row.outputTokens, usage.outputTokens, "source.output"),
+        unclassifiedTokens: subtract(row.unclassifiedTokens, usage.unclassifiedTokens, "source.unclassified"),
         totalTokens: subtract(row.totalTokens, usage.totalTokens, "source.total"),
         costMicros: subtract(row.costMicros, usage.costMicros, "source.cost"),
         updatedAt: args.now,
@@ -261,6 +266,7 @@ export const repairDuplicateCollector = internalMutation({
         totalTokens: subtract(row.totalTokens, usage.totalTokens, "model.total"),
         inputTokens: subtract(row.inputTokens, usage.inputTokens, "model.input"),
         outputTokens: subtract(row.outputTokens, usage.outputTokens, "model.output"),
+        unclassifiedTokens: subtract(row.unclassifiedTokens, usage.unclassifiedTokens, "model.unclassified"),
         cacheReadTokens: subtract(row.cacheReadTokens, usage.cacheReadTokens, "model.cacheRead"),
         cacheWriteTokens: subtract(row.cacheWriteTokens, usage.cacheWriteTokens, "model.cacheWrite"),
         reasoningTokens: subtract(row.reasoningTokens, usage.reasoningTokens, "model.reasoning"),
@@ -330,6 +336,7 @@ export const repairDuplicateCollector = internalMutation({
       totalCostMicros: subtract(stats.totalCostMicros, total.costMicros, "stats.cost"),
       inputTokens: subtract(stats.inputTokens, total.inputTokens, "stats.input"),
       outputTokens: subtract(stats.outputTokens, total.outputTokens, "stats.output"),
+        unclassifiedTokens: subtract(stats.unclassifiedTokens, total.unclassifiedTokens, "stats.unclassified"),
       cacheReadTokens: subtract(stats.cacheReadTokens, total.cacheReadTokens, "stats.cacheRead"),
       cacheWriteTokens: subtract(stats.cacheWriteTokens, total.cacheWriteTokens, "stats.cacheWrite"),
       reasoningTokens: subtract(stats.reasoningTokens, total.reasoningTokens, "stats.reasoning"),
@@ -386,5 +393,106 @@ export const repairDuplicateCollector = internalMutation({
       }
     }
     return { removedEvents: duplicateData.events.length, removedTokens: total.totalTokens, deviceCount: devices.length };
+  },
+});
+
+/** Preview or atomically repair only bucket differences proven by retained raw events.
+ * Costs, total tokens, sessions, receipts and raw provider counters never change.
+ */
+export const reconcileTokenBuckets = internalMutation({
+  args: { handle: v.string(), dryRun: v.boolean(), expectedResidual: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const profile = await ctx.db.query("profiles").withIndex("by_handle", q => q.eq("handle", args.handle)).unique();
+    if (!profile) throw new ConvexError("PROFILE_NOT_FOUND");
+    const stats = await ctx.db.query("profileStats").withIndex("by_profileId", q => q.eq("profileId", profile._id)).unique();
+    if (!stats) throw new ConvexError("STATS_NOT_FOUND");
+    const events = await ctx.db.query("telemetryEvents").withIndex("by_profileId_and_occurredAt", q => q.eq("profileId", profile._id)).take(5001);
+    if (events.length > 5000) throw new ConvexError("REPAIR_REQUIRES_PAGINATION");
+    const empty = () => Object.fromEntries(bucketFields.map(f => [f, 0])) as Record<(typeof bucketFields)[number], number>;
+    type Delta = ReturnType<typeof empty>;
+    const total = empty();
+    const daily = new Map<string, Delta>();
+    const models = new Map<string, Delta>();
+    const days = new Map<string, Delta>();
+    const sources = new Map<string, Delta>();
+    const devices = new Map<string, Delta>();
+    const candidates = events.filter(e => e.eventType === "model_request" && e.accountingMode !== "observability" && !e.bucketVersion);
+    let changedEvents = 0;
+    for (const event of candidates) {
+      const old = legacyEventBuckets(event), next = eventBuckets(event), delta = empty();
+      for (const f of bucketFields) delta[f] = next[f] - old[f];
+      if (!bucketFields.some(f => delta[f])) continue;
+      changedEvents++;
+      const day = dayFromTimestamp(event.occurredAt);
+      const groups: Array<[Map<string, Delta>, string]> = [
+        [daily, [day, event.source, event.provider, event.model].join("\u001f")],
+        [models, [event.provider, event.model].join("\u001f")], [days, day],
+        [sources, [day, event.source].join("\u001f")], [devices, [day, event.collectorId].join("\u001f")],
+      ];
+      for (const f of bucketFields) total[f] += delta[f];
+      for (const [map, key] of groups) {
+        const value = map.get(key) ?? empty();
+        for (const f of bucketFields) value[f] += delta[f];
+        map.set(key, value);
+      }
+    }
+    const residual = bucketFields.reduce((sum, f) => sum + (stats[f] ?? 0), 0) - stats.totalTokens;
+    const correction = bucketFields.reduce((sum, f) => sum + total[f], 0);
+    const report = { retainedEvents: events.length, candidates: candidates.length, changedEvents, residual,
+      correction, remainingResidual: residual + correction, categoryDelta: total };
+    if (args.dryRun && residual + correction !== 0) return report;
+    if (!args.dryRun && (args.expectedResidual === undefined || residual !== args.expectedResidual || residual + correction !== 0)) {
+      throw new ConvexError("REPAIR_EVIDENCE_MISMATCH");
+    }
+    // Stage and validate every patch before writes. The transaction also guards
+    // against a simultaneous snapshot correction invalidating our evidence.
+    const patches: Array<{ id: Id<"dailyUsage"> | Id<"modelTotals"> | Id<"profileStats"> | Id<"profileDailyTotals"> | Id<"dailyDimensions">; value: Record<string, number> }> = [];
+    const plan = (row: { _id: typeof patches[number]["id"]; totalTokens: number } & Partial<Delta> | null,
+                  delta: Delta, full: boolean) => {
+      if (!row) throw new ConvexError("REPAIR_PROJECTION_MISSING");
+      const value: Record<string, number> = {};
+      for (const f of full ? bucketFields : ["outputTokens", "unclassifiedTokens"] as const) {
+        value[f] = (row[f] ?? 0) + delta[f];
+        if (!Number.isSafeInteger(value[f]) || value[f] < 0) throw new ConvexError("REPAIR_PROJECTION_UNDERFLOW");
+      }
+      if (full && bucketFields.reduce((sum, f) => sum + value[f], 0) !== row.totalTokens) {
+        throw new ConvexError("REPAIR_PROJECTION_MISMATCH");
+      }
+      patches.push({ id: row._id, value });
+    };
+    plan(stats, total, true);
+    for (const [key, delta] of daily) {
+      const [day, source, provider, model] = key.split("\u001f");
+      plan(await ctx.db.query("dailyUsage").withIndex("by_profileId_and_day_and_source_and_provider_and_model", q =>
+        q.eq("profileId", profile._id).eq("day", day).eq("source", source).eq("provider", provider).eq("model", model)).unique(), delta, true);
+    }
+    for (const [key, delta] of models) {
+      const [provider, model] = key.split("\u001f");
+      plan(await ctx.db.query("modelTotals").withIndex("by_profileId_and_provider_and_model", q =>
+        q.eq("profileId", profile._id).eq("provider", provider).eq("model", model)).unique(), delta, true);
+    }
+    for (const [day, delta] of days) {
+      if (!delta.outputTokens && !delta.unclassifiedTokens) continue;
+      plan(await ctx.db.query("profileDailyTotals").withIndex("by_profileId_and_day", q => q.eq("profileId", profile._id).eq("day", day)).unique(), delta, false);
+    }
+    for (const [key, delta] of sources) {
+      if (!delta.outputTokens && !delta.unclassifiedTokens) continue;
+      const [day, source] = key.split("\u001f");
+      plan(await ctx.db.query("dailyDimensions").withIndex("by_profileId_and_dimension_and_day_and_key", q =>
+        q.eq("profileId", profile._id).eq("dimension", "source").eq("day", day).eq("key", source)).unique(), delta, false);
+    }
+    for (const [key, delta] of devices) {
+      if (!delta.outputTokens && !delta.unclassifiedTokens) continue;
+      const [day, collectorId] = key.split("\u001f");
+      const rows = await ctx.db.query("dailyDimensions").withIndex("by_profileId_and_dimension_and_day_and_key", q =>
+        q.eq("profileId", profile._id).eq("dimension", "device").eq("day", day)).take(101);
+      const matches = rows.filter(row => row.origin === `collector:${collectorId}`);
+      if (rows.length > 100 || matches.length !== 1) throw new ConvexError("REPAIR_DEVICE_AMBIGUOUS");
+      plan(matches[0], delta, false);
+    }
+    if (args.dryRun) return { ...report, plannedRows: patches.length };
+    for (const patch of patches) await ctx.db.patch(patch.id, patch.value);
+    for (const event of candidates) await ctx.db.patch(event._id, { bucketVersion: 1 });
+    return { ...report, patchedRows: patches.length };
   },
 });
