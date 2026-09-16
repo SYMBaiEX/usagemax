@@ -45,6 +45,19 @@ function agentHomepage() {
     capabilities: ["public aggregate usage", "leaderboard", "documentation", "OpenAPI", "MCP", "A2A"],
     publicData: ["network totals", "public profiles", "bounded daily rollups", "bounded live activity"],
     exclusions: ["prompts", "completions", "credentials", "private workspace data"],
+    authentication: {
+      publicReads: "none",
+      collectorWrites: "installation-bound write-only bearer token",
+      website: "WorkOS AuthKit session; not an API token",
+    },
+    endpoints: [
+      { name: "networkStats", method: "GET", path: "/api/stats", authentication: "none" },
+      { name: "leaderboard", method: "GET", path: "/api/leaderboard", authentication: "none" },
+      { name: "publicProfile", method: "GET", path: "/api/profiles/{handle}", authentication: "none" },
+      { name: "openapi", method: "GET", path: "/openapi.json", authentication: "none" },
+      { name: "mcp", method: "POST", path: "/mcp", authentication: "none", readOnly: true },
+      { name: "sandbox", method: "POST", path: "/api/v1/sandbox/validate", authentication: "none", writes: false },
+    ],
     links: {
       markdown: "/index.md",
       docs: "/docs",
