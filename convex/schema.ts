@@ -166,6 +166,7 @@ export default defineSchema({
     topModelProvider: v.optional(v.string()),
     topModelMetric: v.optional(v.union(v.literal("tokens"), v.literal("spend"))),
     sessionCoverage: v.optional(v.union(v.literal("unknown"), v.literal("partial"), v.literal("complete"))),
+    summaryScheduledAt: v.optional(v.number()),
     firstDay: v.optional(v.string()),
     lastDay: v.optional(v.string()),
     lastEventAt: v.optional(v.number()),
@@ -413,6 +414,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_profileId_and_period_and_metric", ["profileId", "period", "metric"])
+    .index("by_period_and_metric_and_isPublic_and_verification_and_score", ["period", "metric", "isPublic", "verification", "score"])
     .index("by_period_and_metric_and_score", ["period", "metric", "score"]),
 
   networkStats: defineTable({
@@ -478,6 +480,7 @@ export default defineSchema({
     pricingVersion: v.optional(v.string()),
     contentHash: v.string(),
     revision: v.number(),
+    seenRunId: v.optional(v.string()),
     lastUsedAt: v.number(),
     updatedAt: v.number(),
   })
@@ -496,6 +499,7 @@ export default defineSchema({
     sourceCount: v.number(),
     partitionCount: v.number(),
     acceptedPartitions: v.number(),
+    pendingCleanups: v.optional(v.number()),
     changedRows: v.number(),
     correctionRows: v.number(),
     inventoryComplete: v.boolean(),
@@ -511,6 +515,25 @@ export default defineSchema({
     .index("by_collectorId_and_runId", ["collectorId", "runId"])
     .index("by_collectorId_and_updatedAt", ["collectorId", "updatedAt"])
     .index("by_status_and_updatedAt", ["status", "updatedAt"]),
+
+  snapshotChunkGroups: defineTable({
+    collectorId: v.id("collectors"),
+    runId: v.string(),
+    source: v.string(),
+    day: v.string(),
+    revision: v.number(),
+    chunkCount: v.number(),
+    nextChunk: v.number(),
+    complete: v.boolean(),
+    pricingVersion: v.optional(v.string()),
+    done: v.boolean(),
+    updatedAt: v.number(),
+  }).index("by_collectorId_and_runId_and_source_and_day", ["collectorId", "runId", "source", "day"])
+    .index("by_updatedAt", ["updatedAt"]),
+
+  snapshotPartitionHeads: defineTable({
+    collectorId: v.id("collectors"), source: v.string(), day: v.string(), runId: v.string(), revision: v.number(),
+  }).index("by_collectorId_and_source_and_day", ["collectorId", "source", "day"]),
 
   snapshotReceipts: defineTable({
     collectorId: v.id("collectors"),

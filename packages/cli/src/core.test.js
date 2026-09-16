@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
 
-import { batchId, buildDeltaPlan, buildSessionPlan, buildSnapshotPlan, normalizeLinkCode, sourceSummary, validHttpsUrl } from "./core.js";
+import { batchId, buildDeltaPlan, buildSessionPlan, buildSnapshotPlan, normalizeLinkCode, scanPolicy, sourceSummary, validHttpsUrl } from "./core.js";
 
 const report = {
   daily: [{
@@ -50,7 +50,7 @@ test("creates additive, idempotent usage deltas without content fields", () => {
     pricingVersion: "ccusage@20.0.20",
     status: "ok",
     state: "synced",
-    occurredAt: "2026-09-14T12:00:00.000Z",
+    occurredAt: "2026-09-14T00:00:00.000Z",
     completeness: "estimated",
   });
   assert.equal("prompt" in first.plan[0].event, false);
@@ -156,6 +156,8 @@ test("builds authoritative partitions for decreases, deletions, and provider ide
       day: first.partitions[0].day,
       complete: first.partitions[0].complete,
       pricingVersion: first.partitions[0].pricingVersion,
+      chunkIndex: 0,
+      chunkCount: 1,
       rows: first.partitions[0].rows,
     })).digest("hex"),
   );
@@ -192,4 +194,96 @@ test("uploads only opaque session identities", () => {
   assert.equal(sessions.length, 1);
   assert.match(sessions[0].sessionKey, /^[a-f0-9]{64}$/);
   assert.equal(JSON.stringify(sessions).includes("/private/project"), false);
+});
+
+test("incomplete missing sources and explicit zeros cannot erase checkpoints", () => {
+  const first = buildSnapshotPlan(report, {}, { full: true });
+  for (const fixture of [{ daily: [] }, { daily: [{ agent: "codex", period: "2026-09-14", modelBreakdowns: [{ modelName: "gpt-5.6", inputTokens: 0 }] }] }]) {
+    const next = buildSnapshotPlan(fixture, first.nextSnapshots, { complete: false, full: true });
+    assert.deepEqual(next.nextSnapshots, first.nextSnapshots);
+    for (const partition of next.partitions) {
+      assert.equal(partition.complete, false);
+      for (const row of partition.rows) assert.deepEqual(row.current, row.previous);
+    }
+  }
+});
+
+test("incomplete per-dimension regression retains whole vector through resume and recovery", () => {
+  const first = buildSnapshotPlan(report, {}, { full: true });
+  const partial = structuredClone(report);
+  partial.daily[0].modelBreakdowns[0].inputTokens = 99;
+  partial.daily[0].modelBreakdowns[0].outputTokens = 1000;
+  const second = buildSnapshotPlan(partial, first.nextSnapshots, { complete: false, full: true });
+  assert.equal(second.regressions.length, 1);
+  assert.deepEqual(second.nextSnapshots, first.nextSnapshots);
+  assert.deepEqual(second.partitions[0].rows[0].current, second.partitions[0].rows[0].previous);
+  const recovered = buildSnapshotPlan(report, second.nextSnapshots, { complete: false });
+  assert.equal(recovered.partitions.length, 0);
+  const corrected = buildSnapshotPlan(partial, second.nextSnapshots, { complete: true });
+  assert.equal(corrected.partitions[0].rows[0].current.inputTokens, 99);
+});
+
+test("incremental scan preserves old checkpoints for subsequent authoritative deletion", () => {
+  const full = structuredClone(report);
+  full.daily.push({ ...structuredClone(report.daily[0]), period: "2026-09-15" });
+  const first = buildSnapshotPlan(full, {}, { full: true });
+  const today = { daily: [full.daily[1]] };
+  const incremental = buildSnapshotPlan(today, first.nextSnapshots);
+  assert.deepEqual(incremental.nextSnapshots, first.nextSnapshots);
+  const later = buildSnapshotPlan(today, incremental.nextSnapshots, { full: true });
+  assert.equal(later.partitions.find((p) => p.day === "2026-09-14").rows[0].current.totalTokens, 0);
+  assert.equal(Object.keys(later.nextSnapshots).length, 1);
+});
+
+test("every independent counter regression protects its checkpoint vector", () => {
+  const first = buildSnapshotPlan(report, {}, { full: true });
+  const key = Object.keys(first.nextSnapshots)[0];
+  for (const field of ["inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens", "reasoningTokens", "unclassifiedTokens", "costMicros", "requests", "errors"]) {
+    const prior = structuredClone(first.nextSnapshots);
+    prior[key][field] += 10;
+    if (field.endsWith("Tokens")) prior[key].totalTokens += 10;
+    const next = buildSnapshotPlan(report, prior, { complete: false, full: true });
+    assert.deepEqual(next.nextSnapshots[key], prior[key], field);
+    assert.deepEqual(next.partitions[0].rows.find((r) => r.model === "gpt-5.6").current, prior[key], field);
+  }
+});
+
+test("large partitions have ordered bounded chunks and stable receipts", () => {
+  const fixture = { daily: [{ agent: "codex", period: "2026-09-15", modelBreakdowns: Array.from({ length: 201 }, (_, i) => ({ modelName: `gpt-${i}`, inputTokens: 1 })) }] };
+  const opts = { full: true, runId: "fixed-run", revision: 123 };
+  const first = buildSnapshotPlan(fixture, {}, opts);
+  assert.deepEqual(first, buildSnapshotPlan(fixture, {}, opts));
+  assert.deepEqual(first.partitions.map((p) => p.rows.length), [100, 100, 1]);
+  assert.deepEqual(first.partitions.map((p) => p.chunkIndex), [0, 1, 2]);
+  assert.equal(new Set(first.partitions.map((p) => p.partitionId)).size, 3);
+  assert.equal(new Set(first.partitions.flatMap((p) => p.rows.map((r) => r.model))).size, 201);
+  for (const p of first.partitions) {
+    assert.equal(p.chunkCount, 3);
+    const { source, day, complete, pricingVersion, chunkIndex, chunkCount, rows } = p;
+    assert.equal(p.payloadHash, createHash("sha256").update(JSON.stringify({ source, day, complete, pricingVersion, chunkIndex, chunkCount, rows })).digest("hex"));
+  }
+});
+
+test("repeated partial scans can no-op without bootstrapping or claiming deletion authority", () => {
+  const config = { snapshotProtocolVersion: 2, sourceInventoryVersion: 3, knownSources: ["codex"], lastFullSyncAt: "2026-09-15T00:00:00Z", lastReconciledDay: "2026-09-15", lastSyncComplete: false, lastScanSucceeded: true, lastCoverage: "partial", sourceFingerprint: "same" };
+  const inventory = { sources: ["codex"], complete: true, errors: 0, truncated: false, fingerprint: "same" };
+  const options = { today: "2026-09-15", now: Date.parse("2026-09-15T01:00:00Z"), inventoryVersion: 3 };
+  assert.deepEqual(scanPolicy(config, inventory, options), { bootstrap: false, full: false, skip: true, inventoryStable: true });
+  assert.equal(config.lastCoverage, "partial");
+  for (const change of [{ lastScanSucceeded: false }, { sourceFingerprint: "changed" }, { lastReconciledDay: "2026-09-14" }, { pendingSync: { runId: "pending" } }]) {
+    const policy = scanPolicy({ ...config, ...change }, inventory, options);
+    assert.equal(policy.skip, false);
+    assert.equal(policy.bootstrap, false);
+    assert.equal(policy.full, false);
+  }
+  for (const change of [{ complete: false }, { errors: 1 }, { truncated: true }]) {
+    assert.equal(scanPolicy(config, { ...inventory, ...change }, options).skip, false);
+  }
+  for (const change of [{ requestedFull: true }, { requestedArchives: true }, { now: Date.parse("2026-09-23T00:00:00Z") }, { inventoryVersion: 4 }]) {
+    const policy = scanPolicy(config, inventory, { ...options, ...change });
+    assert.equal(policy.full, true);
+    assert.equal(policy.skip, false);
+  }
+  assert.equal(scanPolicy({ ...config, snapshotProtocolVersion: 1 }, inventory, options).bootstrap, true);
+  assert.equal(scanPolicy(config, { ...inventory, sources: ["codex", "claude"] }, options).full, true);
 });

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
@@ -11,6 +11,46 @@ const identity = {
 };
 
 describe("workspace lifecycle and import safety", () => {
+  test("provider dispatch caps leases and retries only transient failures", async () => {
+    vi.useFakeTimers();
+    try {
+      const t = convexTest(schema, modules);
+      const session = t.withIdentity({ ...identity, org_id: "org_queue", role: "owner" });
+      await session.mutation(api.account.ensureProfile, { handle: "queue-owner" });
+      const overview = await session.query(api.workspaces.overview, {});
+      const ids = await t.run(async ctx => {
+        await ctx.db.patch(overview.workspace.id, { plan: "enterprise" });
+        return await Promise.all(Array.from({ length: 25 }, (_, i) => ctx.db.insert("providerConnections", {
+          workspaceId: overview.workspace.id, provider: "github", name: `Fixture ${i}`, accountId: `fixture-${i}`,
+          secretCiphertext: "fixture", secretIv: "fixture", keyVersion: "v1", state: "connected", nextSyncAt: Date.now() - i,
+          coverageNote: "test", createdBy: overview.userId, createdAt: Date.now(),
+        })));
+      });
+      await t.mutation(internal.connections.dispatch, {});
+      await t.mutation(internal.connections.dispatch, {});
+      await t.mutation(internal.connections.dispatch, {});
+      const rows = await t.run(ctx => ctx.db.query("providerConnections").collect());
+      expect(rows.filter(row => row.syncLeaseId)).toHaveLength(20);
+      const leased = rows.find(row => row.syncLeaseId)!;
+      await t.mutation(internal.connections.finish, { id: leased._id, leaseId: leased.syncLeaseId!, day: "2026-09-01", error: "PROVIDER_HTTP_429", retryable: true, retryAfterMs: 120_000 });
+      const retried = await t.run(ctx => ctx.db.get(leased._id));
+      expect(retried).toMatchObject({ state: "connected", consecutiveFailures: 1 });
+      expect(retried!.nextSyncAt).toBeGreaterThanOrEqual(Date.now() + 120_000);
+      expect(retried!.syncLeaseId).toBeUndefined();
+      await t.run(ctx => ctx.db.patch(ids[0], { syncLeaseId: "permanent" }));
+      await t.mutation(internal.connections.finish, { id: ids[0], leaseId: "permanent", day: "2026-09-01", error: "PROVIDER_HTTP_401", retryable: false });
+      expect((await t.run(ctx => ctx.db.get(ids[0])))?.state).toBe("error");
+      await t.run(ctx => ctx.db.patch(ids[1], { syncLeaseId: "exhausted", consecutiveFailures: 8 }));
+      await t.mutation(internal.connections.finish, { id: ids[1], leaseId: "exhausted", day: "2026-09-01", error: "PROVIDER_HTTP_503", retryable: true });
+      expect((await t.run(ctx => ctx.db.get(ids[1])))?.state).toBe("error");
+      await t.run(ctx => ctx.db.patch(ids[2], { state: "connected", syncLeaseId: "progress", syncPage: 1, consecutiveFailures: 8, lastError: "PROVIDER_HTTP_503" }));
+      await t.mutation(internal.connections.finish, { id: ids[2], leaseId: "progress", day: "2026-09-01", page: 1, hasMore: true, seen: 500, expected: 600, costMicros: 20 });
+      expect(await t.run(ctx => ctx.db.get(ids[2]))).toMatchObject({ consecutiveFailures: 0 });
+      await t.mutation(internal.connections.finish, { id: ids[2], leaseId: "progress", day: "2026-09-01", error: "PROVIDER_HTTP_503", retryable: true });
+      expect(await t.run(ctx => ctx.db.get(ids[2]))).toMatchObject({ state: "connected", consecutiveFailures: 1 });
+      // Deliberately do not execute synthetic scheduled network actions.
+    } finally { vi.useRealTimers(); }
+  });
   test("reconciled invitation onboarding runs once and cannot undo later team removal", async () => {
     const t = convexTest(schema, modules);
     const session = t.withIdentity({

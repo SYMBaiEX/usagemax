@@ -78,21 +78,31 @@ connector. UsageMax never invents usage that the source did not retain.
 
 ## Privacy, correctness, and load
 
-- The sync payload contains authoritative aggregate token counts,
+Interrupted uploads resume with `bunx usagemax sync`. Server upload runs expire
+after 30 idle days. If the server reports an expired run, use `sync --restart`:
+this preserves the last committed checkpoint and performs a fresh full scan.
+It never automatically replays an old authoritative deletion against newer data.
+
+- The sync payload contains aggregate token counts,
   model/provider names, costs, source names, dates, coverage state, and opaque
   SHA-256 session identities.
 - It does not upload prompts, completions, source code, file contents, project
   paths, or provider credentials.
 - Sync is one-shot. There is no resident scanner or high-frequency polling loop.
-- A metadata inventory exits without parsing logs or using the network when
-  nothing changed.
+- A successful previous parse with a complete, unchanged metadata inventory skips
+  parsing and uploading again that day. Inventory stability is independent of
+  deletion authority; a no-change result retains the previous partial coverage
+  label. New sources, date rollover, explicit full/archive requests and weekly
+  reconciliation still trigger the appropriate scan.
 - Normal changed syncs parse today or today plus yesterday. A bounded weekly
   full reconciliation catches restored files, parser changes, and older logs.
-- Full history means all retained local history from 2024 onward. UsageMax
-  publishes complete source/day partitions, so decreased or removed local rows
-  correct the server-owned contribution instead of being silently retained.
-  Deleted or
-  never-persisted usage requires a provider export; no local tool can reconstruct it.
+- Full history scans retained local history from 2024 onward. Inventory success
+  does not prove every file parsed. Until the parser certifies source/day coverage,
+  uploads are marked partial and any row with a decreasing counter retains its
+  entire previous vector. This includes explicit zeros and missing sources.
+  Older checkpoints survive incremental windows. Authoritative corrections remain
+  supported by the planner but are not claimed by this parser integration.
+  Deleted or never-persisted usage requires a provider export.
 - Source totals that cannot be assigned to a model are retained as
   `unattributed` rather than silently discarded.
 - The collector key is written with user-only permissions where the operating
@@ -103,7 +113,8 @@ connector. UsageMax never invents usage that the source did not retain.
   its hash and applies device binding, replay checks, payload caps, and quotas.
 - A private random installation ID survives collector rotation, relinking, and
   display-name changes. It is not a hardware fingerprint; the server stores only
-  its SHA-256 hash. Concurrent and repeated syncs are idempotent.
+  its SHA-256 hash. A local config lock prevents overlapping commands from
+  overwriting pending runs; server receipts make repeated uploads idempotent.
 - The server, not the local checkpoint, owns the accounting baseline. A lost
   response or interrupted run can be retried without adding the same partition twice.
 - Do not point two different installations at the same copied or network-mounted
@@ -112,6 +123,37 @@ connector. UsageMax never invents usage that the source did not retain.
 
 Use `USAGEMAX_CONFIG_DIR` to select another config directory. Development and
 self-hosted installations may set `USAGEMAX_LINK_ENDPOINT` before linking.
+
+## Interrupted uploads and protocol 0.3.1
+
+Before uploading, the CLI saves the exact run, ordered request payloads and next
+checkpoint in the private config. `sync` resumes this journal before scanning new
+data. Local snapshots advance only after completion is acknowledged. A resumed
+command finishes the saved scan; run `sync` again to collect subsequent changes.
+`sync --dry-run` reports pending work without uploading. Do not delete config.json
+to retry a failed upload. A successful relink or unlink replaces/removes the local
+journal along with its credential.
+
+Network failures, malformed success responses, HTTP 429 and 5xx get at most five
+attempts per request with exponential jitter. Retry-After seconds and HTTP dates
+are honored up to 60 seconds; longer waits stop with an instruction to retry later.
+Only completion's `snapshot_run_incomplete` HTTP 409 is retried, because server
+cleanup can still be pending. Authentication, validation and other conflicts fail
+with an actionable message and retain the journal. JSON `accepted` is null for
+uploads because lost responses/replays cannot reliably reconstruct that count;
+`changedRows` is the local planned count, not a server accounting receipt.
+
+Each sorted source/day is sent as ordered chunks of at most 100 rows. Each has a
+unique partitionId, zero-based chunkIndex and shared chunkCount. The payload hash
+covers `{source, day, complete, pricingVersion, chunkIndex, chunkCount, rows}` in
+that order. `partitionCount` counts transmitted chunks. The server must accept
+this protocol, receipt replays, and finish omitted-row cleanup before completing
+an authoritative run.
+
+An abrupt process kill can leave `collector.lock` in the config directory. The
+next command reports the owner PID and exact path. Confirm that process has exited
+before removing only that lock file, then rerun sync. Never remove an active lock
+or the saved config to recover. Normal completion and handled failures release it.
 
 See the [collector coverage audit](../../docs/collector-coverage-audit.md) for
 the full support matrix and known boundaries.
