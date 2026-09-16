@@ -17,6 +17,7 @@ describe("UsageMax structured data", () => {
         "https://github.com/SYMBaiEX/usagemax",
         "https://github.com/SYMBaiEX",
         "https://www.npmjs.com/package/usagemax",
+        "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest",
       ]),
     });
     expect(organization).not.toHaveProperty("address");
