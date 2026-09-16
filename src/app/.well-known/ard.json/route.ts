@@ -10,8 +10,9 @@ const headers = {
 };
 
 const trustManifest = {
-  identity: { type: "web-origin", url: origin },
-  attestations: [{ type: "source-repository", url: "https://github.com/SYMBaiEX/usagemax" }],
+  identity: origin,
+  identityType: "https",
+  attestations: [{ type: "source-repository", uri: "https://github.com/SYMBaiEX/usagemax", mediaType: "text/html" }],
 };
 
 export const manifest = {
@@ -182,6 +183,17 @@ export const manifest = {
       description: "Public Web Bot Auth key discovery material. UsageMax does not currently require signatures for public reads.",
       capabilities: ["http-message-signatures", "bot-auth-discovery"],
       representativeQueries: ["Where can I find the UsageMax bot-auth key directory?", "How does UsageMax publish bot authentication discovery material?"],
+    },
+    {
+      "@context": "https://agenticresourcediscovery.org/context/v1",
+      identifier: "urn:air:usagemax.com:registry:mcp",
+      displayName: "UsageMax MCP Registry record",
+      type: "application/json",
+      url: "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest",
+      description: "The official MCP Registry record for the UsageMax public MCP remote. The Registry owns and serves this external artifact.",
+      capabilities: ["mcp-registry", "mcp-discovery"],
+      representativeQueries: ["Where is the official UsageMax MCP Registry record?", "Which MCP Registry record describes the UsageMax public server?"],
+      metadata: { relationship: "official-registry-record", artifactOwner: "modelcontextprotocol.io" },
     },
   ],
 };
