@@ -5,7 +5,7 @@
 - WorkOS owns user authentication, session rotation, OAuth, SSO, and organization identity.
 - Convex owns authorization, hashed collector credentials, authoritative usage snapshots, recent telemetry, projections, and realtime subscriptions.
 - Vercel serves the Next.js product and the stable `usagemax.com/api` facade. Public clients never depend on a deployment-provider hostname.
-- The npm collector is one-shot. It is not a resident daemon and does not send a network request when its source fingerprint is unchanged.
+- The npm collector is one-shot. Optional `usagemax service install` schedules these one-shot jobs (15-minute default), not a resident daemon. A complete unchanged inventory skips parsing and upload; incomplete inventories cannot safely take that shortcut. Use `service status` for scheduler reachability and last-run health, and `service uninstall` to stop future jobs without deleting checkpoints.
 
 ## WorkOS organization lifecycle
 

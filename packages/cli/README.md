@@ -124,6 +124,47 @@ It never automatically replays an old authoritative deletion against newer data.
 Use `USAGEMAX_CONFIG_DIR` to select another config directory. Development and
 self-hosted installations may set `USAGEMAX_LINK_ENDPOINT` before linking.
 
+## Optional automatic sync
+
+Automatic sync is **off by default**. Install a persistent CLI first (a bunx/npx
+cache can disappear), link the computer if needed, then opt in:
+
+```bash
+bun install -g usagemax
+usagemax service install                 # approximately every 15 minutes
+usagemax service install --every 30      # change interval; 5–1440 minutes
+usagemax service status                  # scheduler reachability + last result
+usagemax service run                     # run now, respecting failure backoff
+usagemax service uninstall               # stop future jobs; retain account/data
+```
+
+Uses a user LaunchAgent on macOS, a user systemd timer on Linux/WSL, and Task
+Scheduler on Windows. No admin/root access, resident daemon, file watcher,
+automatic package updates, or package downloads per run. Each job runs the normal
+incremental sync and exits. No-change runs skip parsing/uploading when the source
+inventory is complete and unchanged. The metadata inventory still costs disk I/O;
+an active or first/full-history scan costs more. This is periodic, not live telemetry.
+
+Schedules are spread by up to a minute. macOS/Linux jobs have reduced CPU/I/O
+priority. Windows jobs require a signed-in user and defer starting on battery.
+Jobs do not wake a sleeping computer. Linux needs a running systemd user manager;
+WSL must already be running with systemd enabled. UsageMax does not enable linger
+or keep a WSL distro alive. Missed intervals are not replayed as a backlog.
+
+The existing collector lock prevents overlapping uploads. Failures back off
+exponentially (up to six hours); manually running `usagemax sync` is available for
+diagnosis without waiting. `service-state.json` retains only the latest bounded
+status, timestamps, duration, and failure count, not raw logs or credentials.
+If a process was forcibly killed, inspect the PID reported by `sync` before
+removing its stale `collector.lock`; never delete `config.json` to retry.
+
+Re-run `service install` after upgrading/moving the CLI or changing source-path
+environment variables. Only an explicit allowlist of discovery settings is saved,
+not your shell's secrets. Jobs run from your home directory; repository-local
+`.ccusage/ccusage.json` configuration is not automatically used. Keep the runtime
+and global CLI installed. `service uninstall` leaves existing usage, link credentials,
+checkpoints, and last-run status intact; an in-flight sync may finish.
+
 ## Interrupted uploads and protocol 0.3.1
 
 Before uploading, the CLI saves the exact run, ordered request payloads and next
