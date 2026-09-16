@@ -18,7 +18,7 @@ describe("UsageMax OpenAPI contract", () => {
       "/api/health", "/api/stats", "/api/leaderboard", "/api/profiles/{handle}",
       "/api/profiles/{handle}/daily", "/api/profiles/{handle}/daily/detail",
       "/api/v1/devices/link", "/api/v1/devices/status", "/api/v1/devices/revoke", "/api/v1/telemetry/llm",
-      "/api/v1/traces", "/api/v2/usage/snapshots",
+      "/api/v1/traces", "/api/v2/usage/snapshots", "/api/v2/usage/snapshots/{runId}",
       "/api", "/api/v1/sandbox", "/api/v1/sandbox/validate", "/api/v1/batch", "/api/v1/batch/validate",
     ]));
     const native = document.paths["/api/v1/telemetry/llm"].post;
@@ -34,6 +34,8 @@ describe("UsageMax OpenAPI contract", () => {
     expect(document.components.schemas.CollectorStatus.properties.expiresAt).toEqual({ type: "null" });
     expect(document.paths["/api/v1/devices/revoke"].post.security).toEqual([{ collectorBearer: [] }]);
     expect(document.paths["/api/v2/usage/snapshots"].post.requestBody.content["application/json"].schema).toEqual({ $ref: "#/components/schemas/SnapshotOperation" });
+    expect(document.paths["/api/v2/usage/snapshots"].post.responses["202"].headers.Location).toMatchObject({ schema: { type: "string", format: "uri" } });
+    expect(document.paths["/api/v2/usage/snapshots/{runId}"].get.operationId).toBe("getUsageSnapshotStatus");
     expect(document.paths["/api/v1/sandbox/validate"].post.responses["200"]).toBeDefined();
     expect(document.paths["/api/v1/batch/validate"].post.responses["200"]).toBeDefined();
     expect(document.paths["/api/v1/batch"].post.operationId).toBe("validateTelemetryBatchRootAlias");

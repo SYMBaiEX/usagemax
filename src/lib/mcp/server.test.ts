@@ -43,6 +43,8 @@ describe("UsageMax MCP", () => {
     expect("result" in (await handleMcp({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "network_stats", arguments: {} } }, query))).toBe(true);
     const index = await handleMcp({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "docs_list", arguments: {} } });
     expect("result" in index ? index.result : null).toMatchObject({ structuredContent: { resources: expect.arrayContaining([expect.objectContaining({ id: "overview" })]) } });
+    const limited = await handleMcp({ jsonrpc: "2.0", id: 4.1, method: "tools/call", params: { name: "docs_list", arguments: { limit: 1 } } });
+    expect("result" in limited ? limited.result : null).toMatchObject({ structuredContent: { resources: [{ id: "overview" }] } });
     const docs = await handleMcp({ jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "docs_get", arguments: { id: "overview" } } });
     expect("result" in docs ? docs.result : null).toMatchObject({ structuredContent: { id: "overview", text: DOCS.overview } });
     expect(calls).toHaveLength(1);

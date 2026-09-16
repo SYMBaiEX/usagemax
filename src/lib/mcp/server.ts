@@ -108,7 +108,7 @@ const DOC_RESOURCE_METADATA = {
 } as const;
 
 export const DOC_TOOL_DEFINITIONS = [
-  { name: "docs_list", title: "List UsageMax documentation", description: "List the bounded public UsageMax documentation resources available to this MCP server.", inputSchema: { type: "object", properties: {}, required: [], additionalProperties: false }, annotations: readOnlyAnnotations },
+  { name: "docs_list", title: "List UsageMax documentation", description: "List the bounded public UsageMax documentation resources available to this MCP server.", inputSchema: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 3, default: 3, description: "Maximum number of documentation resources to return." } }, required: [], additionalProperties: false }, annotations: readOnlyAnnotations },
   { name: "docs_search", title: "Search UsageMax documentation", description: "Search the bounded public UsageMax documentation index.", inputSchema: { type: "object", properties: { query: { type: "string", minLength: 1, maxLength: 200 } }, required: ["query"], additionalProperties: false }, annotations: readOnlyAnnotations },
   { name: "docs_get", title: "Read UsageMax documentation", description: "Retrieve one bounded public UsageMax documentation resource.", inputSchema: { type: "object", properties: { id: { type: "string", enum: Object.keys(DOCS) } }, required: ["id"], additionalProperties: false }, annotations: readOnlyAnnotations },
 ];
@@ -155,7 +155,11 @@ export async function handleMcp(request: RpcRequest, query: QueryFn = (q, args) 
     const profile = await query(api.public.profile, { handle: toolArgs.handle });
     return profile ? textResult(request.id, { profile }) : error(request.id, -32004, "profile_not_found");
   }
-  if (name === "docs_list") return textResult(request.id, { resources: Object.entries(DOC_RESOURCE_METADATA).map(([id, metadata]) => ({ id, ...metadata })) });
+  if (name === "docs_list") {
+    const limit = toolArgs.limit === undefined ? 3 : toolArgs.limit;
+    if (typeof limit !== "number" || !Number.isInteger(limit) || limit < 1 || limit > 3) return error(request.id, -32602, "invalid_limit");
+    return textResult(request.id, { resources: Object.entries(DOC_RESOURCE_METADATA).slice(0, limit).map(([id, metadata]) => ({ id, ...metadata })) });
+  }
   if (name === "docs_get") {
     const id = toolArgs.id;
     if (typeof id !== "string" || !(id in DOCS)) return error(request.id, -32004, "resource_not_found");

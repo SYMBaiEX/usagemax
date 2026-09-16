@@ -13,7 +13,8 @@ test("offline packed artifact includes scheduler and emits midnight timestamps b
   try {
     const root = dirname(dirname(fileURLToPath(import.meta.url)));
     const { stdout } = await exec("npm", ["pack", "--offline", "--ignore-scripts", "--json", "--cache", join(temporary, "cache"), "--pack-destination", temporary], { cwd: root });
-    const [packed] = JSON.parse(stdout);
+    const packedResult = JSON.parse(stdout);
+    const packed = Array.isArray(packedResult) ? packedResult[0] : packedResult;
     assert.equal(packed.version, "0.3.6");
     await exec("tar", ["-xzf", join(temporary, packed.filename), "-C", temporary]);
     const artifact = join(temporary, "package");

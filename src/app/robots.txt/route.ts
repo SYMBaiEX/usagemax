@@ -4,6 +4,7 @@ const body = `User-agent: *
 Allow: /
 
 Sitemap: https://usagemax.com/sitemap.xml
+Agentmap: https://usagemax.com/.well-known/ard.json
 schemamap: https://usagemax.com/schemamap.xml
 `;
 const headers = {
