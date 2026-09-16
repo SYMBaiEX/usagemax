@@ -11,6 +11,7 @@ describe("auth.md", () => {
     expect(body).toContain("does not expose an OAuth token exchange");
     expect(body).toContain("no `identity_endpoint`, `claim_endpoint`, `events_endpoint`");
     expect(body).toContain("https://usagemax.com/.well-known/oauth-protected-resource");
+    expect(body).toContain("CLI `0.3.6`");
   });
 
   it("serves markdown for GET and HEAD", () => {
