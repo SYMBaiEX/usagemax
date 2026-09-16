@@ -10,6 +10,7 @@ describe("Agent Skills discovery index", () => {
     expect(body.skills).toEqual([
       expect.objectContaining({ name: "usage-observability", type: "skill-md", digest: expect.stringMatching(/^sha256:[a-f0-9]{64}$/) }),
       expect.objectContaining({ name: "enterprise-reporting", type: "skill-md", digest: expect.stringMatching(/^sha256:[a-f0-9]{64}$/) }),
+      expect.objectContaining({ name: "collector-diagnostics", type: "skill-md", digest: expect.stringMatching(/^sha256:[a-f0-9]{64}$/) }),
     ]);
     expect(body.skills.every((skill: { url: string }) => skill.url.startsWith("https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/skills/"))).toBe(true);
   });

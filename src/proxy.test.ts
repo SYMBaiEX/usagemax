@@ -39,5 +39,12 @@ describe("agent homepage contract", () => {
       a2a: "https://usagemax.com/.well-known/agent-card.json",
     });
     expect(view.endpoints.map((endpoint) => endpoint.path)).toContain("/api/v1/devices/status");
+    expect(view.api).toMatchObject({
+      baseUrl: "https://usagemax.com/api",
+      openapi: "https://usagemax.com/openapi.json",
+      sandbox: "https://usagemax.com/api/v1/sandbox/validate",
+    });
+    expect(view.tools.length).toBeGreaterThanOrEqual(4);
+    expect(view.developerResources.map((resource) => resource.url)).toContain("https://usagemax.com/auth.md");
   });
 });

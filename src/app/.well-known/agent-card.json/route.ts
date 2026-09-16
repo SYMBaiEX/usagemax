@@ -25,10 +25,18 @@ const card = {
   iconUrl: "https://usagemax.com/brand/icon-192.png",
 };
 
+const headers = {
+  "access-control-allow-origin": "*",
+  "cache-control": "public, max-age=3600",
+  "content-type": "application/json; charset=utf-8",
+  etag: `"UsageMax-agent-card-${card.version}"`,
+  "x-content-type-options": "nosniff",
+};
+
 export function GET() {
-  return Response.json(card, { headers: { "cache-control": "public, max-age=3600" } });
+  return Response.json(card, { headers });
 }
 
 export function HEAD() {
-  return new Response(null, { headers: { "cache-control": "public, max-age=3600", "content-type": "application/json; charset=utf-8" } });
+  return new Response(null, { headers });
 }

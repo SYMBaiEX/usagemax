@@ -15,6 +15,13 @@ const index = {
       url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/skills/enterprise-reporting/SKILL.md",
       digest: "sha256:5a46e259f844dc0cde6e28d3551d67c70842dfed26499e32d1e51131b0e50341",
     },
+    {
+      name: "collector-diagnostics",
+      description: "Diagnose UsageMax collector credentials and device bindings with safe, read-only status checks.",
+      type: "skill-md",
+      url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/skills/collector-diagnostics/SKILL.md",
+      digest: "sha256:a4c2b1807aac56efb9885fd8f9ee2e8533f41e4042c6e580e0257bdec33f068d",
+    },
   ],
 };
 

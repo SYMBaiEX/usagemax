@@ -11,7 +11,12 @@ describe("A2A agent card", () => {
   });
 
   it("supports metadata HEAD", () => {
-    expect(HEAD().status).toBe(200);
-    expect(HEAD().headers.get("content-type")).toContain("application/json");
+    const response = HEAD();
+    expect(response.status).toBe(200);
+    expect(response.headers.get("access-control-allow-origin")).toBe("*");
+    expect(response.headers.get("cache-control")).toBe("public, max-age=3600");
+    expect(response.headers.get("content-type")).toContain("application/json");
+    expect(response.headers.get("etag")).toBe('"UsageMax-agent-card-1.0.0"');
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
   });
 });

@@ -11,7 +11,12 @@ The UsageMax CLI is a short-lived, one-shot collector for supported local AI usa
 
 ## Install
 
-Run <code>bunx usagemax@latest --help</code> or install the package from [npm](https://www.npmjs.com/package/usagemax).
+Run <code>bunx usagemax@latest --help</code> or
+<code>npm exec --yes usagemax@latest -- --help</code>. To install a global
+command, run <code>npm install --global usagemax</code> and then
+<code>usagemax --help</code>. The package is published on
+[npm](https://www.npmjs.com/package/usagemax); use the repository source when
+you need a release newer than the current public npm tag.
 
 ## Link a computer
 

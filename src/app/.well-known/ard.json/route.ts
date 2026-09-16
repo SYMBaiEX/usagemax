@@ -1,4 +1,13 @@
+export const dynamic = "force-static";
+
 const origin = "https://usagemax.com";
+
+const headers = {
+  "access-control-allow-origin": "*",
+  "cache-control": "public, max-age=3600",
+  "content-type": "application/json; charset=utf-8",
+  "x-content-type-options": "nosniff",
+};
 
 const trustManifest = {
   identity: { type: "web-origin", url: origin },
@@ -177,17 +186,9 @@ export const manifest = {
 };
 
 export function GET() {
-  return Response.json(manifest, {
-    headers: { "access-control-allow-origin": "*", "cache-control": "public, max-age=3600" },
-  });
+  return Response.json(manifest, { headers });
 }
 
 export function HEAD() {
-  return new Response(null, {
-    headers: {
-      "access-control-allow-origin": "*",
-      "cache-control": "public, max-age=3600",
-      "content-type": "application/json; charset=utf-8",
-    },
-  });
+  return new Response(null, { headers });
 }
