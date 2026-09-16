@@ -1,6 +1,7 @@
 import { applyResponseHeaders, authkit, handleAuthkitHeaders, partitionAuthkitHeaders } from "@workos-inc/authkit-nextjs";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { agentHomepage } from "@/lib/agent-index";
 import { requestsMarkdown } from "@/lib/markdown-negotiation";
 
 const markdownRoutes: Record<string, string> = {
@@ -71,69 +72,27 @@ function isKnownRoute(pathname: string) {
     || pathname.startsWith("/.well-known/");
 }
 
-function agentHomepage() {
-  return {
-    schemaVersion: "1.0",
-    type: "agent-capability-index",
-    name: "UsageMax",
-    description: "A public observability layer for bounded AI usage telemetry.",
-    canonicalUrl: "https://usagemax.com/?mode=agent",
-    capabilities: ["public aggregate usage", "leaderboard", "documentation", "pricing", "OpenAPI", "MCP", "A2A"],
-    publicData: ["network totals", "public profiles", "bounded daily rollups", "bounded live activity"],
-    exclusions: ["prompts", "completions", "credentials", "private workspace data"],
-    authentication: {
-      publicReads: "none",
-      collectorWrites: "installation-bound write-only bearer token",
-      website: "WorkOS AuthKit session; not an API token",
-    },
-    endpoints: [
-      { name: "networkStats", method: "GET", path: "/api/stats", authentication: "none" },
-      { name: "leaderboard", method: "GET", path: "/api/leaderboard", authentication: "none" },
-      { name: "publicProfile", method: "GET", path: "/api/profiles/{handle}", authentication: "none" },
-      { name: "collectorStatus", method: "GET", path: "/api/v1/devices/status", authentication: "collector bearer", readOnly: true, returnsSecret: false },
-      { name: "snapshotStatus", method: "GET", path: "/api/v2/usage/snapshots/{runId}", authentication: "collector bearer + device UUID", readOnly: true, returnsSecret: false },
-      { name: "openapi", method: "GET", path: "/openapi.json", authentication: "none" },
-      { name: "mcp", method: "POST", path: "/mcp", authentication: "none", readOnly: true },
-      { name: "sandbox", method: "POST", path: "/api/v1/sandbox/validate", authentication: "none", writes: false },
-    ],
-    resources: [
-      { name: "openapi", url: "/openapi.json", contentType: "application/vnd.oai.openapi+json", authentication: "none", readOnly: true },
-      { name: "mcp-discovery", url: "/.well-known/mcp", contentType: "application/json", authentication: "none", readOnly: true },
-      { name: "a2a-agent-card", url: "/.well-known/agent-card.json", contentType: "application/json", authentication: "none", readOnly: true },
-      { name: "agent-skills", url: "/.well-known/agent-skills/index.json", contentType: "application/json", authentication: "none", readOnly: true },
-      { name: "pricing", url: "/pricing.md", contentType: "text/markdown", authentication: "none", readOnly: true },
-      { name: "http-message-signatures-directory", url: "/.well-known/http-message-signatures-directory", contentType: "application/http-message-signatures-directory+json", authentication: "none", readOnly: true },
-    ],
-    protocols: {
-      mcp: { endpoint: "/mcp", transport: "streamable-http", protocolVersion: "2025-06-18", authentication: "none", readOnly: true },
-      a2a: { endpoint: "/a2a", transport: "json-rpc", authentication: "none", readOnly: true },
-    },
-    limits: {
-      publicLeaderboardRows: 100,
-      sandbox: { maxBytes: 16_384, maxEvents: 100, writes: false },
-      mcp: { maxBodyBytes: 65_536, writes: false },
-    },
-    errors: { format: "application/json", schema: "/openapi.json#/components/schemas/Error", recovery: "/not-found.md" },
-    links: {
-      markdown: "/index.md",
-      docs: "/docs",
-      api: "/openapi.json",
-      mcp: "/mcp",
-      a2a: "/a2a",
-      ask: "/ask",
-      skills: "/.well-known/agent-skills/index.json",
-      pricing: "/pricing",
-      botAuthDirectory: "/.well-known/http-message-signatures-directory",
-    },
-  };
-}
-
 export default async function proxy(request: NextRequest) {
   const { session, headers } = await authkit(request);
 
   if (request.nextUrl.pathname === "/" && request.nextUrl.searchParams.get("mode") === "agent") {
-    const response = NextResponse.json(agentHomepage(), { headers: { "cache-control": "public, max-age=300", "vary": "Accept" } });
-    return applyResponseHeaders(response, partitionAuthkitHeaders(request, headers).responseHeaders);
+    const response = NextResponse.json(agentHomepage(), {
+      headers: {
+        "cache-control": "public, max-age=300, stale-while-revalidate=86400",
+        "content-location": "https://usagemax.com/?mode=agent",
+        "vary": "Accept, User-Agent",
+      },
+    });
+    const decorated = applyResponseHeaders(response, partitionAuthkitHeaders(request, headers).responseHeaders);
+    publicHeaders(decorated.headers, "public, max-age=300, stale-while-revalidate=86400");
+    const discoveryLinks = [
+      "</.well-known/mcp/server-card.json>; rel=\"service\"; type=\"application/json\"",
+      "</.well-known/oauth-authorization-server>; rel=\"authorization-server\"; type=\"application/json\"",
+      "</.well-known/oauth-protected-resource>; rel=\"protected-resource\"; type=\"application/json\"",
+      "</llms.txt>; rel=\"describedby\"; type=\"text/plain\"",
+    ];
+    decorated.headers.set("link", `${decorated.headers.get("link") ?? ""}${decorated.headers.get("link") ? ", " : ""}${discoveryLinks.join(", ")}`);
+    return decorated;
   }
 
   const markdownPath = markdownRoutes[request.nextUrl.pathname];
