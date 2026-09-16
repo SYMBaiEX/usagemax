@@ -8,5 +8,6 @@ export function POST(request: Request) {
     maxBytes: 0,
     auth: "required",
     device: "required",
+    rateLimitPolicy: "180;w=60",
   });
 }

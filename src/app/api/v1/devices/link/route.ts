@@ -9,6 +9,7 @@ export async function POST(request: Request) {
     auth: "optional",
     device: "optional",
     requireJson: true,
+    rateLimitPolicy: "3000;w=60, 3;w=60",
   });
   if (!response.ok) return response;
   const payload = await response.json();

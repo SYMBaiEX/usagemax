@@ -1,13 +1,8 @@
-const markdown = `---
-title: UsageMax authentication
-description: Actual website sign-in and collector credential flow.
-canonical: https://usagemax.com/auth.md
-last-updated: 2026-09-16
----
-
-# UsageMax authentication
+const markdown = `# UsageMax authentication
 
 UsageMax separates public read access, website sign-in, and local collector uploads. This document describes the credentials that actually exist today; UsageMax does not expose a general OAuth token exchange for API delegation.
+
+<!-- title: UsageMax authentication; canonical: https://usagemax.com/auth.md; last-updated: 2026-09-16 -->
 
 ## Discover
 
@@ -37,7 +32,7 @@ For collector writes, send the token in an HTTPS header and include the stable i
     x-usagemax-device-id: <installation UUID>
     Idempotency-Key: <unique operation key>
 
-Use [native telemetry](https://usagemax.com/api/v1/telemetry/llm), [traces](https://usagemax.com/api/v1/traces), or [usage snapshots](https://usagemax.com/api/v2/usage/snapshots) as documented by OpenAPI. The device-link and revoke URLs are returned by the link response; no token-exchange URL is returned.
+Use [native telemetry](https://usagemax.com/api/v1/telemetry/llm), [traces](https://usagemax.com/api/v1/traces), or [usage snapshots](https://usagemax.com/api/v2/usage/snapshots) as documented by OpenAPI. Validate a batch first with the [no-write sandbox descriptor](https://usagemax.com/api/v1/sandbox). The device-link and revoke URLs are returned by the link response; no token-exchange URL is returned.
 
 Send only aggregate or content-free telemetry. Prompts, completions, source code, file paths, tool arguments, credentials, and secrets are rejected by policy and must never be sent. The token is accepted only on the documented collector endpoints and is not accepted in a request body or query string.
 

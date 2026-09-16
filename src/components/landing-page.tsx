@@ -110,6 +110,11 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
 }) {
   return (
     <div className={styles.page}>
+      <div hidden aria-hidden="true">
+        <form {...({ toolname: "usagemax_network_stats", tooldescription: "Read bounded public UsageMax network statistics." } as Record<string, string>)} action="/api/stats" method="get"><button type="submit">Read network stats</button></form>
+        <form {...({ toolname: "usagemax_leaderboard", tooldescription: "Read the bounded public UsageMax leaderboard." } as Record<string, string>)} action="/api/leaderboard" method="get"><button type="submit">Read leaderboard</button></form>
+        <form {...({ toolname: "usagemax_sandbox_validate", tooldescription: "Validate content-free UsageMax telemetry without writing data." } as Record<string, string>)} action="/api/v1/sandbox/validate" method="post"><button type="submit">Validate telemetry</button></form>
+      </div>
       <section className={styles.hero} aria-labelledby="landing-title">
         <div className={`${styles.wrap} ${styles.heroInner}`}>
         <div className={styles.heroCopy}>

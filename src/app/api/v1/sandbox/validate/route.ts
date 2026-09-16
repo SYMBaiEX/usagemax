@@ -2,7 +2,13 @@ import { apiError, apiResponse } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
 const MAX_BYTES = 16_384;
-const eventKeys = new Set(["eventKey", "model", "occurredAt", "eventType", "totalTokens", "costMicros"]);
+const eventKeys = new Set([
+  "eventKey", "logicalRequestId", "sessionId", "agentId", "agentExternalId", "parentAgentId", "parentAgentExternalId", "agentName",
+  "eventType", "source", "provider", "requestedModel", "model", "inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens",
+  "reasoningTokens", "totalTokens", "costMicros", "costBasis", "pricingSource", "pricingVersion", "serviceTier", "region", "currency",
+  "projectId", "costCenter", "latencyMs", "timeToFirstTokenMs", "status", "state", "task", "traceId", "spanId", "occurredAt", "schemaVersion",
+  "completeness", "accountingMode",
+]);
 
 export async function POST(request: Request) {
   if (!(request.headers.get("content-type")?.toLowerCase() ?? "").includes("application/json")) return apiError("content_type_must_be_application_json", 415);

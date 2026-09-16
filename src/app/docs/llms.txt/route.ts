@@ -1,13 +1,8 @@
-const markdown = `---
-title: UsageMax documentation agent guide
-description: Scoped documentation guidance and public boundaries.
-canonical: https://usagemax.com/docs/llms.txt
-last-updated: 2026-09-16
----
-
-# UsageMax documentation
+const markdown = `# UsageMax documentation
 
 Use this section when you need to understand the product, privacy boundary, or integration contract before calling UsageMax.
+
+<!-- title: UsageMax documentation agent guide; canonical: https://usagemax.com/docs/llms.txt; last-updated: 2026-09-16 -->
 
 - [Documentation](/docs): human-facing setup and telemetry guidance
 - [Methodology](/methodology): aggregation, pricing, completeness, and ranking rules
@@ -16,6 +11,7 @@ Use this section when you need to understand the product, privacy boundary, or i
 - [Authentication](/auth.md): actual website and collector credential flow
 - [OpenAPI](/openapi.json): typed HTTP contract
 - [MCP](/mcp): read-only public and docs Streamable HTTP tools
+- [Sandbox](/sandbox): exercise the content-free validation contract without a write
 
 UsageMax is appropriate for public aggregate AI usage reporting and for linking a local coding-agent history to one account. Never send prompts, completions, source code, file paths, tool arguments, credentials, or other secrets.
 `;

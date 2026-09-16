@@ -1,13 +1,8 @@
-const markdown = `---
-title: UsageMax API agent guide
-description: Public reads and content-free collector write contract.
-canonical: https://usagemax.com/api/llms.txt
-last-updated: 2026-09-16
----
-
-# UsageMax API
+const markdown = `# UsageMax API
 
 The UsageMax HTTP API has public read operations and authenticated, content-free collector write operations.
+
+<!-- title: UsageMax API agent guide; canonical: https://usagemax.com/api/llms.txt; last-updated: 2026-09-16 -->
 
 - [OpenAPI contract](/openapi.json): canonical typed request and response schema
 - [Protected-resource metadata](/.well-known/oauth-protected-resource): collector credential metadata
@@ -18,6 +13,12 @@ The UsageMax HTTP API has public read operations and authenticated, content-free
 - [Public profile](/api/profiles/{handle}): opt-in profile projection
 - [MCP](/mcp): read-only tool interface for public projections
 - [A2A](/a2a): read-only JSON-RPC agent interface for bounded public questions
+- [Sandbox descriptor](/api/v1/sandbox): no-write validation environment and example
+
+## Source
+
+- [UsageMax repository](https://github.com/SYMBaiEX/usagemax)
+- [OpenAPI contract](https://usagemax.com/openapi.json)
 
 Public reads require no credential. Collector writes use a one-time link flow, a write-only installation-bound Bearer token, x-usagemax-device-id, JSON, and idempotency keys. The API rejects or ignores private content by policy. It is not a general OAuth delegation API.
 `;
