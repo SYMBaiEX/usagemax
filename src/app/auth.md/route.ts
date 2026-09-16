@@ -1,11 +1,4 @@
-const markdown = `---
-title: UsageMax authentication
-description: Website sign-in and installation-bound collector credential flow.
-canonical: https://usagemax.com/auth.md
-last-updated: 2026-09-16
----
-
-# UsageMax authentication
+const markdown = `# UsageMax authentication
 
 UsageMax separates public read access, website sign-in, and local collector uploads. This document describes the credentials that actually exist today; UsageMax does not expose a general OAuth token exchange for API delegation.
 
