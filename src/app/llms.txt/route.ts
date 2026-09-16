@@ -36,6 +36,7 @@ source code, credentials, or private workspace data.
 - [MCP](https://usagemax.com/mcp): read-only Streamable HTTP tools, when supported by the client
 - [Documentation MCP](https://usagemax.com/docs-mcp): read-only documentation tools
 - [Documentation MCP card](https://usagemax.com/.well-known/mcp/docs-server-card.json): documentation-server identity and tool contract
+- [WebMCP guide](https://usagemax.com/webmcp): in-page tools registered through the current document.modelContext API
 - [MCP Registry submission metadata](https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/server.json): valid remote-server metadata; not proof of a published Registry listing
 - [Agent resource discovery](https://usagemax.com/.well-known/ard.json): public resource catalog
 - [AI Catalog compatibility](https://usagemax.com/.well-known/ai-catalog.json): equivalent legacy discovery catalog
@@ -77,6 +78,11 @@ index. It describes the currently advertised read-only endpoints, resources,
 protocols, limits, authentication boundaries, and excluded private data. It does
 not require authentication and does not mint OAuth tokens. Use the linked
 OpenAPI and resource documents for request and response schemas.
+
+UsageMax also exposes four bounded, read-only WebMCP tools in the page when the
+browser provides \`document.modelContext.registerTool()\`. Registration uses an
+AbortSignal for cleanup; \`navigator.modelContext\` is retained only as a legacy
+preview fallback. See the [WebMCP guide](https://usagemax.com/webmcp).
 
 ## Getting started
 

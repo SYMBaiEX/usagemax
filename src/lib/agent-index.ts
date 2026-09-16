@@ -11,7 +11,7 @@ export function agentHomepage() {
     description: "A public observability layer for bounded AI usage telemetry.",
     canonicalUrl: "https://usagemax.com/?mode=agent",
     purpose: "Help agents discover public UsageMax data, understand the collector boundary, and choose a safe integration path.",
-    capabilities: ["public aggregate usage", "leaderboard", "documentation", "pricing", "OpenAPI", "MCP", "A2A"],
+    capabilities: ["public aggregate usage", "leaderboard", "documentation", "pricing", "OpenAPI", "MCP", "WebMCP", "A2A"],
     publicData: ["network totals", "public profiles", "bounded daily rollups", "bounded live activity"],
     exclusions: ["prompts", "completions", "credentials", "private workspace data"],
     authentication: {
@@ -42,16 +42,25 @@ export function agentHomepage() {
       { name: "leaderboard", protocol: "MCP", readOnly: true },
       { name: "network_stats", protocol: "MCP", readOnly: true },
       { name: "ask_site", protocol: "MCP", readOnly: true },
-      { name: "public_profile", protocol: "WebMCP", readOnly: true },
-      { name: "leaderboard", protocol: "WebMCP", readOnly: true },
-      { name: "network_stats", protocol: "WebMCP", readOnly: true },
-      { name: "ask_site", protocol: "WebMCP", readOnly: true },
+      { name: "usagemax_public_profile", protocol: "WebMCP", readOnly: true },
+      { name: "usagemax_leaderboard", protocol: "WebMCP", readOnly: true },
+      { name: "usagemax_network_stats", protocol: "WebMCP", readOnly: true },
+      { name: "usagemax_ask", protocol: "WebMCP", readOnly: true },
     ],
+    webmcp: {
+      standard: "document.modelContext.registerTool",
+      compatibilityFallback: "navigator.modelContext.registerTool",
+      lifecycle: "AbortSignal passed as registerTool options.signal; abort unregisters the tools.",
+      tools: ["usagemax_network_stats", "usagemax_leaderboard", "usagemax_public_profile", "usagemax_ask"],
+      documentation: "https://usagemax.com/webmcp",
+    },
     developerResources: [
       { name: "documentation", url: "https://usagemax.com/docs", mediaType: "text/html" },
       { name: "agentGuide", url: "https://usagemax.com/llms.txt", mediaType: "text/plain" },
       { name: "authentication", url: "https://usagemax.com/auth.md", mediaType: "text/markdown" },
       { name: "pricing", url: "https://usagemax.com/pricing.md", mediaType: "text/markdown" },
+      { name: "webmcp", url: "https://usagemax.com/webmcp", mediaType: "text/html" },
+      { name: "webmcpMarkdown", url: "https://usagemax.com/webmcp.md", mediaType: "text/markdown" },
     ],
     resources: [
       { name: "openapi", url: "/openapi.json", contentType: "application/vnd.oai.openapi+json", authentication: "none", readOnly: true },
@@ -90,6 +99,7 @@ export function agentHomepage() {
       authorizationServer: "https://usagemax.com/.well-known/oauth-authorization-server",
       protectedResource: "https://usagemax.com/.well-known/oauth-protected-resource",
       skills: "https://usagemax.com/.well-known/agent-skills/index.json",
+      webmcp: "https://usagemax.com/webmcp",
     },
   };
 }

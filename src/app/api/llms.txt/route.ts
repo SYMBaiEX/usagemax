@@ -18,6 +18,7 @@ The UsageMax HTTP API has public read operations and authenticated, content-free
 - [Leaderboard](/api/leaderboard?metric=tokens&window=all): bounded public rankings
 - [Public profile](/api/profiles/{handle}): opt-in profile projection
 - [MCP](/mcp): read-only tool interface for public projections
+- [WebMCP](/webmcp): browser-local read-only tools using document.modelContext
 - [A2A](/a2a): read-only JSON-RPC agent interface for bounded public questions
 - [Sandbox descriptor](/api/v1/sandbox): no-write validation environment and example
 - [Batch validator alias](/api/v1/batch): no-write POST alias documented in OpenAPI

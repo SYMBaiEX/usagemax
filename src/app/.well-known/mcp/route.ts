@@ -1,4 +1,4 @@
-import { DOC_TOOL_DEFINITIONS, MCP_APP_RESOURCES, MCP_PROTOCOL_VERSION, MCP_SERVER_INSTRUCTIONS, MCP_SERVER_NAMES, MCP_SERVER_VERSION, USAGEMAX_TOOLS } from "@/lib/mcp/server";
+import { MCP_APP_RESOURCES, MCP_PROTOCOL_VERSION, MCP_SERVER_INSTRUCTIONS, MCP_SERVER_NAMES, MCP_SERVER_VERSION, USAGEMAX_TOOLS } from "@/lib/mcp/server";
 
 export const dynamic = "force-static";
 
@@ -29,7 +29,6 @@ const discovery = {
   readOnly: true,
   capabilities: { tools: { listChanged: false }, resources: { listChanged: false, subscribe: false } },
   tools: USAGEMAX_TOOLS.map(toolMetadata),
-  documentationTools: DOC_TOOL_DEFINITIONS.map(toolMetadata),
   resources: MCP_APP_RESOURCES,
   limitations: ["No mutations", "No private or account data", "No telemetry ingestion", "JSON responses only; no SSE streaming"],
 };

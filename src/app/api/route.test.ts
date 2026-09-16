@@ -10,4 +10,3 @@ describe("API entry point", () => {
     expect(await response.json()).toEqual(expect.objectContaining({ error: "api_root", message: expect.any(String), hint: expect.any(String) }));
   });
 });
-

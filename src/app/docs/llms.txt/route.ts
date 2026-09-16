@@ -15,6 +15,7 @@ Use this section when you need to understand the product, privacy boundary, or i
 - [CLI guide](/cli.md): install, link, sync, and scheduling
 - [API versioning](/api-versioning.md): compatibility and deprecation policy
 - [MCP](/mcp): read-only public and docs Streamable HTTP tools
+- [WebMCP](/webmcp): bounded read-only in-page tools using document.modelContext
 - [Sandbox](/sandbox): exercise the content-free validation contract without a write
 
 UsageMax is appropriate for public aggregate AI usage reporting and for linking a local coding-agent history to one account. Never send prompts, completions, source code, file paths, tool arguments, credentials, or other secrets.
