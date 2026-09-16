@@ -30,6 +30,8 @@ For an advanced key that is not stored by the CLI, pipe the token through stdin 
 
 The status check is read-only. It reports the key format, collector scopes, activation state, account-side profile/name, and whether the supplied installation is unbound, bound, matched, or mismatched. New advanced keys do not require activation; linked CLI keys are bound during the link exchange.
 
+Snapshot uploads return a read-only status URL and <code>Location</code> header for the current run. Poll it with the same bearer token and installation UUID; it reports bounded progress and coverage metadata, never snapshot rows, workspace identifiers, or credential hashes.
+
 ## Optional scheduling
 
 Use <code>bunx usagemax@latest service install</code> only when periodic checkpoints are wanted. The scheduler invokes the same bounded one-shot process at a low priority; it does not keep a background scanner resident. Use <code>service status</code>, <code>service uninstall</code>, or the platform scheduler controls to manage it.

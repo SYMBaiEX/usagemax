@@ -91,6 +91,7 @@ function agentHomepage() {
       { name: "leaderboard", method: "GET", path: "/api/leaderboard", authentication: "none" },
       { name: "publicProfile", method: "GET", path: "/api/profiles/{handle}", authentication: "none" },
       { name: "collectorStatus", method: "GET", path: "/api/v1/devices/status", authentication: "collector bearer", readOnly: true, returnsSecret: false },
+      { name: "snapshotStatus", method: "GET", path: "/api/v2/usage/snapshots/{runId}", authentication: "collector bearer + device UUID", readOnly: true, returnsSecret: false },
       { name: "openapi", method: "GET", path: "/openapi.json", authentication: "none" },
       { name: "mcp", method: "POST", path: "/mcp", authentication: "none", readOnly: true },
       { name: "sandbox", method: "POST", path: "/api/v1/sandbox/validate", authentication: "none", writes: false },
