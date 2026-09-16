@@ -13,10 +13,12 @@ export async function POST(request: Request) {
   });
   if (!response.ok) return response;
   const payload = await response.json();
+  const headers = new Headers(response.headers);
+  headers.set("cache-control", "no-store");
   return Response.json({
     ...payload,
     ingestUrl: publicApiUrl("/v1/telemetry/llm"),
     snapshotUrl: publicApiUrl("/v2/usage/snapshots"),
     revokeUrl: publicApiUrl("/v1/devices/revoke"),
-  }, { status: response.status, headers: { "cache-control": "no-store" } });
+  }, { status: response.status, headers });
 }

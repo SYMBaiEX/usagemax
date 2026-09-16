@@ -40,6 +40,8 @@ source code, credentials, or private workspace data.
 - [RFC 9727 API catalog](https://usagemax.com/.well-known/api-catalog): API linkset
 - [Protected-resource metadata](https://usagemax.com/.well-known/oauth-protected-resource): collector authentication metadata
 - [CLI package](https://www.npmjs.com/package/usagemax): installable local collector
+- [CLI guide](https://usagemax.com/cli.md): install, link, sync, and low-priority scheduling
+- [API versioning](https://usagemax.com/api-versioning.md): compatibility and deprecation policy
 
 ## Source and agent distribution
 
