@@ -32,6 +32,7 @@ describe("agent homepage contract", () => {
       type: "agent-capability-index",
       name: "UsageMax",
     });
+    expect(view.brand).toMatchObject({ name: "UsageMax", url: "https://usagemax.com", logo: "https://usagemax.com/brand/icon-192.png" });
     expect(view.discovery).toMatchObject({
       llms: "https://usagemax.com/llms.txt",
       openapi: "https://usagemax.com/openapi.json",
@@ -46,5 +47,6 @@ describe("agent homepage contract", () => {
     });
     expect(view.tools.length).toBeGreaterThanOrEqual(4);
     expect(view.developerResources.map((resource) => resource.url)).toContain("https://usagemax.com/auth.md");
+    expect(view.developerResources.map((resource) => resource.url)).toContain("https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest");
   });
 });

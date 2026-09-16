@@ -243,10 +243,11 @@ server.json      MCP Registry submission metadata for the public remote server
 
 ## MCP Registry and skills.sh status
 
-The local artifacts are ready for validation, but they are not external
-listings. [server.json](server.json) describes only the public
-`https://usagemax.com/mcp` remote; it contains no package, credential, or
-published Registry ID. The three `skills/` cards have valid `name` and
+The public MCP server is published in the official Registry as
+[`io.github.SYMBaiEX/usagemax@1.0.0`](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest).
+The [server.json](server.json) file is the versioned source metadata for that
+listing; it contains no package or credential claim. The three `skills/` cards
+have valid `name` and
 `description` frontmatter and can be installed from the public source with:
 
 ```bash
@@ -262,16 +263,15 @@ is the deployed inventory; the raw GitHub files are the install sources.
 
 ### Maintainer-only external submission recipe
 
-These commands are not part of normal development and were not run in this
-lane. After the source commit is public and the remote is live, a maintainer
-can publish and verify the MCP metadata:
+These commands are not part of normal development. A maintainer can validate a
+future metadata version and verify the active listing with:
 
 ```bash
 mcp-publisher validate server.json
 mcp-publisher login github
 mcp-publisher publish server.json
 curl -fsS --get \
-  --data-urlencode 'search=io.github.symbaiex/usagemax' \
+  --data-urlencode 'search=io.github.SYMBaiEX/usagemax' \
   https://registry.modelcontextprotocol.io/v0.1/servers
 ```
 
