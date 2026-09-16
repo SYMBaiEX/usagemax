@@ -119,13 +119,18 @@ const instructionsFor = (surface: "all" | "public" | "docs") => surface === "doc
     ? "Use tools/list to discover bounded read-only public product tools. This stateless server accepts JSON-RPC over POST only; it has no mutations, credentials, prompts, or SSE stream. The network statistics tool offers one optional read-only MCP App resource."
     : "Use tools/list to discover bounded read-only public product and documentation tools. This stateless server accepts JSON-RPC over POST only; it has no mutations, credentials, prompts, or SSE stream. The product surface offers one optional read-only MCP App resource.";
 
+export const MCP_SERVER_INSTRUCTIONS = {
+  public: instructionsFor("public"),
+  docs: instructionsFor("docs"),
+} as const;
+
 const error = (id: RpcRequest["id"], code: number, message: string) => ({ jsonrpc: "2.0", id: id ?? null, error: { code, message } });
 const result = (id: RpcRequest["id"], value: unknown) => ({ jsonrpc: "2.0", id: id ?? null, result: value });
 const textResult = (id: RpcRequest["id"], value: unknown) => result(id, { content: [{ type: "text", text: JSON.stringify(value) }], structuredContent: value });
 
 export async function handleMcp(request: RpcRequest, query: QueryFn = (q, args) => fetchQuery(q as never, args as never), surface: "all" | "public" | "docs" = "all") {
   if (request.jsonrpc !== "2.0" || typeof request.method !== "string") return error(request.id, -32600, "invalid_request");
-  if (request.method === "initialize") return result(request.id, { protocolVersion: MCP_PROTOCOL_VERSION, capabilities: { tools: {}, ...(surface === "docs" ? {} : { resources: { listChanged: false, subscribe: false } }) }, serverInfo: { name: surface === "docs" ? MCP_SERVER_NAMES.docs : MCP_SERVER_NAMES.public, version: MCP_SERVER_VERSION }, instructions: instructionsFor(surface) });
+  if (request.method === "initialize") return result(request.id, { protocolVersion: MCP_PROTOCOL_VERSION, capabilities: { tools: {}, ...(surface === "docs" ? {} : { resources: { listChanged: false, subscribe: false } }) }, serverInfo: { name: surface === "docs" ? MCP_SERVER_NAMES.docs : MCP_SERVER_NAMES.public, version: MCP_SERVER_VERSION }, instructions: surface === "docs" ? MCP_SERVER_INSTRUCTIONS.docs : MCP_SERVER_INSTRUCTIONS.public });
   if (request.method === "tools/list") return result(request.id, { tools: surface === "docs" ? DOC_TOOL_DEFINITIONS : surface === "public" ? USAGEMAX_TOOLS : [...USAGEMAX_TOOLS, ...DOC_TOOL_DEFINITIONS] });
   if (request.method === "resources/list") return result(request.id, { resources: surface === "docs" ? [] : MCP_APP_RESOURCES });
   if (request.method === "resources/read") {

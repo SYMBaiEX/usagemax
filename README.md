@@ -144,19 +144,20 @@ printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
   | jq -r '[.httpStatus, (if .ingestAuthorized then 1 else 0 end)] | @tsv'
 ```
 
-The output is numeric-only: `200 1` means active and authorized, `200 0`
-means the key is recognized but blocked, `409 0` means the installation does
-not match, and `401 0` means the format/key was not accepted. The full command
-reports scope, binding, profile, and last-write state without returning the
-secret or its hash. Advanced keys are active immediately; they do not require
-activation or propagation. They bind the first installation that makes a valid
-write.
+The `jq` projection is numeric-only: `200 1` means active and authorized,
+`200 0` means recognized but blocked, `409 0` means the installation does not
+match, and `401 0` means the format/key was not accepted. Without `jq`, `--json`
+returns the structured diagnostic object. Neither form returns the secret, its
+hash, or the raw authorized UUID. Advanced keys are active immediately; they do
+not require activation or propagation. They remain unbound until their first
+valid write.
 
 ### Zero-token telemetry probe
 
 The following shell-compatible `curl` probe sends exactly one content-free
-`agent_state` event with zero tokens and zero cost. It prints only the HTTP
-status code. Use a disposable collector if you want to test the write path:
+`agent_state` event with zero tokens and an explicitly reported zero cost. It
+prints only the numeric HTTP status code. Use a disposable collector if you want
+to test the write path:
 
 ```bash
 set +x
@@ -188,9 +189,10 @@ export USAGEMAX_DIAGNOSTIC_BATCH_ID="$batch_id"
 export USAGEMAX_DIAGNOSTIC_OCCURRED_AT="$occurred_at"
 ```
 
-The replay then returns `200`. This event is not an accounting total, but it is
-still persisted as observability telemetry and may bind an unbound key. The CLI
-diagnostic above is the safer read-only check.
+The replay then returns `200`. This event is not an accounting total: only
+`model_request` events update token and spend accounting. It is still persisted
+as observability telemetry and may bind an unbound key. The CLI diagnostic above
+is the safer read-only check.
 
 ## Optional automatic checkpoints
 

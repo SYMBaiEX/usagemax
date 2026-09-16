@@ -1,11 +1,13 @@
-import { DOC_TOOL_DEFINITIONS, MCP_SERVER_VERSION } from "@/lib/mcp/server";
+import { DOC_TOOL_DEFINITIONS, MCP_PROTOCOL_VERSION, MCP_SERVER_INSTRUCTIONS, MCP_SERVER_NAMES, MCP_SERVER_VERSION } from "@/lib/mcp/server";
 
 export const dynamic = "force-static";
 
 export function GET() {
   return Response.json({
-    name: "UsageMax documentation MCP",
+    name: MCP_SERVER_NAMES.docs,
     version: MCP_SERVER_VERSION,
+    protocolVersion: MCP_PROTOCOL_VERSION,
+    instructions: MCP_SERVER_INSTRUCTIONS.docs,
     description: "Stateless, unauthenticated, read-only MCP Streamable HTTP tools for bounded UsageMax documentation retrieval.",
     serverUrl: "https://usagemax.com/docs-mcp",
     icon: "https://usagemax.com/brand/icon-192.png",

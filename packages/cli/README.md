@@ -102,12 +102,32 @@ The response is read-only and contains only status, type, scopes, profile/name,
 activation state, and a binding result of `unbound`, `bound`, `matched`, or
 `mismatch`. It never returns the token, hash, or raw authorized UUID.
 
+For a numeric-only result suitable for a smoke check:
+
+```bash
+set +x
+printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
+  | bunx usagemax@latest token status \
+      --device-id "$USAGEMAX_INSTALLATION_ID" --json \
+  | jq -r '[.httpStatus, (if .ingestAuthorized then 1 else 0 end)] | @tsv'
+```
+
+`200 1` is active and ingestion-authorized. `200 0` is recognized but blocked;
+inspect `status` and `scopeStatus` in the unfiltered JSON. `409 0` is a device
+binding mismatch. `401 0` means the format/key was rejected.
+
 New advanced keys are active immediately and need no activation or propagation.
 They bind on their first valid write. Linked CLI keys are bound during the link
 exchange. A `401` means the key format is invalid or the key is unknown,
 revoked, disabled, or from another deployment. A `409` means the supplied
-installation does not match. A recognized key missing `telemetry:write` is
-reported as blocked.
+installation does not match. A recognized key missing `telemetry:write` has
+`status: scope_missing`, `scopeStatus: missing_telemetry_write`, and
+`ingestAuthorized: false`.
+
+For a write-path smoke check, the root README includes a `curl` request that
+sends one `agent_state` event with all token counters and `costMicros` set to
+zero. It is observability-only: `agent_state` does not update accounting, and
+the probe may bind an otherwise unbound advanced key.
 
 ## Privacy and resource use
 

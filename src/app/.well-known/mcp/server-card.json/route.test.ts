@@ -15,7 +15,7 @@ const cardTools = (tools: typeof USAGEMAX_TOOLS | typeof DOC_TOOL_DEFINITIONS) =
 describe("MCP server cards", () => {
   it("keeps the public card synchronized with the product tool contract", async () => {
     const body = await getProductCard().json();
-    expect(body).toMatchObject({ name: "UsageMax public product MCP", version: MCP_SERVER_VERSION, serverUrl: "https://usagemax.com/mcp", transport: "streamable-http" });
+    expect(body).toMatchObject({ name: "UsageMax public product MCP", version: MCP_SERVER_VERSION, protocolVersion: "2025-06-18", instructions: expect.stringContaining("read-only"), serverUrl: "https://usagemax.com/mcp", transport: "streamable-http" });
     expect(body.tools).toEqual(cardTools(USAGEMAX_TOOLS));
     expect(body.endpoints).toEqual([{ url: "https://usagemax.com/mcp", methods: ["POST"], tools: USAGEMAX_TOOLS.map(({ name }) => name) }]);
     expect(body.resources).toEqual(MCP_APP_RESOURCES);
@@ -23,7 +23,7 @@ describe("MCP server cards", () => {
 
   it("keeps the documentation card synchronized with the docs tool contract", async () => {
     const body = await getDocsCard().json();
-    expect(body).toMatchObject({ name: "UsageMax documentation MCP", version: MCP_SERVER_VERSION, serverUrl: "https://usagemax.com/docs-mcp", transport: "streamable-http" });
+    expect(body).toMatchObject({ name: "UsageMax documentation MCP", version: MCP_SERVER_VERSION, protocolVersion: "2025-06-18", instructions: expect.stringContaining("documentation tools"), serverUrl: "https://usagemax.com/docs-mcp", transport: "streamable-http" });
     expect(body.tools).toEqual(cardTools(DOC_TOOL_DEFINITIONS));
     expect(body.endpoints).toEqual([{ url: "https://usagemax.com/docs-mcp", methods: ["POST"], tools: DOC_TOOL_DEFINITIONS.map(({ name }) => name) }]);
   });

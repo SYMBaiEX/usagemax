@@ -1,4 +1,5 @@
 const repositoryUrl = "https://github.com/SYMBaiEX/usagemax";
+const logoUrl = "https://usagemax.com/brand/icon-192.png";
 const sameAs = [repositoryUrl, "https://github.com/SYMBaiEX", "https://www.npmjs.com/package/usagemax"];
 
 export const usageMaxStructuredData = {
@@ -19,6 +20,9 @@ export const usageMaxStructuredData = {
       "@id": "https://usagemax.com/#organization",
       name: "UsageMax",
       url: "https://usagemax.com",
+      description: "UsageMax is an open-source usage observability platform for people and teams building with AI.",
+      logo: logoUrl,
+      email: "hello@usagemax.com",
       sameAs,
       contactPoint: {
         "@type": "ContactPoint",

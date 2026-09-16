@@ -6,7 +6,7 @@ UsageMax separates public read access, website sign-in, and local collector uplo
 
 ## Discover
 
-Read the [OpenAPI contract](https://usagemax.com/openapi.json), the [protected-resource metadata](https://usagemax.com/.well-known/oauth-protected-resource), and the [documentation](https://usagemax.com/docs) before integrating. Public profiles, network statistics, leaderboard data, and bounded documentation reads do not require credentials. The metadata is a protected-resource description, not an OAuth authorization-server directory.
+Read the [OpenAPI contract](https://usagemax.com/openapi.json), the [protected-resource metadata](https://usagemax.com/.well-known/oauth-protected-resource), the [authorization-server metadata](https://usagemax.com/.well-known/oauth-authorization-server), and the [documentation](https://usagemax.com/docs) before integrating. Public profiles, network statistics, leaderboard data, and bounded documentation reads do not require credentials. The authorization-server metadata points to the browser sign-in entry point and does not advertise an API token exchange.
 
 ## Pick a method
 
@@ -30,7 +30,7 @@ The diagnostic endpoint is read-only. It reports \`active\`, \`revoked\`, \`work
 
 ## Exchange
 
-There is no OAuth authorization-server exchange or token endpoint for the UsageMax API at this time. The protected-resource metadata therefore intentionally has no \`authorization_servers\`, \`authorization_endpoint\`, or \`token_endpoint\` claim. There is also no \`identity_endpoint\`, \`claim_endpoint\`, \`events_endpoint\`, or agent \`service_auth\` flow. Do not mint or infer an OAuth access token from the WorkOS website session. The one-use link-code exchange above is the only supported way to create a collector credential.
+The UsageMax API does not expose an OAuth token exchange. The protected-resource metadata links to the UsageMax authorization-server metadata, whose authorization endpoint starts the WorkOS browser session; that session is not an API bearer token. There is no \`identity_endpoint\`, \`claim_endpoint\`, \`events_endpoint\`, or agent \`service_auth\` flow. Do not mint or infer an OAuth access token from the website session. The one-use link-code exchange above is the only supported way to create a collector credential.
 
 ## Use the access token
 
