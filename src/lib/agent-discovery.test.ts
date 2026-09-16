@@ -2,10 +2,10 @@ import serverMetadata from "../../server.json";
 import { describe, expect, it } from "vitest";
 
 describe("local MCP Registry metadata", () => {
-  it("describes the public remote without implying a package or listing", () => {
+  it("describes the published public remote without implying a package", () => {
     expect(serverMetadata).toMatchObject({
       "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-      name: "io.github.symbaiex/usagemax",
+      name: "io.github.SYMBaiEX/usagemax",
       repository: { url: "https://github.com/SYMBaiEX/usagemax", source: "github" },
       version: "1.0.0",
       websiteUrl: "https://usagemax.com",

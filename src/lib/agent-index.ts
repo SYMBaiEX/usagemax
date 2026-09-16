@@ -8,6 +8,12 @@ export function agentHomepage() {
     machineReadable: true,
     type: "agent-capability-index",
     name: "UsageMax",
+    brand: {
+      name: "UsageMax",
+      url: "https://usagemax.com",
+      logo: "https://usagemax.com/brand/icon-192.png",
+      sameAs: ["https://github.com/SYMBaiEX/usagemax", "https://github.com/SYMBaiEX", "https://www.npmjs.com/package/usagemax"],
+    },
     description: "A public observability layer for bounded AI usage telemetry.",
     canonicalUrl: "https://usagemax.com/?mode=agent",
     purpose: "Help agents discover public UsageMax data, understand the collector boundary, and choose a safe integration path.",
@@ -61,6 +67,7 @@ export function agentHomepage() {
       { name: "pricing", url: "https://usagemax.com/pricing.md", mediaType: "text/markdown" },
       { name: "webmcp", url: "https://usagemax.com/webmcp", mediaType: "text/html" },
       { name: "webmcpMarkdown", url: "https://usagemax.com/webmcp.md", mediaType: "text/markdown" },
+      { name: "mcpRegistry", url: "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest", mediaType: "application/json" },
     ],
     resources: [
       { name: "openapi", url: "/openapi.json", contentType: "application/vnd.oai.openapi+json", authentication: "none", readOnly: true },
@@ -69,6 +76,7 @@ export function agentHomepage() {
       { name: "agent-skills", url: "/.well-known/agent-skills/index.json", contentType: "application/json", authentication: "none", readOnly: true },
       { name: "pricing", url: "/pricing.md", contentType: "text/markdown", authentication: "none", readOnly: true },
       { name: "http-message-signatures-directory", url: "/.well-known/http-message-signatures-directory", contentType: "application/http-message-signatures-directory+json", authentication: "none", readOnly: true },
+      { name: "mcp-registry", url: "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest", contentType: "application/json", authentication: "none", readOnly: true },
     ],
     protocols: {
       mcp: { endpoint: "/mcp", transport: "streamable-http", protocolVersion: "2025-06-18", authentication: "none", readOnly: true },
@@ -90,6 +98,7 @@ export function agentHomepage() {
       skills: "/.well-known/agent-skills/index.json",
       pricing: "/pricing",
       botAuthDirectory: "/.well-known/http-message-signatures-directory",
+      mcpRegistry: "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest",
     },
     discovery: {
       llms: "https://usagemax.com/llms.txt",
@@ -100,6 +109,7 @@ export function agentHomepage() {
       protectedResource: "https://usagemax.com/.well-known/oauth-protected-resource",
       skills: "https://usagemax.com/.well-known/agent-skills/index.json",
       webmcp: "https://usagemax.com/webmcp",
+      mcpRegistry: "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest",
     },
   };
 }

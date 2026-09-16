@@ -37,7 +37,8 @@ source code, credentials, or private workspace data.
 - [Documentation MCP](https://usagemax.com/docs-mcp): read-only documentation tools
 - [Documentation MCP card](https://usagemax.com/.well-known/mcp/docs-server-card.json): documentation-server identity and tool contract
 - [WebMCP guide](https://usagemax.com/webmcp): in-page tools registered through the current document.modelContext API
-- [MCP Registry submission metadata](https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/server.json): valid remote-server metadata; not proof of a published Registry listing
+- [MCP Registry listing](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest): official active listing for the public MCP remote
+- [MCP Registry metadata](https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/server.json): versioned source metadata for the published listing
 - [Agent resource discovery](https://usagemax.com/.well-known/ard.json): public resource catalog
 - [AI Catalog compatibility](https://usagemax.com/.well-known/ai-catalog.json): equivalent legacy discovery catalog
 - [Agent skills index](https://usagemax.com/.well-known/agent-skills/index.json): published skill inventory

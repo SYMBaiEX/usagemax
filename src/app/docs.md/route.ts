@@ -11,7 +11,7 @@ Send bounded model, tool, agent-state, and outcome metadata through the native t
 
 Do not send prompts, completions, secrets, or access tokens. Public queries expose bounded aggregate projections only.
 
-See the [HTML documentation](/docs), [WebMCP guide](/webmcp), [OpenAPI contract](/openapi.json), and [security overview](/security).
+See the [HTML documentation](/docs), [WebMCP guide](/webmcp), [official MCP Registry listing](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest), [OpenAPI contract](/openapi.json), and [security overview](/security).
 `;
 
 export function GET() { return new Response(markdown, { headers: { "content-type": "text/markdown; charset=utf-8", "cache-control": "public, max-age=3600, stale-while-revalidate=86400", vary: "Accept" } }); }

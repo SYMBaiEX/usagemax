@@ -1,9 +1,10 @@
 # UsageMax Ora-100 package and release readiness
 
-Local evidence record for the bounded Ora-100 package/release lane, captured
-2026-09-16. This document covers only the CLI package, agent plugin metadata,
-public MCP Registry metadata, and open-source release documentation. It does
-not claim an Ora score, an external directory listing, or a published artifact.
+Local and live evidence record for the bounded Ora-100 package/release lane,
+captured 2026-09-16. This document covers the CLI package, agent plugin
+metadata, the published public MCP Registry listing, and open-source release
+documentation. It does not claim a fresh Ora score or a published npm or
+skills.sh artifact.
 
 ## Requirement matrix
 
@@ -12,7 +13,7 @@ not claim an Ora score, an external directory listing, or a published artifact.
 | ORA-CLI-01 | CLI discoverability | PASS (local) | `packages/cli/package.json` exposes the `usagemax` bin, focused search keywords, repository/homepage links, and a README with Bun and npm invocation examples. |
 | ORA-CLI-02 | Package metadata and archive shape | PASS (local) | Package name/version are `usagemax@0.3.6`; the MIT license, Node.js `>=20` engine, public publish access, explicit package files, and `prepublishOnly` test gate are present. |
 | ORA-PLUGIN-01 | Agent plugin manifest | PASS (local) | `plugin.json` is valid JSON, uses the declared Agent Plugins schema, carries version `0.3.6`, MIT licensing, canonical owner links, and truthful MCP/CLI/skills keywords. |
-| ORA-MCP-01 | MCP server metadata | PASS (local) | `server.json` is valid JSON for `io.github.symbaiex/usagemax`, describes only the public streamable-HTTP `/mcp` remote, and intentionally has no `packages` claim. |
+| ORA-MCP-01 | MCP server metadata and listing | PASS (local + live) | `server.json` is valid JSON for `io.github.SYMBaiEX/usagemax`; the official Registry lists active version `1.0.0` and the public streamable-HTTP `/mcp` remote. |
 | ORA-OSS-01 | Open-source release documentation | PASS (local) | The package README documents privacy boundaries, safe credential handling, recovery, development checks, and package/repository license and policy links; the included `LICENSE` is MIT. |
 
 The CLI package version (`0.3.6`) and MCP server version (`1.0.0`) are separate
@@ -34,14 +35,15 @@ identifies the public MCP server described by `server.json`.
 | Gate ID | Check | Result and boundary |
 | --- | --- | --- |
 | GATE-NPM-PUBLISH | Publish or install a release from npm | SKIPPED: explicitly prohibited for this lane. Local package metadata and dry-run evidence do not prove that npm `latest` contains `0.3.6`. |
-| GATE-MCP-REGISTRY-PUBLISH | Publish or verify a Registry listing | SKIPPED: explicitly prohibited; `server.json` is submission metadata, not proof of an active listing. |
+| GATE-MCP-REGISTRY-PUBLISH | Publish or verify a Registry listing | PASS: published `io.github.SYMBaiEX/usagemax@1.0.0`; the Registry search and version endpoints return the active record and canonical `https://usagemax.com/mcp` remote. |
 | GATE-SKILLS-PUBLISH | Publish or verify skills.sh indexing | SKIPPED: explicitly prohibited; repository skill source is not an external adoption signal. |
 | GATE-LIVE-RELEASE | Production endpoint, browser, or external directory acceptance | SKIPPED: outside this local documentation/metadata lane and not required to establish the local gates above. |
 
 No credentials, tokens, prompts, completions, customer data, or private URLs
-were used or recorded. The next release owner decision is external publication
-of the already-tested package and metadata, followed by independent live
-verification; neither is claimed here.
+were committed, logged, or recorded in this document. The MCP Registry
+publication was completed with an authenticated maintainer session and verified
+independently; npm and skills.sh publication remain separate release-owner
+decisions.
 
 At capture time, a read-only npm metadata lookup reported `latest: 0.3.3`.
 That external snapshot is recorded only to explain the version boundary; it is
