@@ -1,8 +1,9 @@
 import { ConvexError, v } from "convex/values";
 
 import type { Doc } from "./_generated/dataModel";
-import type { MutationCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { internalMutation } from "./_generated/server";
+import { internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { DAY_MS, dayFromTimestamp } from "./lib";
 import { enforceCollectorRateLimit } from "./rateLimits";
@@ -133,6 +134,53 @@ async function collectorForKey(ctx: MutationCtx, keyHash: string, installationId
   }
   return collector;
 }
+
+// Status reads must never bind an advanced key as a side effect. They share
+// the same authorization boundary as writes, but only compare a supplied
+// installation hash and leave an unbound collector unchanged.
+async function collectorForStatus(ctx: QueryCtx, keyHash: string, installationIdHash: string) {
+  const collector = await ctx.db.query("collectors").withIndex("by_keyHash", (q) => q.eq("keyHash", keyHash)).unique();
+  if (!collector || collector.revokedAt || !collector.scopes.includes("telemetry:write")) throw new ConvexError("INVALID_COLLECTOR");
+  await assertCollectorMembership(ctx, collector);
+  if (collector.installationIdHash && collector.installationIdHash !== installationIdHash) throw new ConvexError("DEVICE_ID_MISMATCH");
+  return collector;
+}
+
+export const inspectRun = internalQuery({
+  args: {
+    keyHash: v.string(),
+    installationIdHash: v.string(),
+    runId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const collector = await collectorForStatus(ctx, args.keyHash, args.installationIdHash);
+    const run = await ctx.db.query("snapshotRuns").withIndex("by_collectorId_and_runId", (q) =>
+      q.eq("collectorId", collector._id).eq("runId", args.runId),
+    ).unique();
+    if (!run) return null;
+    return {
+      runId: run.runId,
+      status: run.status,
+      mode: run.mode,
+      baselineMode: run.baselineMode ?? null,
+      sourceCount: run.sourceCount,
+      partitionCount: run.partitionCount,
+      acceptedPartitions: run.acceptedPartitions,
+      pendingCleanups: run.pendingCleanups ?? 0,
+      changedRows: run.changedRows,
+      correctionRows: run.correctionRows,
+      inventoryComplete: run.inventoryComplete,
+      inventoryErrors: run.inventoryErrors,
+      inventoryTruncated: run.inventoryTruncated,
+      coverageStartDay: run.coverageStartDay ?? null,
+      coverageEndDay: run.coverageEndDay ?? null,
+      failureCode: run.failureCode ?? null,
+      startedAt: run.startedAt,
+      completedAt: run.completedAt ?? null,
+      updatedAt: run.updatedAt,
+    };
+  },
+});
 
 function streakMetrics(days: string[], now: number) {
   const ordered = [...new Set(days)].sort();
