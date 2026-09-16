@@ -1,5 +1,11 @@
 # UsageMax readiness checklist
 
+_Internal, dated release evidence. This checklist does not authorize
+deployment, publication, or an enterprise claim._
+
+See [docs/README.md](README.md) for the documentation map and
+[RELEASE.md](RELEASE.md) for the release gate sequence.
+
 September 15, 2026. Scope: remediation of the package/platform audit against c8b5ecb.
 Backend and website deployed September 15, 2026 after the owner explicitly waived hosted CI due to runner exhaustion. npm 0.3.1 was published and its registry checksum verified. This is not a capacity certification.
 

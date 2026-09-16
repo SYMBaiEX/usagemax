@@ -1,5 +1,7 @@
 # UsageMax Ora-100 package and release readiness
 
+_Internal release record; not a public support or compatibility promise._
+
 Local and live evidence record for the bounded Ora-100 package/release lane,
 captured 2026-09-16. This document covers the CLI package, agent plugin
 metadata, the published public MCP Registry listing, and open-source release

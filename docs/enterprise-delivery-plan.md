@@ -1,5 +1,11 @@
 # Free personal + enterprise delivery
 
+_Internal delivery record; dated acceptance notes are not product promises._
+
+Use [docs/README.md](README.md) for the current documentation map and
+[enterprise-readiness.md](enterprise-readiness.md) for the distinction between
+implemented controls and customer-specific gates.
+
 Requested September 15, 2026. Keep Convex and WorkOS. Preserve both visual themes,
 existing public profiles, the low-overhead collector, and the separate screen project.
 
