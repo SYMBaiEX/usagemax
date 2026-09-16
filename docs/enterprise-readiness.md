@@ -10,9 +10,8 @@ documentation map, see [docs/README.md](README.md).
 New workspace features are implemented and locally verified. Production WorkOS
 roles were explicitly approved, applied and verified; the matching Convex backend
 is deployed. Website rollout evidence is tracked in
-[PR #8](https://github.com/SYMBaiEX/usagemax/pull/8). See
-[the delivery record](enterprise-delivery-plan.md) for acceptance and remaining
-engineering gates. This release does not close all enterprise-readiness requirements.
+[PR #8](https://github.com/SYMBaiEX/usagemax/pull/8). This does not close all
+enterprise-readiness requirements.
 
 This document separates implemented product controls from customer-specific
 onboarding and operational evidence. “Implemented” does not mean certified.

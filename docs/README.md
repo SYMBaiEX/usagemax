@@ -42,21 +42,11 @@ maintained by their route contracts: [OpenAPI](https://usagemax.com/openapi.json
   handling, recovery, and account deletion.
 - [Enterprise readiness](enterprise-readiness.md) — implemented controls and
   customer-specific gates; it is not a compliance certification.
-- [Enterprise delivery record](enterprise-delivery-plan.md) — internal
-  acceptance history and remaining engineering work.
-- [Readiness remediation](readiness-remediation.md) — dated internal evidence
-  and open release gates.
-
-## Historical records
-
-Files under [releases/](releases/) and the dated top-level release record
-preserve release evidence. They are not current product promises. Check the
-current route, CLI, and OpenAPI contract before relying on a dated statement.
 
 Standalone research, parity audits, roadmap drafts, visual review notes, and
-security review reports are intentionally not kept here. Current requirements
-from those records are summarized in the canonical product contracts and the
-operator/release records above.
+security review reports, dated release notes, and internal acceptance records
+are intentionally not kept here. Keep durable guidance in the documents above;
+keep historical implementation detail in pull requests and git history.
 
 ## Documentation rules
 
