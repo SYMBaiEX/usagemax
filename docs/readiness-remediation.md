@@ -24,7 +24,7 @@ Backend and website deployed September 15, 2026 after the owner explicitly waive
 
 ## Verification
 
-- 212 Vitest tests and 38 CLI tests pass (250 total).
+- 215 Vitest tests and 40 CLI tests pass (255 total), including the real ccusage parser contract and footer layout boundaries.
 - ESLint, application TypeScript, separate Convex TypeScript, and production Next.js build pass.
 - Published 0.3.1: 10 files, approximately 25 KB compressed; checksum 522119c9469e361ad04f0cf6ce9cfc6108ccd7be matches tested source.
 - Independent review's expiry/retry findings were fixed and rechecked.
@@ -36,8 +36,8 @@ Backend and website deployed September 15, 2026 after the owner explicitly waive
 - [x] Deployed additive Convex tables, optional fields, indexes and functions to rapid-rhinoceros-943 before the web client; schema validation and index deployment succeeded.
 - [x] PR #15 merged as 605f0b24f1d64e593e571226269b830ee45f833a. GitHub-triggered Vercel deployment dpl_4ZtcUn6vb6JKJS1fqDR9CHvA4suC is Ready and aliased to usagemax.com. Production CLI capability preflight passed for 0.3.1.
 - [x] Published npm 0.3.1 after backend capability validation; verified registry artifact and bunx entry point.
-- [ ] Release 0.3.2 parser compatibility fix: real incremental dry-run exposed ccusage rejecting --last with --sections. Explicit UTC since/until bounds now pass the real parser, including the year-boundary regression. Local dry-run parsed 10 changed rows and 131 sessions without upload.
-- [ ] End-to-end live sync requires explicit approval to upload this Mac's aggregate usage to its linked account; permission review blocked the attempted upload pending approval.
+- [x] Published 0.3.2 parser compatibility fix and verified registry artifact matches tested source (SHA-1 95a8a95108a927de4e148e07258a15b6fbdf589e). Explicit UTC since/until bounds replace the incompatible --last/--sections combination; real parser and year-boundary regressions pass.
+- [x] Following explicit owner approval, live Mac sync completed at 2026-09-16T03:27:18.526Z: 10 changed rows, 131 sessions, four partitions, Codex/OpenCode, zero downward corrections. Pending journal cleared and protocol-2 checkpoint persisted. Public profile returned HTTP 200 with updated lastSyncAt and 97,384,095,403 total tokens. This verifies the existing linked Mac; it does not certify every OS/provider or new customer enrollment.
 - [ ] Complete real customer invitations, SSO/SCIM, role changes, deprovisioning and provider credential/retry acceptance journeys.
 - [ ] Run authorized staging capacity tests for both independent personal users and a single hot enterprise workspace. Reconcile expected totals independently after failures/replays; the harness explicitly does not certify accounting itself.
 - [ ] Measure p95/p99, conflict/retry rates, provider queue lag, subscription/DB cost and collector resource usage against agreed SLOs before promising thousands of simultaneous users.

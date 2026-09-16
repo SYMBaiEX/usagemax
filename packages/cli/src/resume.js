@@ -48,7 +48,9 @@ export async function withConfigLock(directory, action) {
   } catch (error) {
     if (error.code !== "EEXIST") throw error;
     const owner = (await readFile(path, "utf8").catch(() => "unknown")).trim();
-    throw new Error(`Collector config is locked by PID ${/^\d+$/.test(owner) ? owner : "unknown"}. If that process has exited, remove only ${path} and rerun sync; keep config.json for resume.`);
+    const busy = new Error(`Collector config is locked by PID ${/^\d+$/.test(owner) ? owner : "unknown"}. If that process has exited, remove only ${path} and rerun sync; keep config.json for resume.`);
+    busy.code = "USAGEMAX_BUSY";
+    throw busy;
   }
   try {
     return await action();

@@ -8,17 +8,19 @@ import { homedir, platform } from "node:os";
 import { dirname, join } from "node:path";
 import process from "node:process";
 import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
 
 import { prepareArchiveRecovery } from "./archives.js";
 import { buildSessionPlan, buildSnapshotPlan, normalizeLinkCode, reportDateArgs, scanPolicy, sourceSummary, validHttpsUrl } from "./core.js";
 import { stableInstallationId } from "./installation.js";
+import { intervalMinutes, manageService, runScheduledSync } from "./service.js";
 import { requestSnapshot } from "./transport.js";
 import { resumeUpload, restartExpiredUpload, withConfigLock } from "./resume.js";
 import { CCUSAGE_VERSION, ccusageEnvironment, ccusageHome, discoverProviderArchives, SOURCE_INVENTORY_VERSION, sourceInventory, SUPPORTED_SOURCES } from "./sources.js";
 
 const require = createRequire(import.meta.url);
 const executeFile = promisify(execFile);
-const VERSION = "0.3.2";
+const VERSION = "0.3.3";
 const PUBLIC_API_ORIGIN = "https://usagemax.com/api";
 const DEFAULT_LINK_ENDPOINT = `${PUBLIC_API_ORIGIN}/v1/devices/link`;
 const CONFIG_FILE = "config.json";
@@ -107,6 +109,9 @@ function help() {
   process.stdout.write("  usagemax sync [--full] [--archives] [--restart] [--dry-run] [--explain] [--json]\n");
   process.stdout.write("                                  Reconcile once; --archives performs one-time recovery\n");
   process.stdout.write("  usagemax status                  Show local link status\n");
+  process.stdout.write("  usagemax service install [--every 15]\n");
+  process.stdout.write("                                  Opt into lightweight OS-scheduled sync\n");
+  process.stdout.write("  usagemax service status|run|uninstall\n");
   process.stdout.write("  usagemax doctor [--deep] [--json]\n");
   process.stdout.write("                                  Check source coverage; --deep parses full history\n");
   process.stdout.write("  usagemax report [...args]        Run a local ccusage report\n");
@@ -127,6 +132,8 @@ async function ccusageJson(config, { full = false, env } = {}) {
   const { stdout } = await executeFile(process.execPath, args, {
     encoding: "utf8",
     maxBuffer: MAX_REPORT_BYTES,
+    timeout: 10 * 60 * 1000,
+    killSignal: "SIGKILL",
     env: { ...(env || await ccusageEnvironment()), NO_COLOR: "1" },
   });
   return JSON.parse(stdout);
@@ -446,6 +453,26 @@ async function main() {
   const command = args[0] || "sync";
   if (["--help", "-h", "help"].includes(command)) return help();
   if (["--version", "-v"].includes(command)) return process.stdout.write(`${VERSION}\n`);
+  if (command === "service") {
+    const action = args[1] || "status";
+    const directory = option(args, "--config-dir") || configDirectory();
+    process.env.USAGEMAX_CONFIG_DIR = directory;
+    let result;
+    if (action === "run") {
+      result = await runScheduledSync(directory, () => withConfigLock(directory, () => sync(["--json"])));
+      if (result.status === "error") process.exitCode = 1;
+    } else if (action === "status") {
+      result = await manageService(action, { directory, cli: fileURLToPath(import.meta.url) });
+    } else {
+      result = await withConfigLock(directory, async () => {
+        if (action === "install" && !await readConfig()) throw new Error("Link this computer before enabling automatic sync.");
+        if (args.includes("--every") && option(args, "--every") === undefined) throw new Error("--every requires a number of minutes.");
+        return manageService(action, { directory, cli: fileURLToPath(import.meta.url), minutes: args.includes("--every") ? intervalMinutes(option(args, "--every")) : undefined });
+      });
+    }
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  }
   if (command === "report") return report(args.slice(1));
   if (["link", "sync", "status", "doctor", "unlink"].includes(command)) {
     return withConfigLock(configDirectory(), async () => {

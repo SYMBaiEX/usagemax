@@ -22,6 +22,10 @@ try {
   const entry = join(directory, "package/src/cli.js");
   assert.equal((await exec(process.execPath, [entry, "--version"])).stdout.trim(), pkg.version);
   assert.match((await exec(process.execPath, [entry, "--help"])).stdout, /--restart/);
+  assert.match((await exec(process.execPath, [entry, "--help"])).stdout, /service install/);
+  const { servicePlan, intervalMinutes } = await import(pathToFileURL(join(directory, "package/src/service.js")));
+  assert.equal(intervalMinutes(), 15);
+  assert.match(servicePlan({ directory, executable: process.execPath, cli: entry, platform: "linux", home: directory }).files[1][1], /OnUnitInactiveSec=15m/);
   const { buildSnapshotPlan } = await import(pathToFileURL(join(directory, "package/src/core.js")));
   const report = { daily: [{ agent: "codex", period: "2026-09-15", modelBreakdowns: [{ modelName: "test-model", inputTokens: 1 }] }] };
   const plan = buildSnapshotPlan(report, {}, { revision: Date.parse("2026-09-15T00:01:00Z") });
