@@ -13,6 +13,16 @@ describe("public A2A endpoint", () => {
     expect(await response.json()).toMatchObject({ jsonrpc: "2.0", id: 7, result: { message: { role: "ROLE_AGENT", parts: [{ text: expect.any(String) }] } } });
   });
 
+  it("accepts the standard message/send method alias", async () => {
+    const response = await POST(new Request("https://usagemax.com/a2a", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: "standard", method: "message/send", params: { message: { parts: [{ text: "What does UsageMax expose publicly?" }] } } }),
+    }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ jsonrpc: "2.0", id: "standard", result: { message: { parts: [{ text: expect.any(String) }] } } });
+  });
+
   it("rejects unknown methods and non-text/unbounded messages", async () => {
     const unknown = await POST(new Request("https://usagemax.com/a2a", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tasks/get", params: {} }) }));
     expect(await unknown.json()).toMatchObject({ error: { code: -32601, message: "method_not_found" } });
