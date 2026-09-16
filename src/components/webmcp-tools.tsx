@@ -105,7 +105,7 @@ export function WebMcpTools() {
         try {
           // Keep the normative WebMCP call explicit. The browser API is
           // document.modelContext.registerTool(), with AbortSignal lifecycle.
-          void Promise.resolve(detected.context.registerTool!(tool, { signal: controller.signal })).catch(() => undefined);
+          void Promise.resolve(document.modelContext?.registerTool?.(tool, { signal: controller.signal })).catch(() => undefined);
         } catch {
           // A proposed browser API can change between origin-trial versions;
           // failing closed must never affect the visible UsageMax experience.
@@ -120,7 +120,7 @@ export function WebMcpTools() {
     if (!legacyContext?.registerTool) return undefined;
     for (const tool of tools) {
       try {
-        void Promise.resolve(legacyContext.registerTool(tool, { signal: controller.signal })).catch(() => undefined);
+        void Promise.resolve(navigator.modelContext?.registerTool?.(tool, { signal: controller.signal })).catch(() => undefined);
       } catch {
         // Ignore unsupported preview behavior.
       }
