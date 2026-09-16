@@ -5,13 +5,16 @@ import type { ReactNode } from "react";
 import { AuthKitProvider, useAccessToken, useAuth } from "@workos-inc/authkit-nextjs/components";
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
 
+import { WebMcpTools } from "./webmcp-tools";
+
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 
 export function Providers({ children }: { children: ReactNode }) {
   const [convexClient] = useState(() => (convexUrl ? new ConvexReactClient(convexUrl) : null));
-  if (!convexClient) return <AuthKitProvider>{children}</AuthKitProvider>;
+  if (!convexClient) return <AuthKitProvider><WebMcpTools />{children}</AuthKitProvider>;
   return (
     <AuthKitProvider>
+      <WebMcpTools />
       <ConvexProviderWithAuth client={convexClient} useAuth={useAuthFromAuthKit}>
         {children}
       </ConvexProviderWithAuth>

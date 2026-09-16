@@ -70,3 +70,11 @@ See [the research and roadmap](docs/research-and-roadmap.md),
 [the telemetry contract](docs/telemetry-contract.md). Pricing provenance and the
 TokenMaxxing parity audit are documented in
 [the pricing and data audit](docs/tokenmaxxing-gap-and-pricing-audit.md).
+
+## Agent distribution
+
+The repository publishes an Agent Plugin manifest in [`plugin.json`](plugin.json),
+remote MCP endpoints in [`mcp.json`](mcp.json), and two installable Agent Skills
+under [`skills/`](skills/). The repository's [`AGENTS.md`](AGENTS.md) contains
+contributor and runtime guidance. UsageMax is not currently listed in an
+external skills registry; use the repository URLs above as the canonical source.

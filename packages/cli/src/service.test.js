@@ -31,6 +31,7 @@ test("launchd is a low-priority interval job with no KeepAlive, shell, or log gr
   const plist = plan.files[0][1];
   assert.match(plist, /<key>StartInterval<\/key><integer>9\d\d<\/integer>/);
   assert.match(plist, /<string>\/opt\/Usage Max\/src\/cli.js<\/string>/);
+  assert.doesNotMatch(plist, /<string>\/opt\/node<\/string>/);
   assert.match(plist, /LowPriorityIO/);
   assert.doesNotMatch(plist, /KeepAlive|RunAtLoad|bunx|npx/);
   assert.deepEqual(plan.probe, ["launchctl", ["print", `gui/123/${plan.name}`]]);
@@ -58,7 +59,9 @@ test("Windows task is least-privilege, nonoverlapping, does not wake or launch a
 });
 
 test("scheduler names isolate collector configuration directories", () => {
-  assert.notEqual(servicePlan({ ...options, platform: "linux" }).name, servicePlan({ ...options, directory: "/different/config", platform: "linux" }).name);
+  const plan = servicePlan({ ...options, platform: "linux" });
+  assert.match(plan.name, /UsageMax/);
+  assert.notEqual(plan.name, servicePlan({ ...options, directory: "/different/config", platform: "linux" }).name);
   assert.throws(() => servicePlan({ ...options, platform: "freebsd" }), /supports/);
   assert.throws(() => servicePlan({ ...options, home: "/tmp/\ninjection", platform: "linux" }), /control characters/);
 });
