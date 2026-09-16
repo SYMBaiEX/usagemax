@@ -22,8 +22,6 @@ contribute to UsageMax.
 
 - [Architecture](ARCHITECTURE.md) — runtime shape, data flow, and trust
   boundaries.
-- [Collector coverage audit](collector-coverage-audit.md) — supported local
-  sources and known coverage limits.
 - [Automatic sync](automatic-sync.md) — optional scheduling behavior.
 - [Visual system](visual-system.md) — interface tokens and motion guidance.
 - [Agent skills](../skills/README.md) — installable agent-facing skills.
@@ -51,9 +49,14 @@ maintained by their route contracts: [OpenAPI](https://usagemax.com/openapi.json
 
 ## Historical records
 
-Files under [releases/](releases/) and dated audit/design pages preserve release
-evidence or research context. They are not current product promises. Check the
+Files under [releases/](releases/) and the dated top-level release record
+preserve release evidence. They are not current product promises. Check the
 current route, CLI, and OpenAPI contract before relying on a dated statement.
+
+Standalone research, parity audits, roadmap drafts, visual review notes, and
+security review reports are intentionally not kept here. Current requirements
+from those records are summarized in the canonical product contracts and the
+operator/release records above.
 
 ## Documentation rules
 
