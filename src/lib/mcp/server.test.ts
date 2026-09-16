@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DOCS, DOC_TOOL_DEFINITIONS, handleMcp, USAGEMAX_TOOLS } from "./server";
+import { DOCS, DOC_TOOL_DEFINITIONS, handleMcp, MCP_APP_RESOURCE_URI, USAGEMAX_TOOLS } from "./server";
 
 describe("UsageMax MCP", () => {
   it("supports initialize and lists only read tools", async () => {
@@ -22,6 +22,14 @@ describe("UsageMax MCP", () => {
     const docs = await handleMcp({ jsonrpc: "2.0", id: 2, method: "tools/list" }, undefined, "docs");
     expect("result" in product ? (product.result as { tools: { name: string }[] }).tools.map((tool) => tool.name) : []).toEqual(["public_profile", "leaderboard", "network_stats", "ask_site"]);
     expect("result" in docs ? (docs.result as { tools: { name: string }[] }).tools.map((tool) => tool.name) : []).toEqual(["docs_search", "docs_get"]);
+  });
+  it("exposes the product MCP App as a bounded resource", async () => {
+    const resources = await handleMcp({ jsonrpc: "2.0", id: 1, method: "resources/list" }, undefined, "public");
+    expect("result" in resources ? resources.result : null).toMatchObject({ resources: [{ uri: MCP_APP_RESOURCE_URI, mimeType: "text/html;profile=mcp-app" }] });
+    const view = await handleMcp({ jsonrpc: "2.0", id: 2, method: "resources/read", params: { uri: MCP_APP_RESOURCE_URI } }, undefined, "public");
+    expect("result" in view ? view.result : null).toMatchObject({ contents: [{ uri: MCP_APP_RESOURCE_URI, mimeType: "text/html;profile=mcp-app", text: expect.stringContaining("Content-Security-Policy") }] });
+    const docs = await handleMcp({ jsonrpc: "2.0", id: 3, method: "resources/list" }, undefined, "docs");
+    expect("result" in docs ? docs.result : null).toEqual({ resources: [] });
   });
   it("executes bounded public and documentation reads", async () => {
     const calls: string[] = [];

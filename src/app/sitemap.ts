@@ -18,6 +18,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${baseUrl}/.well-known/mcp`, lastModified: now, changeFrequency: "weekly", priority: 0.4 },
     { url: `${baseUrl}/.well-known/mcp/server-card.json`, lastModified: now, changeFrequency: "weekly", priority: 0.4 },
     { url: `${baseUrl}/.well-known/agent-card.json`, lastModified: now, changeFrequency: "weekly", priority: 0.4 },
+    { url: `${baseUrl}/.well-known/ai-catalog.json`, lastModified: now, changeFrequency: "weekly", priority: 0.4 },
     { url: `${baseUrl}/a2a`, lastModified: now, changeFrequency: "weekly", priority: 0.4 },
     { url: `${baseUrl}/.well-known/oauth-protected-resource`, lastModified: now, changeFrequency: "weekly", priority: 0.4 },
     { url: `${baseUrl}/schemamap.xml`, lastModified: now, changeFrequency: "weekly", priority: 0.3 },

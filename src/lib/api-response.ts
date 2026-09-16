@@ -13,6 +13,7 @@ const errorGuidance: Record<string, { message: string; hint: string }> = {
   invalid_dataset: { message: "The export dataset is not supported.", hint: "Use dataset=daily, dataset=models, dataset=ledger, or dataset=audit." },
   forbidden: { message: "The authenticated account cannot perform this operation.", hint: "Refresh your UsageMax session or ask a workspace administrator for access." },
   service_unavailable: { message: "The UsageMax data service is temporarily unavailable.", hint: "Retry later and include the x-request-id if the problem persists." },
+  api_route_not_found: { message: "This UsageMax API route does not exist.", hint: "Use the OpenAPI contract or the API guide to choose a supported endpoint." },
 };
 
 export const API_VERSION = "1";
