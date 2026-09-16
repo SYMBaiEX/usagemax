@@ -12,6 +12,7 @@ describe("UsageMax structured data", () => {
       url: "https://usagemax.com",
       description: expect.stringContaining("open-source usage observability platform"),
       logo: "https://usagemax.com/brand/icon-192.png",
+      contactPoint: { "@type": "ContactPoint", url: "https://usagemax.com/contact" },
       email: "hello@usagemax.com",
       sameAs: expect.arrayContaining([
         "https://github.com/SYMBaiEX/usagemax",
@@ -21,5 +22,17 @@ describe("UsageMax structured data", () => {
       ]),
     });
     expect(organization).not.toHaveProperty("address");
+  });
+
+  test("exposes factual developer authority and documentation links", () => {
+    const software = usageMaxStructuredData["@graph"].find((entry) => entry["@type"] === "SoftwareApplication");
+    const service = usageMaxStructuredData["@graph"].find((entry) => entry["@type"] === "Service");
+
+    expect(software).toMatchObject({
+      codeRepository: "https://github.com/SYMBaiEX/usagemax",
+      downloadUrl: "https://www.npmjs.com/package/usagemax",
+      softwareHelp: { "@id": "https://usagemax.com/docs" },
+    });
+    expect(service).toMatchObject({ hasOfferCatalog: { url: "https://usagemax.com/pricing" } });
   });
 });

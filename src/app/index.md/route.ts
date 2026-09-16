@@ -12,10 +12,17 @@ UsageMax is a public observability layer for bounded AI usage telemetry.
 ## Public surface
 
 - [Documentation](/docs)
+- [Free plans and pricing](/pricing)
+- [Get started](/sign-up)
+- [No-write sandbox](/sandbox)
 - [Leaderboard](/leaderboard)
 - [Methodology](/methodology)
 - [Security](/security)
 - [OpenAPI](/openapi.json)
+- [Agent resource discovery](/.well-known/ard.json)
+- [AI catalog](/.well-known/ai-catalog.json)
+- [Schema feed](/schema-feed.jsonl)
+- [Agent skills](/.well-known/agent-skills/index.json)
 - [MCP](/mcp)
 - [MCP Registry listing](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest)
 - [WebMCP guide](/webmcp)

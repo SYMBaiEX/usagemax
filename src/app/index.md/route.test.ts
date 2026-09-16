@@ -11,4 +11,13 @@ describe("public markdown homepage", () => {
     expect(response.headers.get("cache-control")).toContain("public");
     expect(await response.text()).toContain("# UsageMax");
   });
+
+  test("links onboarding and machine-readable discovery resources", async () => {
+    const body = await GET().text();
+    expect(body).toContain("/pricing");
+    expect(body).toContain("/sign-up");
+    expect(body).toContain("/sandbox");
+    expect(body).toContain("/.well-known/ard.json");
+    expect(body).toContain("/schema-feed.jsonl");
+  });
 });
