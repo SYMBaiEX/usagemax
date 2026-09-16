@@ -33,6 +33,7 @@ import type * as retention from "../retention.js";
 import type * as savings from "../savings.js";
 import type * as snapshots from "../snapshots.js";
 import type * as telemetry from "../telemetry.js";
+import type * as tokenBuckets from "../tokenBuckets.js";
 import type * as workos from "../workos.js";
 import type * as workspaces from "../workspaces.js";
 
@@ -68,6 +69,7 @@ declare const fullApi: ApiFromModules<{
   savings: typeof savings;
   snapshots: typeof snapshots;
   telemetry: typeof telemetry;
+  tokenBuckets: typeof tokenBuckets;
   workos: typeof workos;
   workspaces: typeof workspaces;
 }>;

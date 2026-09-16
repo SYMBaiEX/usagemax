@@ -433,6 +433,45 @@ describe("telemetry ingestion", () => {
 
 
 describe("disjoint accounting repair", () => {
+  test("requires exact receipt evidence for legacy events without a collector ID", async () => {
+    const t = convexTest(schema, modules);
+    rateLimiterTest.register(t);
+    const now = Date.now();
+    await seedCollector(t, now);
+    await t.mutation(internal.telemetry.commitBatch, { keyHash, batchId: "cli:installation-1:batch", payloadHash: "repair", receivedAt: now,
+      events: [event({ eventKey: "ccusage-v1:installation-1:row", schemaVersion: 1, state: "synced", pricingSource: "ccusage / LiteLLM",
+        inputTokens: 100, outputTokens: 20, cacheReadTokens: 10, totalTokens: 120, occurredAt: now })] });
+    await t.run(async ctx => {
+      const raw = await ctx.db.query("telemetryEvents").unique();
+      await ctx.db.patch(raw!._id, { bucketVersion: undefined, collectorId: undefined });
+      for (const name of ["dailyUsage", "modelTotals", "profileStats"] as const) {
+        const row = await ctx.db.query(name).unique();
+        await ctx.db.patch(row!._id, { inputTokens: 100, outputTokens: 20, cacheReadTokens: 10, unclassifiedTokens: 0 });
+      }
+      const day = await ctx.db.query("profileDailyTotals").unique();
+      await ctx.db.patch(day!._id, { outputTokens: 20, unclassifiedTokens: 0 });
+      for (const row of await ctx.db.query("dailyDimensions").collect()) await ctx.db.patch(row._id, { outputTokens: 20, unclassifiedTokens: 0 });
+      const receipt = await ctx.db.query("ingestReceipts").unique();
+      await ctx.db.patch(receipt!._id, { batchId: "cli:unrelated-installation:batch" });
+    });
+    const before = await t.query(api.public.profile, { handle: "tester" });
+    await expect(t.mutation(internal.maintenance.reconcileTokenBuckets, { handle: "tester", dryRun: false, expectedResidual: 10 }))
+      .rejects.toThrow("REPAIR_COLLECTOR_UNPROVEN");
+    expect((await t.query(api.public.profile, { handle: "tester" }))?.stats).toEqual(before?.stats);
+    await t.run(async ctx => {
+      const receipt = await ctx.db.query("ingestReceipts").unique();
+      await ctx.db.patch(receipt!._id, { batchId: "cli:installation-1:batch" });
+    });
+    expect(await t.mutation(internal.maintenance.reconcileTokenBuckets, { handle: "tester", dryRun: true }))
+      .toMatchObject({ residual: 10, correction: -10, remainingResidual: 0, changedEvents: 1, plannedRows: 6 });
+    await t.mutation(internal.maintenance.reconcileTokenBuckets, { handle: "tester", dryRun: false, expectedResidual: 10 });
+    const after = await t.query(api.public.profile, { handle: "tester" });
+    expect(after?.stats).toMatchObject({ inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, unclassifiedTokens: 120, totalTokens: 120, totalCostMicros: 500 });
+    const dimensions = await t.run(async ctx => ctx.db.query("dailyDimensions").collect());
+    expect(dimensions).toHaveLength(2);
+    for (const row of dimensions) expect(row).toMatchObject({ outputTokens: 0, unclassifiedTokens: 120, totalTokens: 120 });
+  });
+
   test("previews and repairs proven old event overlaps atomically and idempotently", async () => {
     const t = convexTest(schema, modules);
     rateLimiterTest.register(t);

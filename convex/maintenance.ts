@@ -416,6 +416,7 @@ export const reconcileTokenBuckets = internalMutation({
     const days = new Map<string, Delta>();
     const sources = new Map<string, Delta>();
     const devices = new Map<string, Delta>();
+    const receiptCollectors = new Map<string, Id<"collectors">>();
     const candidates = events.filter(e => e.eventType === "model_request" && e.accountingMode !== "observability" && !e.bucketVersion);
     let changedEvents = 0;
     for (const event of candidates) {
@@ -424,10 +425,33 @@ export const reconcileTokenBuckets = internalMutation({
       if (!bucketFields.some(f => delta[f])) continue;
       changedEvents++;
       const day = dayFromTimestamp(event.occurredAt);
+      let collectorId = event.collectorId;
+      // Early ccusage imports predate collectorId on raw events. Resolve only
+      // from the exact ingest timestamp AND installation ID in its receipt.
+      // A day/device total alone cannot establish ownership.
+      if (!collectorId) {
+        const rawId = /^ccusage-v1:([^:]+):/.exec(event.eventKey)?.[1];
+        if (!rawId) throw new ConvexError("REPAIR_COLLECTOR_UNPROVEN");
+        const receiptKey = `${event.receivedAt}:${rawId}`;
+        collectorId = receiptCollectors.get(receiptKey);
+        if (!collectorId) {
+          const receipts = await ctx.db.query("ingestReceipts")
+            .withIndex("by_createdAt", q => q.eq("createdAt", event.receivedAt)).take(101);
+          const ids = new Set(receipts.filter(r => r.workspaceId === profile.workspaceId
+            && r.batchId.startsWith(`cli:${rawId}:`)).map(r => r.collectorId));
+          if (receipts.length > 100 || ids.size !== 1) throw new ConvexError("REPAIR_COLLECTOR_UNPROVEN");
+          collectorId = [...ids][0];
+          const collector = await ctx.db.get(collectorId);
+          if (!collector || collector.profileId !== profile._id || collector.workspaceId !== profile.workspaceId) {
+            throw new ConvexError("REPAIR_COLLECTOR_UNPROVEN");
+          }
+          receiptCollectors.set(receiptKey, collectorId);
+        }
+      }
       const groups: Array<[Map<string, Delta>, string]> = [
         [daily, [day, event.source, event.provider, event.model].join("\u001f")],
         [models, [event.provider, event.model].join("\u001f")], [days, day],
-        [sources, [day, event.source].join("\u001f")], [devices, [day, event.collectorId].join("\u001f")],
+        [sources, [day, event.source].join("\u001f")], [devices, [day, collectorId].join("\u001f")],
       ];
       for (const f of bucketFields) total[f] += delta[f];
       for (const [map, key] of groups) {
