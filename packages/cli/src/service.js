@@ -31,9 +31,14 @@ export function servicePlan({ directory, executable, cli, minutes = 15, platform
   minutes = intervalMinutes(minutes);
   for (const path of [directory, executable, cli, home, configHome]) if (/[\x00-\x1f]/.test(path)) throw new Error("Scheduler paths cannot contain control characters.");
   const id = createHash("sha256").update(directory).digest("hex").slice(0, 12);
-  const name = `com.usagemax.sync.${id}`;
+  const name = `com.UsageMax.sync.${id}`;
   const args = [cli, "service", "run", "--config-dir", directory];
-  const command = [executable, ...args];
+  // POSIX schedulers can execute the published shebang entry point directly,
+  // making the process title visible as UsageMax. Windows Task Scheduler needs
+  // node.exe to execute the JavaScript entry point and may retain its image name.
+  const command = platform === "win32"
+    ? [executable, ...args]
+    : [cli, "service", "run", "--config-dir", directory];
   if (platform === "darwin") {
     const file = join(home, "Library", "LaunchAgents", `${name}.plist`);
     const domain = `gui/${uid}`;
@@ -105,7 +110,7 @@ export async function manageService(action, { directory, cli, minutes, env = pro
   }
   if (action !== "install") throw new Error("Use service install [--every 15], status, run, or uninstall.");
   assertDurablePath(await realpath(cli));
-  assertDurablePath(await realpath(process.execPath));
+  if (platform === "win32") assertDurablePath(await realpath(process.execPath));
   await access(join(directory, "config.json"));
   // Check the user manager before writing anything. WSL without systemd fails clearly.
   if (plan.backend === "systemd") await executeCommand(["systemctl", ["--user", "show-environment"]]);

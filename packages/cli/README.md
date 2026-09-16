@@ -165,6 +165,11 @@ not your shell's secrets. Jobs run from your home directory; repository-local
 and global CLI installed. `service uninstall` leaves existing usage, link credentials,
 checkpoints, and last-run status intact; an in-flight sync may finish.
 
+The short-lived process sets its title to `UsageMax` on macOS/Linux, and POSIX
+schedulers invoke the published entry point directly. Windows Task Manager may
+still label the underlying JavaScript runtime as Node.js because Windows reports
+the executable image (`node.exe`); the task itself is named `UsageMax`.
+
 ## Interrupted uploads and protocol 0.3.1
 
 Before uploading, the CLI saves the exact run, ordered request payloads and next

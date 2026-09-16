@@ -1,0 +1,28 @@
+export const dynamic = "force-static";
+
+const metadata = {
+  resource: "https://usagemax.com/api",
+  resource_documentation: "https://usagemax.com/auth.md",
+  bearer_methods_supported: ["header"],
+  scopes_supported: [],
+  // UsageMax currently accepts a proprietary, write-only collector credential.
+  // It is intentionally not advertised as an OAuth access token or delegated API.
+  x_usagemax_authentication: {
+    collector_token: "umx_ prefix, installation-bound, write-only",
+    oauth_delegation: false,
+  },
+};
+
+const headers = {
+  "access-control-allow-origin": "*",
+  "cache-control": "public, max-age=3600",
+  "content-type": "application/json; charset=utf-8",
+};
+
+export function GET() {
+  return new Response(JSON.stringify(metadata), { headers });
+}
+
+export function HEAD() {
+  return new Response(null, { headers });
+}

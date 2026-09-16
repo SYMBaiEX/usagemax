@@ -25,13 +25,13 @@ test.each(["InvalidCursor: secret backend context", "Failed to parse pagination 
   const response = await GET(new Request("https://test/daily/detail?from=2026-09-01&through=2026-09-02&cursor=private-invalid-value"), context);
   expect(response.status).toBe(400);
   expect(response.headers.get("cache-control")).toBe("no-store");
-  expect(await response.json()).toEqual({ error: "invalid_pagination_cursor" });
+  expect(await response.json()).toMatchObject({ error: "invalid_pagination_cursor", message: expect.any(String), hint: expect.any(String) });
 });
 test("unrelated backend errors are sanitized and not misclassified as cursor errors", async () => {
   fetchQuery.mockImplementation(async () => { throw new Error("secret backend unavailable"); });
   const response = await GET(new Request("https://test/daily/detail?from=2026-09-01&through=2026-09-02&cursor=previous"), context);
   expect(response.status).toBe(503);
-  expect(await response.json()).toEqual({ error: "public_detail_unavailable" });
+  expect(await response.json()).toMatchObject({ error: "public_detail_unavailable", message: expect.any(String), hint: expect.any(String) });
 });
 test("legacy overflow maps to a non-cacheable explicit response", async () => {
   fetchQuery.mockImplementation(async () => { throw new ConvexError({ code: "PUBLIC_DETAIL_LIMIT" }); });

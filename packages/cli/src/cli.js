@@ -18,9 +18,13 @@ import { requestSnapshot } from "./transport.js";
 import { resumeUpload, restartExpiredUpload, withConfigLock } from "./resume.js";
 import { CCUSAGE_VERSION, ccusageEnvironment, ccusageHome, discoverProviderArchives, SOURCE_INVENTORY_VERSION, sourceInventory, SUPPORTED_SOURCES } from "./sources.js";
 
+// Make the short-lived collector recognizable in Activity Monitor and `ps`.
+// Windows may still display the underlying node.exe image name in Task Manager.
+process.title = "UsageMax";
+
 const require = createRequire(import.meta.url);
 const executeFile = promisify(execFile);
-const VERSION = "0.3.3";
+const VERSION = "0.3.4";
 const PUBLIC_API_ORIGIN = "https://usagemax.com/api";
 const DEFAULT_LINK_ENDPOINT = `${PUBLIC_API_ORIGIN}/v1/devices/link`;
 const CONFIG_FILE = "config.json";

@@ -6,6 +6,7 @@ import { SiteFooter, SiteHeader } from "@/components/site-shell";
 import { SiteFrame } from "@/components/site-frame";
 import "./globals.css";
 import { themeBootstrap } from "@/lib/theme";
+import { usageMaxStructuredData } from "@/lib/structured-data";
 
 const instrumentSans = Instrument_Sans({
   variable: "--font-instrument-sans",
@@ -54,7 +55,11 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${instrumentSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
-      <head><script dangerouslySetInnerHTML={{ __html: themeBootstrap }} /></head>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
+        <script id="usagemax-structured-data" type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(usageMaxStructuredData) }} />
+        <link rel="nlweb" href="/ask" title="Ask UsageMax" />
+      </head>
       <body className="site-body">
         <Providers>
           <a className="skip-link" href="#main-content">Skip to main content</a>

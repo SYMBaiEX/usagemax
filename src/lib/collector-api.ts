@@ -10,8 +10,17 @@ type ForwardOptions = {
   requireJson?: boolean;
 };
 
+const errorGuidance: Record<string, { message: string; hint: string }> = {
+  api_not_configured: { message: "The UsageMax ingestion service is not configured.", hint: "Contact the UsageMax operator." },
+  unauthorized: { message: "A valid UsageMax collector token is required.", hint: "Link this computer from https://usagemax.com/account and send the bearer token in Authorization." },
+  invalid_device_id: { message: "The collector installation ID is invalid.", hint: "Send the stable UUID stored by the UsageMax CLI in x-usagemax-device-id." },
+  content_type_must_be_application_json: { message: "The request body must be JSON.", hint: "Set Content-Type: application/json." },
+  payload_too_large: { message: "The request body exceeds the endpoint limit.", hint: "Use the documented batch limits and split the request." },
+};
+
 function error(message: string, status: number, headers?: HeadersInit) {
-  return Response.json({ error: message }, {
+  const guidance = errorGuidance[message] ?? { message: "The collector request was rejected.", hint: "Check the response error code and the API documentation." };
+  return Response.json({ error: message, ...guidance }, {
     status,
     headers: { "cache-control": "no-store", "x-request-id": crypto.randomUUID(), ...headers },
   });
@@ -19,7 +28,7 @@ function error(message: string, status: number, headers?: HeadersInit) {
 
 function safeResponseHeaders(source: Headers) {
   const headers = new Headers({ "cache-control": "no-store", "x-request-id": crypto.randomUUID() });
-  for (const name of ["content-type", "retry-after", "x-request-id"]) {
+  for (const name of ["content-type", "retry-after", "www-authenticate", "x-request-id"]) {
     const value = source.get(name);
     if (value) headers.set(name, value);
   }
@@ -31,10 +40,10 @@ export async function forwardCollectorRequest(request: Request, options: Forward
 
   const authorization = request.headers.get("authorization") ?? "";
   if (options.auth === "required" && !TOKEN_PATTERN.test(authorization)) {
-    return error("unauthorized", 401);
+    return error("unauthorized", 401, { "WWW-Authenticate": 'Bearer resource_metadata="https://usagemax.com/.well-known/oauth-protected-resource"' });
   }
   if (options.auth === "optional" && authorization && !TOKEN_PATTERN.test(authorization)) {
-    return error("unauthorized", 401);
+    return error("unauthorized", 401, { "WWW-Authenticate": 'Bearer resource_metadata="https://usagemax.com/.well-known/oauth-protected-resource"' });
   }
 
   const installationId = request.headers.get("x-usagemax-device-id") ?? "";
