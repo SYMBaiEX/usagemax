@@ -6,10 +6,11 @@
 .layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); flex: 1; width: 100%; max-width: 1480px; margin: 0 auto; min-height: 600px; }
 .exhibit { position: relative; isolation: isolate; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; border-radius: 18px; background: #ece9df; padding: 34px 42px 28px; color: #333b35; min-height: 600px; }
 .exhibit::before { content: ""; position: absolute; z-index: -1; inset: 0; background: radial-gradient(ellipse at 70% 15%, #fff9e8, transparent 58%), linear-gradient(140deg, transparent 40%, #d5d9c9); }
-.sculpture { position: relative; align-self: center; flex-shrink: 0; width: min(calc(100% + 84px), 580px); aspect-ratio: 560/420; margin: -34px -42px -28px; pointer-events: none; }
-.ribbon { position: relative; width: 100%; height: 100%; animation: float 12s ease-in-out infinite; }
+.sculpture { position: relative; align-self: center; flex-shrink: 0; width: calc(100% + 84px); aspect-ratio: 560/420; margin: -34px -42px -12px; pointer-events: none; }
+.ribbon { position: absolute; inset: 0; width: 100%; height: 100%; animation: float 12s ease-in-out infinite; }
 .sculptureShadow { position: absolute; left: 25%; right: 17%; top: 78%; height: 12px; background: #525c3c2b; border-radius: 50%; filter: blur(16px); transform: rotate(-15deg); }
-.core { position: absolute; inset: 50% auto auto 50%; color: #ad492d; transform: translate(-50%, -50%) rotate(-16deg); }
+.core { position: absolute; inset: 47.6% auto auto 50%; width: 12%; color: #ad492d; transform: translate(-50%, -50%) rotate(-16deg); }
+.core svg { width: 100%; height: auto; }
 .exhibitCopy { position: relative; }
 .kicker { color: #73796a; font: 9px var(--font-mono); margin-bottom: 16px; }
 .exhibitCopy h2 { font-size: clamp(40px, 4.1vw, 64px); line-height: .99; letter-spacing: -.064em; font-weight: 500; }
@@ -100,7 +101,7 @@
   .assurance { margin-top: 32px; }
   .exhibit, :global([data-theme="dark"]) .exhibit { min-height: 210px; padding: 25px; margin-bottom: 12px; }
   .sculpture, :global([data-theme="dark"]) .sculpture { width: min(calc(100% + 50px), 400px); margin: -32px -25px -12px; opacity: .9; }
-  .core svg { width: 52px; height: 52px; }
+  .core { width: 52px; }
   .exhibitCopy, :global([data-theme="dark"]) .exhibitCopy { margin-top: 0; }
   .exhibitCopy h2, :global([data-theme="dark"]) .exhibitCopy h2 { font-size: 32px; }
   .exhibitCopy .kicker, .exhibitCopy > p:last-child, .exhibitFoot, :global([data-theme="dark"]) .codeWindow { display: none; }

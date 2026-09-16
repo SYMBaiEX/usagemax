@@ -36,6 +36,13 @@ describe("UsageMax auth pages", () => {
     expect(html).toContain('height="64"');
     expect(html).not.toMatch(/>models<|>computers<|>you</);
   });
+  test("sign-in omits the extra greeting and connected-computer copy", () => {
+    const html = renderToStaticMarkup(<AuthPage mode="sign-in" context={{ returnTo: "/account" }} />);
+    expect(html).not.toContain("Pick up where you left off");
+    expect(html).not.toContain("Same account. Every connected computer.");
+    expect(html).toContain("Welcome");
+    expect(html).toContain("Continue with GitHub");
+  });
   test("sign-up keeps clear privacy and legal links", () => {
     const html = renderToStaticMarkup(<AuthPage mode="sign-up" context={{ returnTo: "/account" }} />);
     expect(html).toContain("Free for individuals");

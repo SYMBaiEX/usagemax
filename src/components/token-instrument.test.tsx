@@ -16,6 +16,13 @@ describe("UsageMax physical counter", () => {
     expect(html).toContain('data-ready="false"');
     expect(html).not.toContain('aria-label="Tokens: 0"');
   });
+  test("keeps the counter brand without decorative telemetry or serial labels", () => {
+    const html = renderToStaticMarkup(<TokenInstrument />);
+    expect(html).toContain("USAGEMAX");
+    expect(html).not.toContain("COUNTER / 01");
+    expect(html).not.toContain("FIRST-PARTY TELEMETRY");
+    expect(html).not.toContain("UM—001");
+  });
 
   test("renders supplied data with one selected, accessible metric control", () => {
     const html = renderToStaticMarkup(<TokenInstrument totals={{ totalTokens: 96_280_000_000, totalSessions: 4_160, totalCostMicros: 73_046_000_000 }} />);
