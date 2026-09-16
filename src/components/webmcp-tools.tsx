@@ -99,14 +99,13 @@ export function WebMcpTools() {
     // WebMCP is a progressive enhancement. Unsupported browsers pay only for
     // this feature-detection branch and keep the normal UI unchanged.
     const controller = new AbortController();
-    const standardContext = document.modelContext;
-    const detected = detectWebMcpContext(standardContext, navigator.modelContext);
-    if (detected?.source === "document" && standardContext && typeof standardContext.registerTool === "function") {
+    const detected = detectWebMcpContext(document.modelContext, navigator.modelContext);
+    if (detected?.source === "document" && document.modelContext && typeof document.modelContext.registerTool === "function") {
       for (const tool of tools) {
         try {
           // Keep the normative WebMCP call explicit. The browser API is
           // document.modelContext.registerTool(), with AbortSignal lifecycle.
-          void Promise.resolve(standardContext.registerTool(tool, { signal: controller.signal })).catch(() => undefined);
+          void Promise.resolve(document.modelContext.registerTool(tool, { signal: controller.signal })).catch(() => undefined);
         } catch {
           // A proposed browser API can change between origin-trial versions;
           // failing closed must never affect the visible UsageMax experience.
