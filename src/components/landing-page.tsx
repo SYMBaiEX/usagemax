@@ -142,10 +142,6 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
 
       <section className={styles.connectBand} aria-labelledby="connect-title">
         <div className={`${styles.wrap} ${styles.connect}`}>
-          <div className={styles.connectCopy}>
-            <h2 id="connect-title">Connect your computers.</h2>
-            <Link className={styles.textLink} href="/docs">Setup guide <ArrowUpRight size={15} /></Link>
-          </div>
           <div className={styles.setup}>
             <div className={styles.command}>
               <div className={styles.terminalTop}><span><i /><i /><i /></span><span>usagemax / terminal</span></div>
@@ -158,6 +154,10 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
               <li><span>03</span><div><h3>Sync usage</h3><p>Only aggregate counts are uploaded. Publishing your profile is optional.</p></div></li>
             </ol>
             <p className={styles.resourceNote}>One-shot syncs. No always-running background scanner.</p>
+          </div>
+          <div className={styles.connectCopy}>
+            <h2 id="connect-title">Connect your computers.</h2>
+            <Link className={styles.textLink} href="/docs">Setup guide <ArrowUpRight size={15} /></Link>
           </div>
         </div>
       </section>

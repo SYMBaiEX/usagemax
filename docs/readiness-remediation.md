@@ -1,7 +1,7 @@
 # UsageMax readiness checklist
 
 September 15, 2026. Scope: remediation of the package/platform audit against c8b5ecb.
-These are verified source changes, not a production deployment or capacity certification.
+Backend and website deployed September 15, 2026 after the owner explicitly waived hosted CI due to runner exhaustion. This is not a capacity certification. npm publication remains blocked on authentication.
 
 ## Implemented and locally verified
 
@@ -32,9 +32,9 @@ These are verified source changes, not a production deployment or capacity certi
 
 ## Remaining release and enterprise gates
 
-- [ ] Restore/verify hosted CI and CodeQL. The preceding audit found Actions blocked by its budget; local passing checks are not hosted security scanning.
-- [ ] Deploy additive Convex tables, optional fields, index and functions before deploying the web client. Verify the index is ready.
-- [ ] Deploy web changes and verify `/api/health` reports collector snapshotChunks=true, maxChunkRows=100 and recommendedCliVersion=0.3.1.
+- [ ] Hosted CI and CodeQL deferred by explicit owner approval for this release; restore when runners are available. Local checks are not hosted security scanning.
+- [x] Deployed additive Convex tables, optional fields, indexes and functions to rapid-rhinoceros-943 before the web client; schema validation and index deployment succeeded.
+- [x] PR #15 merged as 605f0b24f1d64e593e571226269b830ee45f833a. GitHub-triggered Vercel deployment dpl_4ZtcUn6vb6JKJS1fqDR9CHvA4suC is Ready and aliased to usagemax.com. Production CLI capability preflight passed for 0.3.1.
 - [ ] Publish npm 0.3.1 only after the backend gate and release checks pass; inspect the registry artifact and run a fresh real linking/sync smoke test.
 - [ ] Complete real customer invitations, SSO/SCIM, role changes, deprovisioning and provider credential/retry acceptance journeys.
 - [ ] Run authorized staging capacity tests for both independent personal users and a single hot enterprise workspace. Reconcile expected totals independently after failures/replays; the harness explicitly does not certify accounting itself.
