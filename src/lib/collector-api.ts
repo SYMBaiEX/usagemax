@@ -35,8 +35,8 @@ function error(message: string, status: number, headers?: HeadersInit, rateLimit
 function rateLimitHeaders(policy: string) {
   const limits = [...policy.matchAll(/(\d+);w=(\d+)/g)].map((match) => ({ limit: match[1], window: match[2] }));
   return {
-    "rate-limit-policy": policy,
-    ...(limits.length > 0 ? { "ratelimit-limit": limits.map(({ limit }) => limit).join(", "), "ratelimit-reset": limits.map(({ window }) => window).join(", ") } : {}),
+    "RateLimit-Policy": policy,
+    ...(limits.length > 0 ? { "RateLimit-Limit": limits.map(({ limit }) => limit).join(", "), "RateLimit-Reset": limits.map(({ window }) => window).join(", ") } : {}),
   };
 }
 

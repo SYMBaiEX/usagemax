@@ -7,8 +7,10 @@ describe("authorization server metadata", () => {
     const metadata = await response.json();
     expect(response.status).toBe(200);
     expect(metadata.issuer).toBe("https://usagemax.com");
-    expect(metadata.authorization_endpoint).toBe("https://usagemax.com/auth/start");
-    expect(metadata.token_endpoint_auth_methods_supported).toEqual([]);
+    expect(metadata.x_usagemax_authentication.browser_sign_in_endpoint).toBe("https://usagemax.com/auth/start");
+    expect(metadata).not.toHaveProperty("authorization_endpoint");
+    expect(metadata).not.toHaveProperty("token_endpoint");
+    expect(metadata).not.toHaveProperty("response_types_supported");
     expect(metadata.x_usagemax_authentication.oauth_delegation).toBe(false);
   });
 
