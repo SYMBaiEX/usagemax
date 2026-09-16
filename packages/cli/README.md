@@ -206,8 +206,11 @@ From the repository root:
 ```bash
 bun install
 bun run --cwd packages/cli test
-bun run --cwd packages/cli pack:check
+bun run --cwd packages/cli pack:check  # dry-run; lifecycle scripts disabled
 ```
+
+`pack:check` only inspects the local archive shape. It does not publish, contact
+the npm registry, or establish that any registry tag contains this version.
 
 The package is MIT-licensed. See the included [LICENSE](LICENSE), the
 repository [LICENSE](https://github.com/SYMBaiEX/usagemax/blob/main/LICENSE),
