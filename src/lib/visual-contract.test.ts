@@ -42,12 +42,13 @@ describe.each([false, true])("visual color contract, dark=%s", dark => {
   });
 });
 
-test("motion controls are removed without leaving indefinite decorative motion", () => {
+test("ambient motion continues without playback controls and respects reduced motion", () => {
   const control = readFileSync(new URL("../components/theme-controls.tsx", import.meta.url), "utf8");
   expect(control).not.toContain("motion-toggle");
-  for (const file of ["auth-page.module.css", "code-field.module.css", "teams-artwork.module.css"]) {
+  for (const file of ["auth-page.module.css", "code-field.module.css"]) {
     const css = readFileSync(new URL(`../components/${file}`, import.meta.url), "utf8");
-    expect(css).not.toMatch(/animation:[^;]*infinite/);
+    expect(css).toMatch(/animation:[^;]*infinite/);
+    expect(css).toContain("prefers-reduced-motion: reduce");
   }
   const responsive = readFileSync(new URL("../styles/responsive.css", import.meta.url), "utf8");
   expect(responsive).toContain("prefers-reduced-motion: reduce");

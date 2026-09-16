@@ -5,11 +5,11 @@
 .headerRight > a { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--ink-soft); }
 .headerRight > a:hover, .footer a:hover { color: var(--orange); }
 .layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); flex: 1; width: 100%; max-width: 1480px; margin: 0 auto; min-height: 600px; }
-.exhibit { position: relative; isolation: isolate; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; border-radius: var(--radius-panel, 18px); background: var(--surface-inset, #ece9df); padding: 34px 42px 28px; color: var(--ink); min-height: 600px; box-shadow: var(--shadow-float, 0 24px 56px -20px #263e2e40); }
-.exhibit::before { content: ""; position: absolute; z-index: -1; inset: 0; background: radial-gradient(ellipse at 70% 15%, #fff9e8, transparent 58%), linear-gradient(140deg, transparent 40%, #c3d2ba70); box-shadow: inset 0 1px 0 var(--edge-highlight, #fff), inset 0 -30px 70px -40px #48634d30; }
+.exhibit { position: relative; isolation: isolate; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; border-radius: var(--radius-panel, 18px); background: var(--surface-inset, #ece9df); padding: 34px 42px 28px; color: var(--ink); min-height: 600px; box-shadow: var(--shadow-float, 0 24px 56px -20px #3a383640); }
+.exhibit::before { content: ""; position: absolute; z-index: -1; inset: 0; background: radial-gradient(ellipse at 70% 15%, #fff9e8, transparent 58%), linear-gradient(140deg, transparent 40%, #cfcdcb70); box-shadow: inset 0 1px 0 var(--edge-highlight, #fff), inset 0 -30px 70px -40px #5e5c5a30; }
 .sculpture { position: relative; align-self: center; flex-shrink: 0; width: calc(100% + 84px); aspect-ratio: 560/420; margin: -34px -42px -12px; pointer-events: none; }
-.ribbon { position: absolute; inset: 0; width: 100%; height: 100%; animation: sculptureEntrance 1.4s cubic-bezier(.2,.7,.2,1) both; }
-.sculptureShadow { position: absolute; left: 25%; right: 17%; top: 78%; height: 12px; background: #525c3c2b; border-radius: 50%; filter: blur(16px); transform: rotate(-15deg); }
+.ribbon { position: absolute; inset: 0; width: 100%; height: 100%; animation: sculptureFloat 14s ease-in-out infinite; }
+.sculptureShadow { position: absolute; left: 25%; right: 17%; top: 78%; height: 12px; background: #5a58562b; border-radius: 50%; filter: blur(16px); transform: rotate(-15deg); }
 .core { position: absolute; inset: 47.6% auto auto 50%; width: 12%; color: #ad492d; transform: translate(-50%, -50%) rotate(-16deg); }
 .core svg { width: 100%; height: auto; }
 .exhibitCopy { position: relative; }
@@ -25,7 +25,7 @@
 .accessLabel { display: flex; align-items: center; gap: 8px; color: var(--ink-soft); font: 550 11px/1.5 var(--font-mono); margin-bottom: 26px; }
 .statusLight { width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
 .form h1 { font-size: clamp(42px, 4.3vw, 62px); line-height: 1.06; font-weight: var(--weight-heading, 650); letter-spacing: -.055em; }
-.form h1 span { color: var(--green); }
+.form h1 span { color: var(--orange); }
 .description { color: var(--ink-soft); font-size: 14px; line-height: 1.7; margin: 20px 0 30px; }
 .providers { display: grid; gap: 10px; }
 .provider { display: flex; align-items: center; gap: 14px; min-height: 52px; padding: 13px 17px; border-radius: var(--radius-control, 8px); font-size: 14px; font-weight: 600; transition: background .18s, transform .18s, box-shadow .18s; }
@@ -34,10 +34,10 @@
 .provider:not([aria-disabled="true"]):hover > svg:last-child { opacity: 1; transform: translateX(2px); }
 .provider[aria-disabled="true"] { cursor: wait; }
 .provider[aria-disabled="true"] > svg:last-child { opacity: .25; }
-.github { color: var(--button-text, #fff); background: var(--button-bg, #253e32); box-shadow: var(--shadow-control, 0 3px 8px #23362b30); }
+.github { color: var(--button-text, #fff); background: var(--button-bg, #3a3836); box-shadow: var(--shadow-control, 0 3px 8px #33312f30); }
 .github:not([aria-disabled="true"]):hover { background: var(--button-hover, #a93517); transform: translateY(-1px); }
-.google { color: var(--ink); background: var(--surface-card, #fffefa); box-shadow: var(--shadow-control, 0 3px 8px #23362b30); }
-.google:not([aria-disabled="true"]):hover { background: var(--surface-hover, #e4ebdd); transform: translateY(-1px); }
+.google { color: var(--ink); background: var(--surface-card, #fffefa); box-shadow: var(--shadow-control, 0 3px 8px #33312f30); }
+.google:not([aria-disabled="true"]):hover { background: var(--surface-hover, #ebe9e7); transform: translateY(-1px); }
 .sso { display: flex; justify-content: space-between; align-items: center; min-height: 46px; margin-top: 14px; padding: 8px 17px; font-size: 12px; color: var(--ink-soft); border-radius: var(--radius-control, 8px); }
 .sso > span { display: inline-flex; align-items: center; gap: 14px; }
 .sso > svg { opacity: .45; }
@@ -59,8 +59,8 @@
 /* Signal is a different composition, not a color inversion of Studio. */
 :global([data-theme="dark"]) .layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); }
 :global([data-theme="dark"]) .access { order: -1; padding-left: 12px; }
-:global([data-theme="dark"]) .exhibit { background: var(--surface-card, #141e24); padding: 36px; }
-:global([data-theme="dark"]) .exhibit::before { background: radial-gradient(ellipse at 52% 33%, var(--accent-glow, #ff85332b), transparent 56%), radial-gradient(ellipse at 95% 80%, #2a637747, transparent 65%); box-shadow: inset 0 1px 0 var(--edge-highlight, #bce2df21), inset 0 -40px 80px -30px #040b1280; }
+:global([data-theme="dark"]) .exhibit { background: var(--surface-card, #1e1c1a); padding: 36px; }
+:global([data-theme="dark"]) .exhibit::before { background: radial-gradient(ellipse at 52% 33%, var(--accent-glow, #ff85332b), transparent 56%), radial-gradient(ellipse at 95% 80%, #5a585647, transparent 65%); box-shadow: inset 0 1px 0 var(--edge-highlight, #dcdad821), inset 0 -40px 80px -30px #0c0a0880; }
 :global([data-theme="dark"]) .sculpture { opacity: .95; }
 :global([data-theme="dark"]) .ribbon { filter: drop-shadow(0 0 12px #ff7a2420); }
 :global([data-theme="dark"]) .sculptureShadow { background: #ff7a1817; }
@@ -75,11 +75,11 @@
 .codeForeground b { font-weight: 500; color: var(--ink); }
 .codeForeground em { font-style: normal; color: var(--blue); }
 .codeWindow > div:first-child { opacity: .1; }
-.codeCursor { position: absolute; bottom: 2px; left: 0; color: var(--orange); font-size: 12px; opacity: .7; animation: cursorEntrance 2.4s ease-out both; }
+.codeCursor { position: absolute; bottom: 2px; left: 0; color: var(--orange); font-size: 12px; opacity: .7; animation: cursorPulse 2.4s ease-in-out infinite; }
 :global([data-theme="dark"]) .statusLight { background: var(--orange); box-shadow: 0 0 9px var(--accent-glow); }
 :global([data-theme="dark"]) .form h1 span { color: var(--orange-dark); }
-@keyframes sculptureEntrance { from { opacity: .4; transform: translateY(8px) rotate(-2deg); } to { opacity: 1; transform: none; } }
-@keyframes cursorEntrance { from { opacity: 0; } to { opacity: .7; } }
+@keyframes sculptureFloat { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-9px) rotate(2deg); } }
+@keyframes cursorPulse { 0%, 100% { opacity: .8; } 50% { opacity: .25; } }
 :global([data-motion="off"]) .ribbon, :global([data-motion="off"]) .codeCursor { animation: none; }
 :global([data-motion="off"]) .provider, :global([data-motion="off"]) .provider > svg:last-child { transition: none; }
 @media (prefers-reduced-motion: reduce) { .ribbon, .codeCursor { animation: none; } .provider, .provider > svg:last-child { transition: none; } }

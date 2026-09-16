@@ -1,0 +1,9 @@
+.surface { min-width: 0; }
+/* Browser-managed scroll motion: no timers, scroll listeners, or React frame updates. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) and (min-width: 800px) {
+    .parallax { animation: depth linear both; animation-timeline: view(); animation-range: entry 0% exit 100%; }
+  }
+}
+@keyframes depth { from { transform: translateY(12px); } to { transform: translateY(-12px); } }
+@media (prefers-reduced-motion: reduce) { .parallax { animation: none; } }

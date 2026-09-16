@@ -15,6 +15,7 @@ import { TokenInstrument } from "./token-instrument";
 import { ProfileAvatar } from "./profile-avatar";
 import { TeamsShowcase } from "./teams-showcase";
 import { CodeField } from "./code-field";
+import { MotionSurface } from "./motion-surface";
 
 type Network = FunctionReturnType<typeof api.public.network>;
 type Ranking = FunctionReturnType<typeof api.public.leaderboard>;
@@ -123,7 +124,7 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
         <div className={styles.instrumentStage}>
           <CodeField />
           <div className={styles.stageLabel} aria-hidden="true"><span>USAGEMAX / NETWORK RECORD</span><span>READ-ONLY INSTRUMENT</span></div>
-          <TokenInstrument totals={network} />
+          <MotionSurface parallax><TokenInstrument totals={network} /></MotionSurface>
           <div className={styles.stageReadout}><code><span>usage.network</span> {"{"} tokens: <b>{network ? compactNumber(network.totalTokens, 2) : "null"}</b>, sessions: <b>{network ? compactNumber(network.totalSessions, 2) : "null"}</b> {"}"}</code><span>Source: connected accounts</span></div>
         </div>
         </div>
@@ -137,7 +138,7 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
         <Link href="/docs">16 local sources <ArrowUpRight size={12} /></Link>
       </div>
 
-      <PublicLedger rows={rows} period={period} metric={metric} setPeriod={setPeriod} setMetric={setMetric} connected={connected} />
+      <MotionSurface><PublicLedger rows={rows} period={period} metric={metric} setPeriod={setPeriod} setMetric={setMetric} connected={connected} /></MotionSurface>
 
       <section className={styles.connectBand} aria-labelledby="connect-title">
         <div className={`${styles.wrap} ${styles.connect}`}>
@@ -161,7 +162,7 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
         </div>
       </section>
 
-      <div className={styles.wrap}><TeamsShowcase /></div>
+      <div className={styles.wrap}><MotionSurface><TeamsShowcase /></MotionSurface></div>
     </div>
   );
 }

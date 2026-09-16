@@ -26,7 +26,7 @@ pre, code { font-family: var(--font-mono); }
 .section-index, .eyebrow, .docs-section-kicker, .metric-label, .feed-label { color: var(--ink-faint); font: 500 var(--text-micro)/1.5 var(--font-mono); letter-spacing: .07em; text-transform: uppercase; }
 .eyebrow { display: flex; align-items: center; gap: 10px; }
 .eyebrow-line { width: 5px; height: 5px; border-radius: 50%; background: var(--orange); }
-.text-accent { color: var(--green); font: inherit; letter-spacing: inherit; }
+.text-accent { color: var(--orange); font: inherit; letter-spacing: inherit; }
 .text-link, .arrow-link { display: inline-flex; align-items: center; gap: 10px; min-height: 40px; font-size: 12px; font-weight: 600; }
 .text-link:hover, .arrow-link:hover { color: var(--orange); }
 .inline-links { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
