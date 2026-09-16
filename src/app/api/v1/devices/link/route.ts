@@ -19,6 +19,7 @@ export async function POST(request: Request) {
     ...payload,
     ingestUrl: publicApiUrl("/v1/telemetry/llm"),
     snapshotUrl: publicApiUrl("/v2/usage/snapshots"),
+    statusUrl: publicApiUrl("/v1/devices/status"),
     revokeUrl: publicApiUrl("/v1/devices/revoke"),
   }, { status: response.status, headers });
 }

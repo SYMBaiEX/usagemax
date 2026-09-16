@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { requestSnapshot, retryAfterMs } from "./transport.js";
+
+import { collectorStatusView, requestCollectorStatus, requestSnapshot, retryAfterMs } from "./transport.js";
 
 const config = { token: "secret", deviceId: "fixture" };
 const response = (status, body, retryAfter) => ({ ok: status < 300, status, json: async () => body, headers: { get: () => retryAfter } });
@@ -38,4 +39,45 @@ test("exhausted network and malformed success responses never claim success", as
     }), network ? /network connection/ : /invalid_response/);
     assert.equal(calls, 5);
   }
+});
+
+const token = `umx_${"a".repeat(64)}`;
+const deviceId = "01234567-89ab-4cde-8fab-0123456789ab";
+
+test("collector status sends the credential only as a bearer header", async () => {
+  let request;
+  const result = await requestCollectorStatus("https://usagemax.com/api/v1/devices/status", { token, deviceId }, {
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return new Response(JSON.stringify({
+        status: "active",
+        credentialType: "collector",
+        writeOnly: true,
+        activation: "not_required",
+        expiresAt: null,
+        scopes: ["telemetry:write"],
+        deviceBinding: "matched",
+        profileHandle: "builder",
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    },
+  });
+
+  assert.equal(request.url, "https://usagemax.com/api/v1/devices/status");
+  assert.equal(request.options.method, "GET");
+  assert.equal(request.options.headers.authorization, `Bearer ${token}`);
+  assert.equal(request.options.headers["x-usagemax-device-id"], deviceId);
+  assert.equal(new URL(request.url).search, "");
+  assert.equal(result.httpStatus, 200);
+  const view = collectorStatusView(result.httpStatus, result.body);
+  assert.equal(view.status, "active");
+  assert.equal(JSON.stringify(view).includes(token), false);
+  assert.equal("keyHash" in view, false);
+});
+
+test("collector status reduces an unknown credential to a safe rejection", () => {
+  const view = collectorStatusView(401, { error: "unauthorized", token });
+  assert.equal(view.status, "rejected");
+  assert.equal(view.tokenFormat, "valid");
+  assert.equal(JSON.stringify(view).includes(token), false);
+  assert.equal("error" in view, false);
 });

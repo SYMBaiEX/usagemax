@@ -12,6 +12,17 @@ returns `Deprecation: true` and a `Sunset` date. `POST /api/v1/sandbox/validate`
 validates the content-free telemetry batch contract without authentication or
 storage and never accepts prompts, completions, secrets, or unknown fields.
 
+### Collector diagnostics
+
+`GET /api/v1/devices/status` is a read-only credential check. Send the collector
+key in `Authorization: Bearer …` and, when checking a particular installation,
+send `x-usagemax-device-id`. The response never includes the token, its hash, or
+the raw authorized UUID. A recognized key reports its collector type, write
+scopes, profile/name, activation state, and one of `active`, `revoked`,
+`workspace_disabled`, `membership_inactive`, or `device_mismatch`. A key created
+through the advanced account flow is active immediately and remains unbound
+until its first valid write; linked CLI keys are bound during link exchange.
+
 - **Snapshot v2** is the recommended path for local coding-agent history. It is
   authoritative, correction-aware, and optimized for a short-lived CLI run.
 - **Event v2** records live model attempts, tool calls, agent state, and outcomes.

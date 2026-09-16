@@ -17,7 +17,7 @@ describe("UsageMax OpenAPI contract", () => {
     expect(Object.keys(document.paths)).toEqual(expect.arrayContaining([
       "/api/health", "/api/stats", "/api/leaderboard", "/api/profiles/{handle}",
       "/api/profiles/{handle}/daily", "/api/profiles/{handle}/daily/detail",
-      "/api/v1/devices/link", "/api/v1/devices/revoke", "/api/v1/telemetry/llm",
+      "/api/v1/devices/link", "/api/v1/devices/status", "/api/v1/devices/revoke", "/api/v1/telemetry/llm",
       "/api/v1/traces", "/api/v2/usage/snapshots",
       "/api", "/api/v1/sandbox", "/api/v1/sandbox/validate", "/api/v1/batch", "/api/v1/batch/validate",
     ]));
@@ -30,6 +30,8 @@ describe("UsageMax OpenAPI contract", () => {
     expect(document.components.schemas.NativeTelemetryBatch.properties.events.maxItems).toBe(100);
     expect(document.components.schemas.NativeTelemetryBatch.properties.events.items.properties.eventKey.maxLength).toBe(180);
     expect(document.paths["/api/v1/devices/link"].post.parameters.find((parameter) => parameter.name === "authorization")?.required).toBe(false);
+    expect(document.paths["/api/v1/devices/status"].get.security).toEqual([{ collectorBearer: [] }]);
+    expect(document.components.schemas.CollectorStatus.properties.expiresAt).toEqual({ type: "null" });
     expect(document.paths["/api/v1/devices/revoke"].post.security).toEqual([{ collectorBearer: [] }]);
     expect(document.paths["/api/v2/usage/snapshots"].post.requestBody.content["application/json"].schema).toEqual({ $ref: "#/components/schemas/SnapshotOperation" });
     expect(document.paths["/api/v1/sandbox/validate"].post.responses["200"]).toBeDefined();

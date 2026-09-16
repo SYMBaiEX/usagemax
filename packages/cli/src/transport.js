@@ -7,6 +7,73 @@ export function retryAfterMs(value, now = Date.now()) {
   return Number.isFinite(date) ? Math.max(0, date - now) : 0;
 }
 
+function record(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+
+const collectorStates = new Set(["active", "revoked", "workspace_disabled", "membership_inactive", "device_mismatch"]);
+const deviceBindings = new Set(["unbound", "bound", "matched", "mismatch"]);
+
+// Only copy the documented diagnostic projection. This keeps a compromised or
+// misconfigured endpoint from echoing a collector secret through the CLI.
+export function collectorStatusView(httpStatus, value) {
+  const body = record(value);
+  const view = { tokenFormat: "valid", httpStatus };
+  if (!body) {
+    return {
+      ...view,
+      status: httpStatus === 401 ? "rejected" : "unavailable",
+      reason: httpStatus === 401
+        ? "UsageMax did not accept this collector token. It may be unknown, revoked, disabled, or from another deployment."
+        : "UsageMax returned no machine-readable collector status.",
+    };
+  }
+
+  if (typeof body.status === "string" && collectorStates.has(body.status)) view.status = body.status;
+  if (body.credentialType === "collector") view.credentialType = body.credentialType;
+  if (body.writeOnly === true) view.writeOnly = true;
+  if (body.activation === "not_required") view.activation = body.activation;
+  if (body.expiresAt === null) view.expiresAt = null;
+  if (Array.isArray(body.scopes)) view.scopes = body.scopes.filter((scope) => typeof scope === "string").slice(0, 16);
+  if (typeof body.deviceBinding === "string" && deviceBindings.has(body.deviceBinding)) view.deviceBinding = body.deviceBinding;
+  for (const key of ["profileHandle", "deviceName", "platform", "cliVersion", "lastFailureCode"]) {
+    if (typeof body[key] === "string") view[key] = body[key].slice(0, 160);
+  }
+  for (const key of ["createdAt", "lastSeenAt", "lastSuccessAt", "lastFailureAt"]) {
+    if (typeof body[key] === "number" && Number.isSafeInteger(body[key])) view[key] = body[key];
+    else if (body[key] === null) view[key] = null;
+  }
+  if (!view.status) {
+    view.status = httpStatus === 401 ? "rejected" : "unavailable";
+    view.reason = httpStatus === 401
+      ? "UsageMax did not accept this collector token. It may be unknown, revoked, disabled, or from another deployment."
+      : "UsageMax returned an incomplete collector status.";
+  }
+  return view;
+}
+
+export async function requestCollectorStatus(endpoint, config, {
+  timeout = 15_000,
+  fetchImpl = fetch,
+} = {}) {
+  let response;
+  try {
+    response = await fetchImpl(endpoint, {
+      method: "GET",
+      headers: {
+        authorization: `Bearer ${config.token}`,
+        ...(config.deviceId ? { "x-usagemax-device-id": config.deviceId } : {}),
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(timeout),
+    });
+  } catch {
+    throw new Error("Collector status could not reach UsageMax or timed out. Check your network connection.");
+  }
+  const body = await response.json().catch(() => null);
+  return { httpStatus: response.status, body };
+}
+
 // Only snapshot operations have server receipts. Never automatically replay a
 // one-use link request or apply this policy to arbitrary POST operations.
 export async function requestSnapshot(endpoint, config, operation, payload, {

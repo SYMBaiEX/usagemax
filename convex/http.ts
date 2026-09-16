@@ -379,6 +379,7 @@ const linkDevice = httpAction(async (ctx, request) => {
       token,
       ingestUrl: new URL("/v1/telemetry/llm", request.url).toString(),
       snapshotUrl: new URL("/v2/usage/snapshots", request.url).toString(),
+      statusUrl: new URL("/v1/devices/status", request.url).toString(),
       revokeUrl: new URL("/v1/devices/revoke", request.url).toString(),
       recommendedCliVersion: RECOMMENDED_CLI_VERSION,
       profileHandle: result.handle,
@@ -554,6 +555,45 @@ const revokeDevice = httpAction(async (ctx, request) => {
   }
 });
 
+const collectorStatus = httpAction(async (ctx, request) => {
+  let auth: { keyHash: string; installationIdHash?: string };
+  try {
+    auth = await authorizationContext(request);
+  } catch (error) {
+    if (String(error).includes("INVALID_DEVICE_ID")) return jsonResponse({ error: "invalid_device_id" }, 400);
+    return jsonResponse(
+      {
+        error: "unauthorized",
+        message: "A valid UsageMax collector token is required.",
+        hint: "Send the token in Authorization and never put it in a URL or request body.",
+      },
+      401,
+      { "www-authenticate": 'Bearer resource_metadata="https://usagemax.com/.well-known/oauth-protected-resource"' },
+    );
+  }
+
+  try {
+    const result = await ctx.runQuery(internal.account.inspectCollector, auth);
+    if (!result) {
+      return jsonResponse(
+        {
+          error: "unauthorized",
+          message: "UsageMax could not authenticate this collector token.",
+          hint: "Confirm that the key was created in this UsageMax account and has not been replaced or revoked.",
+        },
+        401,
+        { "www-authenticate": 'Bearer resource_metadata="https://usagemax.com/.well-known/oauth-protected-resource"' },
+      );
+    }
+    return jsonResponse(
+      { ok: result.status === "active", ...result },
+      result.status === "device_mismatch" ? 409 : 200,
+    );
+  } catch {
+    return jsonResponse({ error: "collector_status_unavailable" }, 503);
+  }
+});
+
 const workosLifecycle = httpAction(async (ctx, request) => {
   const secret = process.env.WORKOS_WEBHOOK_SECRET;
   const clientId = process.env.WORKOS_CLIENT_ID;
@@ -644,6 +684,7 @@ const cors = httpAction(async (_ctx, request) => {
 
 http.route({ path: "/health", method: "GET", handler: httpAction(async () => jsonResponse({ ok: true, service: "usagemax-ingest", storage: "convex", protocol: 2, recommendedCliVersion: RECOMMENDED_CLI_VERSION })) });
 http.route({ path: "/v1/devices/link", method: "POST", handler: linkDevice });
+http.route({ path: "/v1/devices/status", method: "GET", handler: collectorStatus });
 http.route({ path: "/v1/devices/revoke", method: "POST", handler: revokeDevice });
 http.route({ path: "/v2/usage/snapshots", method: "POST", handler: snapshots });
 http.route({ path: "/v1/telemetry/llm", method: "POST", handler: httpAction((ctx, request) => ingest(ctx, request, "native")) });

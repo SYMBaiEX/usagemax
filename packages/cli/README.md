@@ -45,6 +45,8 @@ bunx usagemax sync --dry-run --explain
                                       # inspect the exact bounded plan; upload nothing
 bunx usagemax link UMX-… --no-sync  # link without uploading yet
 bunx usagemax status                # show link and last-sync state
+bunx usagemax status --remote       # verify the stored key without printing it
+bunx usagemax token status          # diagnose a key piped via stdin only
 bunx usagemax doctor                # metadata-only source check
 bunx usagemax doctor --deep --json  # machine-readable retained-history audit
 bunx usagemax report                # open ccusage's local daily report
@@ -134,6 +136,22 @@ It never automatically replays an old authoritative deletion against newer data.
 Use `USAGEMAX_CONFIG_DIR` to select another config directory. Development and
 self-hosted installations may set `USAGEMAX_LINK_ENDPOINT` before linking.
 
+For a key created under **Advanced · custom telemetry collector**, use the
+read-only diagnostic without putting the secret in shell history or process
+arguments:
+
+```bash
+printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
+  | bunx usagemax token status --device-id "$USAGEMAX_INSTALLATION_ID"
+```
+
+The diagnostic reports the key format, collector type, scopes, activation
+state, profile/name, and whether the supplied installation is unbound, bound,
+matched, or mismatched. It never returns or prints the token. Advanced keys
+are active immediately, do not need propagation, and bind their first valid
+installation on the first write. Use the [zero-token telemetry example](https://usagemax.com/api/v1/sandbox)
+for a no-accounting contract check.
+
 ## Optional automatic sync
 
 Automatic sync is **off by default**. Install a persistent CLI first (a bunx/npx
@@ -182,7 +200,7 @@ Activity Monitor/Task Manager does not show the scheduled job as a generic
 `node` process. Re-run `service install` after upgrading Node or moving the CLI
 so the staged runtime is refreshed.
 
-## Interrupted uploads and protocol 0.3.1
+## Interrupted uploads and protocol details
 
 Before uploading, the CLI saves the exact run, ordered request payloads and next
 checkpoint in the private config. `sync` resumes this journal before scanning new

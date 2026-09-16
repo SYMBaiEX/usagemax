@@ -14,7 +14,7 @@ import { prepareArchiveRecovery } from "./archives.js";
 import { buildSessionPlan, buildSnapshotPlan, normalizeLinkCode, reportDateArgs, scanPolicy, sourceSummary, validHttpsUrl } from "./core.js";
 import { stableInstallationId } from "./installation.js";
 import { intervalMinutes, manageService, runScheduledSync } from "./service.js";
-import { requestSnapshot } from "./transport.js";
+import { collectorStatusView, requestCollectorStatus, requestSnapshot } from "./transport.js";
 import { resumeUpload, restartExpiredUpload, withConfigLock } from "./resume.js";
 import { CCUSAGE_VERSION, ccusageEnvironment, ccusageHome, discoverProviderArchives, SOURCE_INVENTORY_VERSION, sourceInventory, SUPPORTED_SOURCES } from "./sources.js";
 
@@ -27,8 +27,11 @@ const executeFile = promisify(execFile);
 const VERSION = "0.3.6";
 const PUBLIC_API_ORIGIN = "https://usagemax.com/api";
 const DEFAULT_LINK_ENDPOINT = `${PUBLIC_API_ORIGIN}/v1/devices/link`;
+const DEFAULT_STATUS_ENDPOINT = `${PUBLIC_API_ORIGIN}/v1/devices/status`;
 const CONFIG_FILE = "config.json";
 const MAX_REPORT_BYTES = 100 * 1024 * 1024;
+const TOKEN_PATTERN = /^umx_[a-f0-9]{64}$/;
+const DEVICE_PATTERN = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 
 function configDirectory() {
   if (process.env.USAGEMAX_CONFIG_DIR) return process.env.USAGEMAX_CONFIG_DIR;
@@ -55,18 +58,21 @@ function isLegacyDirectApi(config) {
 async function readConfig() {
   try {
     const parsed = JSON.parse(await readFile(configPath(), "utf8"));
-    if (!parsed || parsed.version !== 1 || !/^umx_[a-f0-9]{64}$/.test(parsed.token || "")) return null;
+    if (!parsed || parsed.version !== 1 || !TOKEN_PATTERN.test(parsed.token || "")) return null;
     if (!validHttpsUrl(parsed.ingestUrl, { allowLocalhost: true })) return null;
     if (typeof parsed.deviceId !== "string" || !parsed.deviceId) return null;
     parsed.snapshots = parsed.snapshots && typeof parsed.snapshots === "object" ? parsed.snapshots : {};
     if (isLegacyDirectApi(parsed)) {
       parsed.ingestUrl = `${PUBLIC_API_ORIGIN}/v1/telemetry/llm`;
       parsed.snapshotUrl = `${PUBLIC_API_ORIGIN}/v2/usage/snapshots`;
+      parsed.statusUrl = `${PUBLIC_API_ORIGIN}/v1/devices/status`;
       parsed.revokeUrl = `${PUBLIC_API_ORIGIN}/v1/devices/revoke`;
       await writeConfig(parsed);
     }
     parsed.snapshotUrl = validHttpsUrl(parsed.snapshotUrl, { allowLocalhost: true })
       || parsed.ingestUrl.replace(/\/v1\/telemetry\/llm$/, "/v2/usage/snapshots");
+    parsed.statusUrl = validHttpsUrl(parsed.statusUrl, { allowLocalhost: true })
+      || parsed.ingestUrl.replace(/\/v1\/telemetry\/llm$/, "/v1/devices/status");
     parsed.revokeUrl = validHttpsUrl(parsed.revokeUrl, { allowLocalhost: true })
       || parsed.ingestUrl.replace(/\/v1\/telemetry\/llm$/, "/v1/devices/revoke");
     return parsed;
@@ -113,6 +119,9 @@ function help() {
   process.stdout.write("  usagemax sync [--full] [--archives] [--restart] [--dry-run] [--explain] [--json]\n");
   process.stdout.write("                                  Reconcile once; --archives performs one-time recovery\n");
   process.stdout.write("  usagemax status                  Show local link status\n");
+  process.stdout.write("           --remote [--json]        Verify the stored collector credential without printing it\n");
+  process.stdout.write("  usagemax token status [--device-id <uuid>] [--json]\n");
+  process.stdout.write("                                  Diagnose a key piped on stdin; never pass it as an argument\n");
   process.stdout.write("  usagemax service install [--every 15]\n");
   process.stdout.write("                                  Opt into lightweight OS-scheduled sync\n");
   process.stdout.write("  usagemax service status|run|uninstall\n");
@@ -187,8 +196,9 @@ async function link(args) {
   if (!response.ok) throw new Error(body?.error === "invalid_or_expired_link_code" ? "That link code is invalid, expired, or already used." : "UsageMax could not link this computer.");
   const ingestUrl = validHttpsUrl(body.ingestUrl, { allowLocalhost: true });
   const snapshotUrl = validHttpsUrl(body.snapshotUrl, { allowLocalhost: true }) || ingestUrl?.replace(/\/v1\/telemetry\/llm$/, "/v2/usage/snapshots");
+  const statusUrl = validHttpsUrl(body.statusUrl, { allowLocalhost: true }) || ingestUrl?.replace(/\/v1\/telemetry\/llm$/, "/v1/devices/status");
   const revokeUrl = validHttpsUrl(body.revokeUrl, { allowLocalhost: true }) || ingestUrl?.replace(/\/v1\/telemetry\/llm$/, "/v1/devices/revoke");
-  if (!/^umx_[a-f0-9]{64}$/.test(body.token || "") || !ingestUrl || !snapshotUrl || !revokeUrl) throw new Error("UsageMax returned an invalid link response.");
+  if (!TOKEN_PATTERN.test(body.token || "") || !ingestUrl || !snapshotUrl || !statusUrl || !revokeUrl) throw new Error("UsageMax returned an invalid link response.");
   const profileHandle = typeof body.profileHandle === "string" ? body.profileHandle : undefined;
   const savedName = typeof body.deviceName === "string" && body.deviceName.trim() ? body.deviceName.trim().slice(0, 80) : (name || deviceLabel());
   const sameAccount = Boolean(previous && previous.profileHandle && previous.profileHandle === profileHandle);
@@ -197,6 +207,7 @@ async function link(args) {
     token: body.token,
     ingestUrl,
     snapshotUrl,
+    statusUrl,
     revokeUrl,
     profileUrl: validHttpsUrl(body.profileUrl) || "https://usagemax.com/account",
     profileHandle,
@@ -358,9 +369,36 @@ async function syncPrepared(args, suppliedConfig, recovery) {
   return result;
 }
 
-async function status() {
+function collectorStatusEndpoint(config) {
+  return validHttpsUrl(process.env.USAGEMAX_STATUS_ENDPOINT, { allowLocalhost: true })
+    || validHttpsUrl(config.statusUrl, { allowLocalhost: true })
+    || config.ingestUrl.replace(/\/v1\/telemetry\/llm$/, "/v1/devices/status");
+}
+
+function printRemoteStatus(view) {
+  process.stdout.write(`Remote credential: ${view.status || "unavailable"}${view.httpStatus ? ` (HTTP ${view.httpStatus})` : ""}\n`);
+  if (view.reason) process.stdout.write(`${view.reason}\n`);
+  if (view.credentialType) process.stdout.write(`Type: ${view.credentialType}${view.writeOnly ? "; write-only" : ""}\n`);
+  if (view.scopes?.length) process.stdout.write(`Scopes: ${view.scopes.join(", ")}\n`);
+  if (view.deviceBinding) process.stdout.write(`Device binding: ${view.deviceBinding}\n`);
+  if (view.profileHandle) process.stdout.write(`Profile: @${view.profileHandle}\n`);
+  if (view.deviceName) process.stdout.write(`Computer: ${view.deviceName}\n`);
+  if (view.platform || view.cliVersion) process.stdout.write(`Runtime: ${view.platform || "unknown"}${view.cliVersion ? ` · CLI ${view.cliVersion}` : ""}\n`);
+  if (view.activation) process.stdout.write(`Activation: ${view.activation}\n`);
+  if (view.expiresAt === null) process.stdout.write("Expiration: none\n");
+  if (view.lastSuccessAt) process.stdout.write(`Last accepted write: ${new Date(view.lastSuccessAt).toISOString()}\n`);
+  if (view.lastFailureAt) process.stdout.write(`Last rejected write: ${new Date(view.lastFailureAt).toISOString()}${view.lastFailureCode ? ` · ${view.lastFailureCode}` : ""}\n`);
+}
+
+async function status(args = []) {
   const config = await readConfig();
+  const remote = args.includes("--remote");
+  const json = args.includes("--json");
   if (!config) {
+    if (json) {
+      process.stdout.write(`${JSON.stringify({ linked: false, remote: remote ? { status: "not_linked" } : undefined })}\n`);
+      return;
+    }
     process.stdout.write("Not linked. Open https://usagemax.com/account to connect this computer.\n");
     return;
   }
@@ -369,11 +407,62 @@ async function status() {
     config.deviceId = stableId;
     await writeConfig(config);
   }
+  const local = {
+    linked: true,
+    deviceName: config.deviceName || deviceLabel(),
+    profileHandle: config.profileHandle || null,
+    deviceIdConfigured: Boolean(config.deviceId),
+    lastSyncAt: config.lastSyncAt || null,
+    lastFullSyncAt: config.lastFullSyncAt || null,
+    pendingSync: config.pendingSync?.runId || null,
+    profileUrl: config.profileUrl || "https://usagemax.com/account",
+  };
+  let remoteView;
+  if (remote) {
+    try {
+      const result = await requestCollectorStatus(collectorStatusEndpoint(config), config);
+      remoteView = collectorStatusView(result.httpStatus, result.body);
+    } catch (error) {
+      remoteView = { tokenFormat: "valid", status: "unavailable", reason: error instanceof Error ? error.message : "Collector status unavailable." };
+    }
+    if (json) {
+      process.stdout.write(`${JSON.stringify({ ...local, remote: remoteView })}\n`);
+      return;
+    }
+  }
+  if (json) {
+    process.stdout.write(`${JSON.stringify(local)}\n`);
+    return;
+  }
   process.stdout.write(`Linked: ${config.deviceName || deviceLabel()}${config.profileHandle ? ` → @${config.profileHandle}` : ""}\n`);
   process.stdout.write(`Last sync: ${config.lastSyncAt || "never"}\n`);
   process.stdout.write(`Last full reconciliation: ${config.lastFullSyncAt || "never"}\n`);
   if (config.pendingSync) process.stdout.write(`Pending sync: ${config.pendingSync.runId}; rerun sync to resume\n`);
   process.stdout.write(`Profile: ${config.profileUrl || "https://usagemax.com/account"}\n`);
+  if (remote) printRemoteStatus(remoteView);
+}
+
+async function readTokenFromStdin() {
+  if (process.stdin.isTTY) throw new Error("Pipe the collector token on stdin; never pass it as a command-line argument.");
+  const token = (await readFile(0, "utf8")).trim();
+  if (!TOKEN_PATTERN.test(token)) throw new Error("stdin did not contain a valid UsageMax collector token (expected umx_ plus 64 lowercase hexadecimal characters).");
+  return token;
+}
+
+async function tokenStatus(args = []) {
+  const requestedDeviceId = option(args, "--device-id");
+  if (requestedDeviceId && !DEVICE_PATTERN.test(requestedDeviceId)) throw new Error("--device-id must be a UUID.");
+  const token = await readTokenFromStdin();
+  const configuredEndpoint = process.env.USAGEMAX_STATUS_ENDPOINT || DEFAULT_STATUS_ENDPOINT;
+  const endpoint = validHttpsUrl(configuredEndpoint, { allowLocalhost: true });
+  if (!endpoint) throw new Error("USAGEMAX_STATUS_ENDPOINT must use HTTPS, except for localhost development.");
+  const result = await requestCollectorStatus(endpoint, { token, deviceId: requestedDeviceId });
+  const view = collectorStatusView(result.httpStatus, result.body);
+  if (args.includes("--json")) process.stdout.write(`${JSON.stringify(view)}\n`);
+  else {
+    process.stdout.write("Credential format: valid (umx_ + 64 lowercase hexadecimal characters)\n");
+    printRemoteStatus(view);
+  }
 }
 
 async function doctor(args = []) {
@@ -480,11 +569,12 @@ async function main() {
     return;
   }
   if (command === "report") return report(args.slice(1));
+  if (command === "token" && args[1] === "status") return tokenStatus(args.slice(2));
   if (["link", "sync", "status", "doctor", "unlink"].includes(command)) {
     return withConfigLock(configDirectory(), async () => {
       if (command === "link") return link(args.slice(1));
       if (command === "sync") return sync(args.slice(1));
-      if (command === "status") return status();
+      if (command === "status") return status(args.slice(1));
       if (command === "doctor") return doctor(args.slice(1));
       return removeLink(args.slice(1));
     });
