@@ -6,6 +6,7 @@ import { GET, HEAD } from "./route";
 describe("Agent Skills discovery index", () => {
   it("publishes digest-pinned first-party skill routes", async () => {
     const body = await (await GET()).json();
+    expect(body.version).toBe("0.2.0");
     expect(body.$schema).toBe("https://schemas.agentskills.io/discovery/0.2.0/schema.json");
     expect(body.skills).toEqual([
       expect.objectContaining({ name: "usage-observability", type: "skill-md", digest: expect.stringMatching(/^sha256:[a-f0-9]{64}$/) }),

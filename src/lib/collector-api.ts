@@ -22,9 +22,13 @@ const errorGuidance: Record<string, { message: string; hint: string }> = {
 
 function error(message: string, status: number, headers?: HeadersInit, rateLimitPolicy = "180;w=60") {
   const guidance = errorGuidance[message] ?? { message: "The collector request was rejected.", hint: "Check the response error code and the API documentation." };
+  const responseHeaders = new Headers({ "cache-control": "no-store", "x-request-id": crypto.randomUUID(), "x-api-version": "1", ...rateLimitHeaders(rateLimitPolicy) });
+  if (headers) {
+    for (const [name, value] of new Headers(headers)) responseHeaders.set(name, value);
+  }
   return Response.json({ error: message, message: guidance.message, hint: guidance.hint, documentation: API_DOCUMENTATION }, {
     status,
-    headers: { "cache-control": "no-store", "x-request-id": crypto.randomUUID(), "x-api-version": "1", ...rateLimitHeaders(rateLimitPolicy), ...headers },
+    headers: responseHeaders,
   });
 }
 
@@ -38,7 +42,7 @@ function rateLimitHeaders(policy: string) {
 
 function safeResponseHeaders(source: Headers) {
   const headers = new Headers({ "cache-control": "no-store", "x-request-id": crypto.randomUUID(), "x-api-version": "1" });
-  for (const name of ["content-type", "location", "retry-after", "www-authenticate", "x-request-id", "rate-limit", "rate-limit-policy", "rate-limit-limit", "rate-limit-remaining", "rate-limit-reset"]) {
+  for (const name of ["content-type", "location", "retry-after", "www-authenticate", "x-request-id", "rate-limit", "rate-limit-policy", "rate-limit-limit", "rate-limit-remaining", "rate-limit-reset", "ratelimit-policy", "ratelimit-limit", "ratelimit-remaining", "ratelimit-reset"]) {
     const value = source.get(name);
     if (value) headers.set(name, value);
   }

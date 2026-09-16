@@ -17,6 +17,7 @@ const trustManifest = {
 export const manifest = {
   specVersion: "0.91",
   icon: `${origin}/brand/icon-192.png`,
+  trustManifest,
   entries: [
     {
       "@context": "https://agenticresourcediscovery.org/context/v1",
