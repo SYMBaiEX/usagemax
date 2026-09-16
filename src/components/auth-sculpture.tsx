@@ -25,7 +25,7 @@ const ribbons = Array.from({ length: 56 }, (_, index) => ribbon(index / 56 * Mat
 export function AuthSculpture() {
   return <div className={styles.sculpture} aria-hidden="true">
     <div className={styles.sculptureShadow} />
-    <svg viewBox="0 0 560 420" fill="none" className={styles.ribbon}>
+    <svg viewBox="60 30 440 380" fill="none" className={styles.ribbon}>
       <defs>
         <linearGradient id="auth-ribbon" x1="80" y1="100" x2="450" y2="350" gradientUnits="userSpaceOnUse">
           <stop stopColor="#ffd6a0" /><stop offset=".28" stopColor="#fb8452" /><stop offset=".57" stopColor="#af341b" /><stop offset=".82" stopColor="#f77742" /><stop offset="1" stopColor="#ffbe7d" />

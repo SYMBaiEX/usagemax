@@ -17,7 +17,7 @@ export function TokenInstrument({ totals }: { totals?: InstrumentTotals }) {
     <div className={styles.scene}>
       <div className={styles.floor} aria-hidden="true" />
       <figure className={styles.machine} aria-label="Interactive UsageMax network counter">
-        <div className={styles.top}><span><UsageMark size={20} /> USAGEMAX</span><span>COUNTER / 01</span></div>
+        <div className={styles.top}><span><UsageMark size={20} /> USAGEMAX</span></div>
         <div className={styles.face}>
           <div className={styles.caption}><span>{mode === 2 ? "TRACKED COST · USD" : `${modes[mode].toUpperCase()} COUNTED`}</span><span>ALL TIME</span></div>
           <div className={styles.digits} aria-label={`${modes[mode]}: ${value}`} aria-live="polite" aria-atomic="true">
@@ -31,7 +31,6 @@ export function TokenInstrument({ totals }: { totals?: InstrumentTotals }) {
           </div>
           <span className={styles.dial} aria-hidden="true"><i /></span>
         </div>
-        <figcaption className={styles.bottom}><span>FIRST-PARTY TELEMETRY</span><span>UM—001</span></figcaption>
       </figure>
     </div>
   );
