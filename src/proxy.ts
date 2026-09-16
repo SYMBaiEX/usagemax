@@ -18,6 +18,13 @@ const markdownRoutes: Record<string, string> = {
   "/sandbox": "/sandbox.md",
 };
 
+const nonProfileRootPaths = new Set([
+  "about", "account", "api-versioning.md", "api", "ask", "auth.md", "auth", "callback", "cli.md", "contact",
+  "docs-mcp", "docs.md", "docs", "enterprise.md", "enterprise", "index.md", "leaderboard.md", "leaderboard", "llms.txt",
+  "methodology.md", "methodology", "not-found.md", "openapi.json", "privacy.md", "privacy", "robots.txt", "sandbox.md", "sandbox",
+  "schema-feed.jsonl", "schemamap.xml", "security.md", "security", "sign-in", "sign-up", "sitemap.xml", "terms.md", "terms", "workspace",
+]);
+
 function addVary(headers: Headers, value: string) {
   const values = new Set((headers.get("vary") ?? "").split(",").map((item) => item.trim()).filter(Boolean));
   values.add(value);
@@ -77,7 +84,7 @@ function agentHomepage() {
       sandbox: { maxBytes: 16_384, maxEvents: 100, writes: false },
       mcp: { maxBodyBytes: 65_536, writes: false },
     },
-    errors: { format: "application/json", schema: "/openapi.json#/components/schemas/Error", recovery: "/404" },
+    errors: { format: "application/json", schema: "/openapi.json#/components/schemas/Error", recovery: "/not-found.md" },
     links: {
       markdown: "/index.md",
       docs: "/docs",
@@ -104,6 +111,35 @@ export default async function proxy(request: NextRequest) {
     const response = applyResponseHeaders(NextResponse.rewrite(new URL(markdownPath, request.url), { request: { headers: requestHeaders } }), responseHeaders);
     publicHeaders(response.headers, "public, max-age=3600, stale-while-revalidate=86400", markdownPath);
     return response;
+  }
+
+  // The public profile route is a one-segment dynamic route, so Next.js would
+  // otherwise render the HTML app-level not-found boundary before a fallback
+  // rewrite can provide the markdown representation. Probe only a potential
+  // profile handle for markdown/agent requests; a 404 is safe to rewrite,
+  // while any backend failure leaves the normal route/error behavior intact.
+  const profileHandle = request.nextUrl.pathname.slice(1);
+  if (
+    requestsMarkdown(request)
+    && profileHandle
+    && !profileHandle.includes("/")
+    && /^[A-Za-z0-9_-]{1,80}$/.test(profileHandle)
+    && !nonProfileRootPaths.has(profileHandle)
+  ) {
+    try {
+      const profileResponse = await fetch(new URL(`/api/profiles/${encodeURIComponent(profileHandle)}`, request.url), {
+        headers: { accept: "application/json" },
+        cache: "no-store",
+      });
+      if (profileResponse.status === 404) {
+        const { requestHeaders, responseHeaders } = partitionAuthkitHeaders(request, headers);
+        const response = applyResponseHeaders(NextResponse.rewrite(new URL("/not-found.md", request.url), { request: { headers: requestHeaders } }), responseHeaders);
+        publicHeaders(response.headers, "public, max-age=300, stale-while-revalidate=86400", "/not-found.md");
+        return response;
+      }
+    } catch {
+      // Preserve normal routing if the profile probe is unavailable.
+    }
   }
 
   if (request.nextUrl.pathname === "/account" && !session.user) {

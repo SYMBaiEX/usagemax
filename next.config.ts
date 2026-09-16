@@ -42,6 +42,24 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async rewrites() {
+    return {
+      beforeFiles: [],
+      afterFiles: [],
+      fallback: [
+        {
+          source: "/:path*",
+          has: [{ type: "header", key: "accept", value: ".*text/markdown.*" }],
+          destination: "/not-found.md",
+        },
+        {
+          source: "/:path*",
+          has: [{ type: "header", key: "user-agent", value: ".*(GPTBot|ClaudeBot|ChatGPT-User|PerplexityBot|Google-Extended|Applebot-Extended|ora-agent|DeepSeekBot).*" }],
+          destination: "/not-found.md",
+        },
+      ],
+    };
+  },
 };
 
 export default nextConfig;
