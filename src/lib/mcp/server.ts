@@ -9,6 +9,7 @@ export const MCP_SERVER_NAMES = {
   public: "UsageMax public product MCP",
   docs: "UsageMax documentation MCP",
 } as const;
+export const MCP_SERVER_BRANDING = { websiteUrl: "https://usagemax.com", icon: "https://usagemax.com/brand/icon-192.png" } as const;
 export const MCP_APP_RESOURCE_URI = "ui://usagemax/public-observability.html";
 export const MCP_APP_RESOURCE_MIME = "text/html;profile=mcp-app";
 const MCP_APP_UI_META = {

@@ -1,4 +1,4 @@
-import { DOC_TOOL_DEFINITIONS, MCP_PROTOCOL_VERSION, MCP_SERVER_INSTRUCTIONS, MCP_SERVER_NAMES, MCP_SERVER_VERSION } from "@/lib/mcp/server";
+import { DOC_TOOL_DEFINITIONS, MCP_PROTOCOL_VERSION, MCP_SERVER_BRANDING, MCP_SERVER_INSTRUCTIONS, MCP_SERVER_NAMES, MCP_SERVER_VERSION } from "@/lib/mcp/server";
 
 export const dynamic = "force-static";
 
@@ -10,7 +10,7 @@ export function GET() {
     instructions: MCP_SERVER_INSTRUCTIONS.docs,
     description: "Stateless, unauthenticated, read-only MCP Streamable HTTP tools for bounded UsageMax documentation retrieval.",
     serverUrl: "https://usagemax.com/docs-mcp",
-    icon: "https://usagemax.com/brand/icon-192.png",
+    ...MCP_SERVER_BRANDING,
     transport: "streamable-http",
     tools: DOC_TOOL_DEFINITIONS.map(({ name, title, description, inputSchema, annotations }) => ({ name, title, description, inputSchema, annotations })),
     endpoints: [{ url: "https://usagemax.com/docs-mcp", methods: ["POST"], tools: DOC_TOOL_DEFINITIONS.map(({ name }) => name) }],

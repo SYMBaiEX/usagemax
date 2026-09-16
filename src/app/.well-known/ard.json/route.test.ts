@@ -5,6 +5,8 @@ describe("Agentic Resource Discovery manifest", () => {
   it("lists only first-party bounded discovery resources", async () => {
     const body = await (await GET()).json();
     expect(body).toEqual(manifest);
+    expect(body.specVersion).toBe("0.91");
+    expect(body.trustManifest).toEqual({ identity: { type: "web-origin", url: "https://usagemax.com" }, attestations: [{ type: "source-repository", url: "https://github.com/SYMBaiEX/usagemax" }] });
     expect(body.entries).toHaveLength(13);
     expect(body.entries.every((entry: { url: string; trustManifest: { identity: { url: string } } }) => entry.url.startsWith("https://usagemax.com/") || entry.url === "https://www.npmjs.com/package/usagemax")).toBe(true);
     expect(body.entries.every((entry: { trustManifest: { identity: { url: string } } }) => entry.trustManifest.identity.url === "https://usagemax.com")).toBe(true);

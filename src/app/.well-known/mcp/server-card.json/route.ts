@@ -1,4 +1,4 @@
-import { MCP_APP_RESOURCES, MCP_PROTOCOL_VERSION, MCP_SERVER_INSTRUCTIONS, MCP_SERVER_NAMES, MCP_SERVER_VERSION, USAGEMAX_TOOLS } from "@/lib/mcp/server";
+import { MCP_APP_RESOURCES, MCP_PROTOCOL_VERSION, MCP_SERVER_BRANDING, MCP_SERVER_INSTRUCTIONS, MCP_SERVER_NAMES, MCP_SERVER_VERSION, USAGEMAX_TOOLS } from "@/lib/mcp/server";
 
 export const dynamic = "force-static";
 
@@ -10,7 +10,7 @@ export function GET() {
     instructions: MCP_SERVER_INSTRUCTIONS.public,
     description: "Stateless, unauthenticated, read-only MCP Streamable HTTP tools for bounded public UsageMax projections.",
     serverUrl: "https://usagemax.com/mcp",
-    icon: "https://usagemax.com/brand/icon-192.png",
+    ...MCP_SERVER_BRANDING,
     transport: "streamable-http",
     tools: USAGEMAX_TOOLS.map(({ name, title, description, inputSchema, annotations, _meta }) => ({ name, title, description, inputSchema, annotations, ...(_meta ? { _meta } : {}) })),
     resources: MCP_APP_RESOURCES,
