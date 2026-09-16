@@ -1,4 +1,11 @@
-const markdown = `# UsageMax
+const markdown = `---
+title: UsageMax
+description: Public observability for bounded AI usage telemetry.
+canonical: https://usagemax.com/
+last-updated: 2026-09-16
+---
+
+# UsageMax
 
 UsageMax is a public observability layer for bounded AI usage telemetry.
 

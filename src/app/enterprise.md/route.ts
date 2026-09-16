@@ -1,4 +1,11 @@
-const markdown = `# UsageMax for teams
+const markdown = `---
+title: UsageMax for teams
+description: Private workspaces, roles, and bounded telemetry for teams.
+canonical: https://usagemax.com/enterprise
+last-updated: 2026-09-16
+---
+
+# UsageMax for teams
 
 UsageMax provides private workspaces, scoped roles, connected computers, and bounded telemetry for teams. Enterprise capacity, SSO, directory setup, security, residency, and support commitments are agreed and verified during onboarding.
 

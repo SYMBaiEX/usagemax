@@ -1,6 +1,7 @@
 import { applyResponseHeaders, authkit, handleAuthkitHeaders, partitionAuthkitHeaders } from "@workos-inc/authkit-nextjs";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { requestsMarkdown } from "@/lib/markdown-negotiation";
 
 const markdownRoutes: Record<string, string> = {
   "/": "/index.md",
@@ -11,11 +12,10 @@ const markdownRoutes: Record<string, string> = {
   "/privacy": "/privacy.md",
   "/terms": "/terms.md",
   "/leaderboard": "/leaderboard.md",
+  "/.well-known/api-catalog": "/.well-known/api-catalog.md",
+  "/.well-known/oauth-protected-resource": "/.well-known/oauth-protected-resource.md",
+  "/api/llms.txt": "/api/llms.txt.md",
 };
-
-function acceptsMarkdown(request: NextRequest) {
-  return request.headers.get("accept")?.toLowerCase().includes("text/markdown") ?? false;
-}
 
 function addVary(headers: Headers, value: string) {
   const values = new Set((headers.get("vary") ?? "").split(",").map((item) => item.trim()).filter(Boolean));
@@ -25,6 +25,7 @@ function addVary(headers: Headers, value: string) {
 
 function publicHeaders(headers: Headers, cacheControl: string, markdownPath?: string) {
   addVary(headers, "Accept");
+  addVary(headers, "User-Agent");
   headers.set("cache-control", cacheControl);
   const links = [
     "</sitemap.xml>; rel=\"sitemap\"",
@@ -40,7 +41,7 @@ function agentHomepage() {
   return {
     name: "UsageMax",
     description: "A public observability layer for bounded AI usage telemetry.",
-    capabilities: ["public aggregate usage", "leaderboard", "documentation", "OpenAPI", "MCP"],
+    capabilities: ["public aggregate usage", "leaderboard", "documentation", "OpenAPI", "MCP", "A2A"],
     publicData: ["network totals", "public profiles", "bounded daily rollups", "bounded live activity"],
     exclusions: ["prompts", "completions", "credentials", "private workspace data"],
     links: {
@@ -48,6 +49,7 @@ function agentHomepage() {
       docs: "/docs",
       api: "/openapi.json",
       mcp: "/mcp",
+      a2a: "/a2a",
       ask: "/ask",
       skills: "/.well-known/agent-skills/index.json",
     },
@@ -63,7 +65,7 @@ export default async function proxy(request: NextRequest) {
   }
 
   const markdownPath = markdownRoutes[request.nextUrl.pathname];
-  if (markdownPath && acceptsMarkdown(request)) {
+  if (markdownPath && requestsMarkdown(request)) {
     const { requestHeaders, responseHeaders } = partitionAuthkitHeaders(request, headers);
     const response = applyResponseHeaders(NextResponse.rewrite(new URL(markdownPath, request.url), { request: { headers: requestHeaders } }), responseHeaders);
     publicHeaders(response.headers, "public, max-age=3600, stale-while-revalidate=86400", markdownPath);

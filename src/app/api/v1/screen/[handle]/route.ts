@@ -1,10 +1,10 @@
-import { apiResponse } from "@/lib/api-response";
+import { apiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return apiResponse(
-    { error: "screen_api_retired", message: "The local HUD is a separate project and does not depend on UsageMax." },
-    { status: 410 },
-  );
+  const response = apiError("screen_api_retired", 410);
+  response.headers.set("deprecation", "true");
+  response.headers.set("sunset", "2026-12-31T00:00:00Z");
+  return response;
 }

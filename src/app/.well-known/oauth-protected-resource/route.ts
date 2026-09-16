@@ -5,6 +5,8 @@ const metadata = {
   resource_documentation: "https://usagemax.com/auth.md",
   bearer_methods_supported: ["header"],
   scopes_supported: [],
+  // No authorization_servers claim: UsageMax has no OAuth authorization server
+  // or token endpoint. The bearer credential is a proprietary collector token.
   // UsageMax currently accepts a proprietary, write-only collector credential.
   // It is intentionally not advertised as an OAuth access token or delegated API.
   x_usagemax_authentication: {

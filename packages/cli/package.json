@@ -2,6 +2,15 @@
   "name": "usagemax",
   "version": "0.3.4",
   "description": "Link local coding-agent usage to your UsageMax profile",
+  "keywords": [
+    "usagemax",
+    "coding-agents",
+    "usage",
+    "ccusage",
+    "claude-code",
+    "codex",
+    "privacy"
+  ],
   "license": "MIT",
   "author": "UsageMax",
   "homepage": "https://usagemax.com",

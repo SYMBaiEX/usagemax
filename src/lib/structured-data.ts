@@ -35,6 +35,37 @@ export const usageMaxStructuredData = {
       publisher: { "@id": "https://usagemax.com/#organization" },
       inLanguage: "en-US",
     },
+    {
+      "@type": "WebPage",
+      "@id": "https://usagemax.com/#webpage",
+      name: "UsageMax",
+      url: "https://usagemax.com/",
+      isPartOf: { "@id": "https://usagemax.com/#website" },
+      about: { "@id": "https://usagemax.com/#software" },
+      description: "Public observability for bounded AI usage telemetry.",
+    },
+    {
+      "@type": "FAQPage",
+      "@id": "https://usagemax.com/#faq",
+      url: "https://usagemax.com/",
+      mainEntity: [
+        {
+          "@type": "Question",
+          name: "What does UsageMax expose publicly?",
+          acceptedAnswer: { "@type": "Answer", text: "UsageMax exposes bounded aggregate usage, public profiles, rankings, and selected model and activity projections. It does not expose prompts, completions, credentials, or private workspace data." },
+        },
+        {
+          "@type": "Question",
+          name: "Does UsageMax provide an OAuth token exchange?",
+          acceptedAnswer: { "@type": "Answer", text: "No. UsageMax currently uses an installation-bound, write-only collector credential and does not provide a general OAuth authorization-server exchange." },
+        },
+      ],
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": "https://usagemax.com/#breadcrumbs",
+      itemListElement: [{ "@type": "ListItem", position: 1, name: "UsageMax", item: "https://usagemax.com/" }],
+    },
   ],
 } as const;
 

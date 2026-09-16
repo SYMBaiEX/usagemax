@@ -7,6 +7,7 @@ type ToolDefinition = {
   description: string;
   inputSchema: Record<string, unknown>;
   execute: (input: Record<string, unknown>) => Promise<unknown>;
+  annotations: { readOnlyHint: true; destructiveHint: false; openWorldHint: false };
 };
 
 type ModelContext = {
@@ -32,6 +33,7 @@ const tools: ToolDefinition[] = [
     name: "usagemax_network_stats",
     description: "Read bounded public aggregate UsageMax network statistics.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     execute: async () => readPublicJson("/api/stats"),
   },
   {
@@ -45,6 +47,7 @@ const tools: ToolDefinition[] = [
       },
       additionalProperties: false,
     },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     execute: async (input) => {
       const metric = input.metric === "spend" ? "spend" : "tokens";
       const window = input.window === "7d" || input.window === "30d" ? input.window : "all";
@@ -60,6 +63,7 @@ const tools: ToolDefinition[] = [
       properties: { handle: { type: "string", minLength: 1, maxLength: 80 } },
       additionalProperties: false,
     },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     execute: async (input) => {
       const handle = typeof input.handle === "string" ? input.handle.trim() : "";
       if (!/^[a-z0-9][a-z0-9_-]{0,79}$/i.test(handle)) throw new Error("Use a valid public UsageMax handle.");

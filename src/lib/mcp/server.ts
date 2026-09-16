@@ -9,11 +9,13 @@ export const MCP_SERVER_VERSION = "1.0.0";
 type RpcRequest = { jsonrpc: "2.0"; id?: string | number | null; method: string; params?: Record<string, unknown> };
 type QueryFn = (query: unknown, args: Record<string, unknown>) => Promise<unknown>;
 
+const readOnlyAnnotations = { readOnlyHint: true, destructiveHint: false, openWorldHint: false } as const;
+
 export const USAGEMAX_TOOLS = [
-  { name: "public_profile", description: "Read one opt-in public UsageMax profile and aggregate statistics.", inputSchema: { type: "object", properties: { handle: { type: "string", minLength: 1, maxLength: 80 } }, required: ["handle"], additionalProperties: false } },
-  { name: "leaderboard", description: "Read the public UsageMax leaderboard (maximum 100 rows).", inputSchema: { type: "object", properties: { metric: { type: "string", enum: ["tokens", "spend"] }, period: { type: "string", enum: ["7d", "30d", "all"] } }, additionalProperties: false } },
-  { name: "network_stats", description: "Read aggregate public UsageMax network statistics.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
-  { name: "ask_site", description: "Ask a bounded natural-language question about UsageMax and receive cited public resources.", inputSchema: { type: "object", properties: { query: { type: "string", minLength: 1, maxLength: 500 } }, required: ["query"], additionalProperties: false } },
+  { name: "public_profile", title: "Read public profile", description: "Read one opt-in public UsageMax profile and aggregate statistics.", inputSchema: { type: "object", properties: { handle: { type: "string", minLength: 1, maxLength: 80 } }, required: ["handle"], additionalProperties: false }, annotations: readOnlyAnnotations },
+  { name: "leaderboard", title: "Read public leaderboard", description: "Read the public UsageMax leaderboard (maximum 100 rows).", inputSchema: { type: "object", properties: { metric: { type: "string", enum: ["tokens", "spend"] }, period: { type: "string", enum: ["7d", "30d", "all"] } }, additionalProperties: false }, annotations: readOnlyAnnotations },
+  { name: "network_stats", title: "Read network statistics", description: "Read aggregate public UsageMax network statistics.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: readOnlyAnnotations },
+  { name: "ask_site", title: "Ask UsageMax documentation", description: "Ask a bounded natural-language question about UsageMax and receive cited public resources.", inputSchema: { type: "object", properties: { query: { type: "string", minLength: 1, maxLength: 500 } }, required: ["query"], additionalProperties: false }, annotations: readOnlyAnnotations },
 ];
 
 export const DOCS = {
@@ -23,8 +25,8 @@ export const DOCS = {
 } as const;
 
 export const DOC_TOOL_DEFINITIONS = [
-  { name: "docs_search", description: "Search the bounded public UsageMax documentation index.", inputSchema: { type: "object", properties: { query: { type: "string", minLength: 1, maxLength: 200 } }, required: ["query"], additionalProperties: false } },
-  { name: "docs_get", description: "Retrieve one bounded public UsageMax documentation resource.", inputSchema: { type: "object", properties: { id: { type: "string", enum: Object.keys(DOCS) } }, required: ["id"], additionalProperties: false } },
+  { name: "docs_search", title: "Search UsageMax documentation", description: "Search the bounded public UsageMax documentation index.", inputSchema: { type: "object", properties: { query: { type: "string", minLength: 1, maxLength: 200 } }, required: ["query"], additionalProperties: false }, annotations: readOnlyAnnotations },
+  { name: "docs_get", title: "Read UsageMax documentation", description: "Retrieve one bounded public UsageMax documentation resource.", inputSchema: { type: "object", properties: { id: { type: "string", enum: Object.keys(DOCS) } }, required: ["id"], additionalProperties: false }, annotations: readOnlyAnnotations },
 ];
 
 const error = (id: RpcRequest["id"], code: number, message: string) => ({ jsonrpc: "2.0", id: id ?? null, error: { code, message } });
@@ -33,7 +35,7 @@ const textResult = (id: RpcRequest["id"], value: unknown) => result(id, { conten
 
 export async function handleMcp(request: RpcRequest, query: QueryFn = (q, args) => fetchQuery(q as never, args as never), surface: "all" | "public" | "docs" = "all") {
   if (request.jsonrpc !== "2.0" || typeof request.method !== "string") return error(request.id, -32600, "invalid_request");
-  if (request.method === "initialize") return result(request.id, { protocolVersion: MCP_PROTOCOL_VERSION, capabilities: { tools: {} }, serverInfo: { name: "UsageMax public reads", version: MCP_SERVER_VERSION } });
+  if (request.method === "initialize") return result(request.id, { protocolVersion: MCP_PROTOCOL_VERSION, capabilities: { tools: {} }, serverInfo: { name: surface === "docs" ? "UsageMax documentation MCP" : "UsageMax public product MCP", version: MCP_SERVER_VERSION }, instructions: "Use tools/list to discover bounded read-only tools. This stateless server accepts JSON-RPC over POST only; it has no resources, prompts, actions, mutations, credentials, or SSE stream." });
   if (request.method === "tools/list") return result(request.id, { tools: surface === "docs" ? DOC_TOOL_DEFINITIONS : surface === "public" ? USAGEMAX_TOOLS : [...USAGEMAX_TOOLS, ...DOC_TOOL_DEFINITIONS] });
   if (request.method !== "tools/call") return error(request.id, -32601, "method_not_found");
   const name = request.params?.name;

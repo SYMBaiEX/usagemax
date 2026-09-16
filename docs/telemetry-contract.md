@@ -2,6 +2,16 @@
 
 UsageMax has two deliberately separate ingestion paths:
 
+## HTTP API policy
+
+The public `/api` namespace currently serves API version 1 and identifies it
+with `X-API-Version: 1`. Errors use `{ error, message, hint }`. Rate-limit
+responses include `Retry-After` only when the server has a bounded retry value;
+there are no fabricated remaining-quota headers. The retired screen route
+returns `Deprecation: true` and a `Sunset` date. `POST /api/v1/sandbox/validate`
+validates the content-free telemetry batch contract without authentication or
+storage and never accepts prompts, completions, secrets, or unknown fields.
+
 - **Snapshot v2** is the recommended path for local coding-agent history. It is
   authoritative, correction-aware, and optimized for a short-lived CLI run.
 - **Event v2** records live model attempts, tool calls, agent state, and outcomes.

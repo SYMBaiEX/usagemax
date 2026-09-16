@@ -1,4 +1,11 @@
-const llmsText = `# UsageMax
+const llmsText = `---
+title: UsageMax agent guide
+description: Public UsageMax resources and bounded data contract.
+canonical: https://usagemax.com/llms.txt
+last-updated: 2026-09-16
+---
+
+# UsageMax
 
 > UsageMax is a public observability layer for builders running serious AI systems. It turns reported model, tool, agent, and outcome telemetry into compact, bounded public projections.
 
@@ -29,6 +36,7 @@ source code, credentials, or private workspace data.
 - [Documentation context](https://usagemax.com/docs/llms.txt): scoped documentation guidance
 - [Agent mode](https://usagemax.com/?mode=agent): structured homepage capability view
 - [NLWeb ask](https://usagemax.com/ask): bounded JSON or finite SSE answers about public UsageMax resources
+- [A2A agent](https://usagemax.com/a2a): bounded JSON-RPC answers about public UsageMax resources
 - [MCP](https://usagemax.com/mcp): read-only Streamable HTTP tools, when supported by the client
 - [Documentation MCP](https://usagemax.com/docs-mcp): read-only documentation tools
 - [Agent resource discovery](https://usagemax.com/.well-known/ard.json): public resource catalog

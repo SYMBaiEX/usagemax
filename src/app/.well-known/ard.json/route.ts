@@ -1,6 +1,13 @@
 const origin = "https://usagemax.com";
 
+const trustManifest = {
+  identity: { type: "web-origin", url: origin },
+  attestations: [{ type: "source-repository", url: "https://github.com/SYMBaiEX/usagemax" }],
+};
+
 const manifest = {
+  specVersion: "0.91",
+  icon: `${origin}/brand/icon-192.png`,
   entries: [
     {
       "@context": "https://agenticresourcediscovery.org/context/v1",
@@ -8,6 +15,7 @@ const manifest = {
       displayName: "UsageMax documentation",
       type: "text/html",
       url: `${origin}/docs`,
+      trustManifest,
       description: "Documentation for UsageMax public telemetry, local collection, and privacy boundaries.",
       capabilities: ["documentation", "usage-telemetry"],
       representativeQueries: [
@@ -21,6 +29,7 @@ const manifest = {
       displayName: "UsageMax API catalog",
       type: "application/linkset+json",
       url: `${origin}/.well-known/api-catalog`,
+      trustManifest,
       description: "A linkset that points agents to the public OpenAPI contract and supported ingestion endpoints.",
       capabilities: ["api-discovery", "openapi"],
       representativeQueries: [
@@ -34,6 +43,7 @@ const manifest = {
       displayName: "UsageMax public read MCP",
       type: "application/mcp-server-card+json",
       url: `${origin}/.well-known/mcp/server-card.json`,
+      trustManifest,
       description: "A stateless, unauthenticated, read-only MCP server for bounded public UsageMax projections and documentation.",
       capabilities: ["mcp", "public-usage", "documentation-search"],
       representativeQueries: [
@@ -43,10 +53,25 @@ const manifest = {
     },
     {
       "@context": "https://agenticresourcediscovery.org/context/v1",
+      identifier: "urn:air:usagemax.com:a2a:public-observability",
+      displayName: "UsageMax public observability A2A agent",
+      type: "application/a2a+json",
+      url: `${origin}/a2a`,
+      trustManifest,
+      description: "A bounded JSON-RPC A2A interface that answers questions about public UsageMax usage, integrations, and privacy boundaries.",
+      capabilities: ["a2a", "public-usage", "read-only"],
+      representativeQueries: [
+        "How does UsageMax count tokens?",
+        "What does UsageMax expose publicly?",
+      ],
+    },
+    {
+      "@context": "https://agenticresourcediscovery.org/context/v1",
       identifier: "urn:air:usagemax.com:resource:openapi",
       displayName: "UsageMax OpenAPI contract",
       type: "application/vnd.oai.openapi+json",
       url: `${origin}/openapi.json`,
+      trustManifest,
       description: "Machine-readable contract for public reads and authenticated content-free collector writes.",
       capabilities: ["openapi", "api-contract"],
       representativeQueries: [
@@ -60,6 +85,7 @@ const manifest = {
       displayName: "UsageMax CLI",
       type: "application/vnd.npm.install-v1+json",
       url: "https://www.npmjs.com/package/usagemax",
+      trustManifest,
       description: "A lightweight one-shot local collector for supported coding-agent usage histories.",
       capabilities: ["cli", "local-usage-sync", "scheduled-sync"],
       representativeQueries: [
@@ -73,6 +99,7 @@ const manifest = {
       displayName: "UsageMax Agent Skills",
       type: "application/json",
       url: `${origin}/.well-known/agent-skills/index.json`,
+      trustManifest,
       description: "Installable UsageMax skills for public usage observability and enterprise reporting design.",
       capabilities: ["agent-skills", "usage-observability", "enterprise-reporting"],
       representativeQueries: [

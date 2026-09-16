@@ -4,12 +4,16 @@ const index = {
     {
       name: "usage-observability",
       description: "Read public UsageMax AI-usage projections and explain the content-free collector contract.",
-      url: "https://github.com/SYMBaiEX/usagemax/blob/main/skills/usage-observability/SKILL.md",
+      type: "skill-md",
+      url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/skills/usage-observability/SKILL.md",
+      digest: "sha256:b7233a262032740d3819ab617388d3340acadfb4b2adf124c91c987b76faf6ad",
     },
     {
       name: "enterprise-reporting",
       description: "Use UsageMax contracts and tenant boundaries to design enterprise AI-usage reporting.",
-      url: "https://github.com/SYMBaiEX/usagemax/blob/main/skills/enterprise-reporting/SKILL.md",
+      type: "skill-md",
+      url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/skills/enterprise-reporting/SKILL.md",
+      digest: "sha256:5a46e259f844dc0cde6e28d3551d67c70842dfed26499e32d1e51131b0e50341",
     },
   ],
 };

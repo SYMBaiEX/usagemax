@@ -8,6 +8,7 @@ const discovery = {
   serverUrl: "https://usagemax.com/mcp",
   serverCard: "https://usagemax.com/.well-known/mcp/server-card.json",
   documentationServerUrl: "https://usagemax.com/docs-mcp",
+  documentationServerCard: "https://usagemax.com/.well-known/mcp/docs-server-card.json",
   authentication: { schemes: [] },
   readOnly: true,
 };

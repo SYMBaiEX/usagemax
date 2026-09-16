@@ -12,6 +12,12 @@ Connect aggregate coding-agent usage from every computer to one private UsageMax
 bunx usagemax@latest link UMX-XXXX-XXXX-XXXX-XXXX
 ```
 
+The package requires Node.js 20 or newer and works with either npm or Bun:
+
+```bash
+npx usagemax@latest link UMX-XXXX-XXXX-XXXX-XXXX
+```
+
 The link code expires after ten minutes and can be used once. Create a new code
 for each Mac, Windows PC, Linux computer, and WSL distribution. All linked
 collectors roll up into the same profile. When run inside WSL, UsageMax includes

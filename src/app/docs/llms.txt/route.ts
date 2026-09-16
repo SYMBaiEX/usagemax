@@ -1,4 +1,11 @@
-const markdown = `# UsageMax documentation
+const markdown = `---
+title: UsageMax documentation agent guide
+description: Scoped documentation guidance and public boundaries.
+canonical: https://usagemax.com/docs/llms.txt
+last-updated: 2026-09-16
+---
+
+# UsageMax documentation
 
 Use this section when you need to understand the product, privacy boundary, or integration contract before calling UsageMax.
 
