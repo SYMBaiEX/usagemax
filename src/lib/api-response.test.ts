@@ -13,7 +13,12 @@ describe("API response contract", () => {
     });
   });
 
-  it("emits standard policy headers only for an explicitly supplied policy", () => {
+  it("emits the public policy on errors and honors an explicit collector policy", () => {
+    const publicError = apiError("invalid_metric", 400);
+    expect(publicError.headers.get("ratelimit-policy")).toBe("60;w=60");
+    expect(publicError.headers.get("ratelimit-limit")).toBe("60");
+    expect(publicError.headers.get("ratelimit-reset")).toBe("60");
+
     const response = apiError("rate_limited", 429, undefined, { limit: 180, windowSeconds: 60 });
     expect(response.headers.get("ratelimit-policy")).toBe("180;w=60");
     expect(response.headers.get("ratelimit-limit")).toBe("180");

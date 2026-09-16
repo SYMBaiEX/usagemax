@@ -108,7 +108,7 @@ const DOC_RESOURCE_METADATA = {
 } as const;
 
 export const DOC_TOOL_DEFINITIONS = [
-  { name: "docs_list", title: "List UsageMax documentation", description: "List the bounded public UsageMax documentation resources available to this MCP server.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: readOnlyAnnotations },
+  { name: "docs_list", title: "List UsageMax documentation", description: "List the bounded public UsageMax documentation resources available to this MCP server.", inputSchema: { type: "object", properties: {}, required: [], additionalProperties: false }, annotations: readOnlyAnnotations },
   { name: "docs_search", title: "Search UsageMax documentation", description: "Search the bounded public UsageMax documentation index.", inputSchema: { type: "object", properties: { query: { type: "string", minLength: 1, maxLength: 200 } }, required: ["query"], additionalProperties: false }, annotations: readOnlyAnnotations },
   { name: "docs_get", title: "Read UsageMax documentation", description: "Retrieve one bounded public UsageMax documentation resource.", inputSchema: { type: "object", properties: { id: { type: "string", enum: Object.keys(DOCS) } }, required: ["id"], additionalProperties: false }, annotations: readOnlyAnnotations },
 ];
