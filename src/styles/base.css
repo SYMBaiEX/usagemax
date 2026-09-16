@@ -1,5 +1,5 @@
 * { box-sizing: border-box; }
-html { background: var(--paper); scroll-padding-top: 88px; }
+html { background: var(--paper); scroll-padding-top: 88px; scroll-behavior: smooth; overscroll-behavior-y: none; }
 body { margin: 0; background: var(--paper); color: var(--ink); font: var(--weight-body) 14px/1.6 var(--font-sans); -webkit-font-smoothing: antialiased; }
 a { color: inherit; text-decoration: none; }
 button, input, textarea, select { font: inherit; color: inherit; }
@@ -16,8 +16,12 @@ h1, h2, h3 { text-wrap: balance; }
 p { overflow-wrap: break-word; }
 svg { flex-shrink: 0; }
 pre, code { font-family: var(--font-mono); }
-.site-body { min-height: 100vh; }
-.site-main { min-height: 65vh; }
+.site-body { min-height: 100svh; display: flex; flex-direction: column; isolation: isolate; }
+.site-main { min-height: 65vh; flex: 1 0 auto; position: relative; z-index: 1; background: var(--paper); }
+.footer-dock { flex-shrink: 0; position: relative; z-index: 0; }
+.footer-dock[data-dockable="true"] { position: sticky; bottom: 0; }
+/* Keyboard focus must never remain behind the preceding page surface. */
+.footer-dock:focus-within { z-index: 2; }
 .shell { width: min(1184px, calc(100% - 96px)); margin-inline: auto; }
 .page-surface { overflow: clip; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
