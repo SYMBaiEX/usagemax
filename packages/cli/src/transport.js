@@ -13,10 +13,17 @@ function record(value) {
 
 const collectorStates = new Set(["active", "revoked", "workspace_disabled", "membership_inactive", "device_mismatch"]);
 const deviceBindings = new Set(["unbound", "bound", "matched", "mismatch"]);
+const collectorTokenPattern = /umx_[a-f0-9]{64}/gi;
+
+function safeText(value, secret) {
+  let text = value;
+  if (secret) text = text.split(secret).join("[redacted]");
+  return text.replace(collectorTokenPattern, "[redacted]").slice(0, 160);
+}
 
 // Only copy the documented diagnostic projection. This keeps a compromised or
 // misconfigured endpoint from echoing a collector secret through the CLI.
-export function collectorStatusView(httpStatus, value) {
+export function collectorStatusView(httpStatus, value, secret) {
   const body = record(value);
   const view = { tokenFormat: "valid", httpStatus };
   if (!body) {
@@ -37,7 +44,7 @@ export function collectorStatusView(httpStatus, value) {
   if (Array.isArray(body.scopes)) view.scopes = body.scopes.filter((scope) => typeof scope === "string").slice(0, 16);
   if (typeof body.deviceBinding === "string" && deviceBindings.has(body.deviceBinding)) view.deviceBinding = body.deviceBinding;
   for (const key of ["profileHandle", "deviceName", "platform", "cliVersion", "lastFailureCode"]) {
-    if (typeof body[key] === "string") view[key] = body[key].slice(0, 160);
+    if (typeof body[key] === "string") view[key] = safeText(body[key], secret);
   }
   for (const key of ["createdAt", "lastSeenAt", "lastSuccessAt", "lastFailureAt"]) {
     if (typeof body[key] === "number" && Number.isSafeInteger(body[key])) view[key] = body[key];
