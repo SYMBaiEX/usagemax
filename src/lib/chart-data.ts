@@ -1,7 +1,8 @@
 export type UsageDay = { date: string; totalTokens: number; costMicros: number; sessions: number; costBasis?: string };
 export type ModelDay = { date: string; provider: string; model: string; totalTokens: number; costMicros: number };
-export const chartPalette = ["#ca512b", "#397d86", "#79669b", "#9d7c2e"];
-export const otherColor = "#a6a599";
+// Stable series identities; CSS resolves their contrast for the active theme.
+export const chartPalette = ["var(--chart-series-1)", "var(--chart-series-2)", "var(--chart-series-3)", "var(--chart-series-4)"];
+export const otherColor = "var(--chart-other)";
 
 export function rankingValues(row: { metric: "tokens" | "spend"; score: number; totalTokens: number; totalCostMicros: number }) {
   return {

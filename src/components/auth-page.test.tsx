@@ -20,7 +20,8 @@ describe("UsageMax auth pages", () => {
     expect(html).toContain("Continue with SSO");
     expect(html).toContain(`/auth/start?mode=${mode}&amp;provider=github`);
     expect(html).toContain("Switch to dark theme");
-    expect(html).toContain("Pause ambient animation");
+    expect(html).not.toContain("Pause ambient animation");
+    expect(html).not.toContain("Enable ambient animation");
     expect(html).not.toContain("UsageMax / Studio");
     expect(html).not.toContain("UsageMax / Signal");
     expect(html).not.toContain("001 — ∞");

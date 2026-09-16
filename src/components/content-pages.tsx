@@ -49,7 +49,7 @@ export function EnterpriseView() {
         title="UsageMax for teams"
       >
         <Link className="button button-primary" href="/workspace">Start a free workspace <ArrowRight size={16} /></Link>
-        <a className="button button-acid" href="mailto:hello@usagemax.com">Contact sales <ArrowUpRight size={16} /></a>
+        <a className="button button-outline" href="mailto:hello@usagemax.com">Contact sales <ArrowUpRight size={16} /></a>
         <Link className="button button-quiet" href="/docs">Integration guide <ArrowRight size={16} /></Link>
       </PageIntro>
 
@@ -65,7 +65,7 @@ export function EnterpriseView() {
           </div>
         </section>
         <div className={stories.teamTrust}><p>Counts and context. No prompt content.<small>Hashed collector keys, replay protection, rate limits, and an audit trail for sensitive actions.</small></p><Link className={stories.storyLink} href="/docs">Read the integration guide <ArrowUpRight size={16} /></Link></div>
-        <section className={stories.setup} aria-labelledby="plans-title"><div className={stories.sectionHeading}><h2 id="plans-title">Free for builders. More for companies.</h2><span>No card to start</span></div><div className={stories.setupFlow}>
+        <section className={stories.setup} aria-labelledby="plans-title"><div className={stories.sectionHeading}><h2 id="plans-title">Free for builders. More for companies.</h2><span>No card to start</span></div><div className={stories.planGrid}>
           <article><h3>Personal · Free</h3><p>All retained history, public or private profiles, device linking, saved views, budgets and complete data exports. No paid tier required to keep your own data.</p></article>
           <article><h3>Small teams · Free</h3><p>Up to 10 members, 5 teams and 25 devices. Invitations, projects, roles, financial records and a private workspace.</p></article>
           <article><h3>Enterprise · By agreement</h3><p>Higher capacity, server-side provider connections, extended telemetry retention and WorkOS SSO/directory setup. Security, residency and support commitments are agreed and verified during onboarding.</p></article>

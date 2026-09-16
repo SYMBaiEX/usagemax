@@ -1,5 +1,5 @@
 .field { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: -1; color: #617896; opacity: .25; mask-image: radial-gradient(ellipse at center, transparent 30%, #000 95%); contain: strict; }
-.tape { width: max-content; animation: code-drift 32s linear infinite; animation-play-state: paused; }
+.tape { width: max-content; animation: code-drift 4.8s ease-out 1 both; animation-play-state: paused; }
 .tape pre { margin: 0; font: 9px/28px var(--font-mono); letter-spacing: .06em; }
 .tape span { display: block; }
 .tape span:nth-child(3n) { color: #dc805b; }
@@ -7,5 +7,5 @@
 .footer { opacity: .15; mask-image: linear-gradient(transparent, #000); }
 :global([data-theme="dark"]) .field { color: #808787; opacity: .4; }
 :global([data-motion="off"]) .tape { animation-play-state: paused !important; }
-@keyframes code-drift { to { transform: translateY(-50%); } }
+@keyframes code-drift { to { transform: translateY(-28px); } }
 @media (prefers-reduced-motion: reduce) { .tape { animation: none; } }
