@@ -92,6 +92,14 @@ For event schema v2, token categories follow the current OpenTelemetry GenAI con
   of every field. Send `totalTokens` explicitly when a provider defines it
   differently.
 
+Public accounting projections convert event counters to **disjoint** buckets:
+cache reads/writes are removed from input, and reasoning is removed from output.
+The original provider counters remain unchanged on each raw event. If a source's
+reported total contradicts its categories, the total is preserved as unclassified
+rather than inventing a split. Legacy ccusage aggregate events retain their
+explicit disjoint-input convention. Native events default to schema v2; the
+legacy aggregate signature or an explicit schema v1 selects the old convention.
+
 `costMicros` is only meaningful together with `costBasis`. An omitted cost is
 stored as unknown, never silently treated as free usage. A provider-returned
 zero is still `reported`; a locally calculated amount is `estimated`.
