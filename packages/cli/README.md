@@ -173,7 +173,7 @@ checkpoints, and last-run status intact; an in-flight sync may finish.
 
 The short-lived CLI sets its process title to `UsageMax`. On macOS and Windows,
 `service install` also stages a private, product-named runtime at
-`<config-dir>/runtime/UsageMax` (or `UsageMax.exe`) and schedules that image, so
+`<config-dir>/runtime/bin/UsageMax` (or `UsageMax.exe`) and schedules that image, so
 Activity Monitor/Task Manager does not show the scheduled job as a generic
 `node` process. Re-run `service install` after upgrading Node or moving the CLI
 so the staged runtime is refreshed.

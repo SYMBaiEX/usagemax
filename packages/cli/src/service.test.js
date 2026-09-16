@@ -23,7 +23,7 @@ test("ephemeral launchers fail with a global-install remedy", () => {
 });
 
 test("branded runtime naming is platform-scoped", async () => {
-  assert.equal(brandedRuntimePath("/tmp/usage", "darwin"), "/tmp/usage/runtime/UsageMax");
+  assert.equal(brandedRuntimePath("/tmp/usage", "darwin"), "/tmp/usage/runtime/bin/UsageMax");
   assert.equal(brandedRuntimePath("C:\\Users\\me\\UsageMax", "win32"), "C:\\Users\\me\\UsageMax/runtime/UsageMax.exe");
   assert.equal(brandedRuntimePath("/tmp/usage", "linux"), null);
   assert.equal(await ensureBrandedRuntime("/tmp/usage", "/opt/node", "linux"), "/opt/node");
@@ -35,7 +35,7 @@ test("stages a refreshed product-named runtime atomically", async () => {
     const executable = join(directory, "node");
     await writeFile(executable, "runtime image");
     const target = await ensureBrandedRuntime(directory, executable, "darwin");
-    assert.equal(target, join(directory, "runtime", "UsageMax"));
+    assert.equal(target, join(directory, "runtime", "bin", "UsageMax"));
     assert.equal(await readFile(target, "utf8"), "runtime image");
   } finally {
     await rm(directory, { recursive: true, force: true });

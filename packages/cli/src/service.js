@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { access, chmod, copyFile, mkdir, readFile, realpath, rename, unlink, writeFile } from "node:fs/promises";
+import { access, chmod, copyFile, mkdir, readFile, readdir, realpath, rename, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -29,7 +29,9 @@ export function assertDurablePath(path) {
 
 export function brandedRuntimePath(directory, platform = process.platform) {
   if (platform !== "darwin" && platform !== "win32") return null;
-  return join(directory, "runtime", platform === "win32" ? "UsageMax.exe" : "UsageMax");
+  return platform === "win32"
+    ? join(directory, "runtime", "UsageMax.exe")
+    : join(directory, "runtime", "bin", "UsageMax");
 }
 
 /**
@@ -43,14 +45,37 @@ export async function ensureBrandedRuntime(directory, executable, platform = pro
   const target = brandedRuntimePath(directory, platform);
   if (!target) return executable;
   const source = await realpath(executable);
-  const runtimeDirectory = join(directory, "runtime");
+  const runtimeBinDirectory = dirname(target);
   if (source === target) return target;
-  await mkdir(runtimeDirectory, { recursive: true, mode: 0o700 });
-  const temporary = join(runtimeDirectory, `.${platform === "win32" ? "UsageMax.exe" : "UsageMax"}.${randomUUID()}.tmp`);
+  await mkdir(runtimeBinDirectory, { recursive: true, mode: 0o700 });
+  const temporary = join(runtimeBinDirectory, `.${platform === "win32" ? "UsageMax.exe" : "UsageMax"}.${randomUUID()}.tmp`);
   try {
     await copyFile(source, temporary);
     if (platform !== "win32") await chmod(temporary, 0o700);
     await rename(temporary, target);
+    if (platform === "darwin") {
+      // Homebrew Node uses @rpath/libnode.<n>.dylib next to its bin folder;
+      // the official Node distribution is self-contained. Copy only adjacent
+      // dylibs when they exist, keeping both layouts runnable.
+      const sourceLibraryDirectory = resolve(dirname(source), "../lib");
+      const runtimeLibraryDirectory = resolve(runtimeBinDirectory, "../lib");
+      const sourceLibraries = await readdir(sourceLibraryDirectory, { withFileTypes: true }).catch((error) => {
+        if (error?.code === "ENOENT") return [];
+        throw error;
+      });
+      const libraries = sourceLibraries.filter((entry) => entry.isFile() && entry.name.endsWith(".dylib"));
+      if (libraries.length) await mkdir(runtimeLibraryDirectory, { recursive: true, mode: 0o700 });
+      for (const library of libraries) {
+        const libraryTemporary = join(runtimeLibraryDirectory, `.${library.name}.${randomUUID()}.tmp`);
+        try {
+          await copyFile(join(sourceLibraryDirectory, library.name), libraryTemporary);
+          await chmod(libraryTemporary, 0o700);
+          await rename(libraryTemporary, join(runtimeLibraryDirectory, library.name));
+        } finally {
+          await unlink(libraryTemporary).catch(() => undefined);
+        }
+      }
+    }
   } finally {
     await unlink(temporary).catch(() => undefined);
   }
