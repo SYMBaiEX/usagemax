@@ -21,6 +21,12 @@
     <a href="https://www.npmjs.com/package/usagemax"><img src="https://img.shields.io/npm/v/usagemax?label=npm" alt="npm package"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-orange" alt="MIT license"></a>
   </p>
+
+  <p>
+    <a href="https://www.skills.sh/symbaiex/usagemax/usage-observability"><img src="https://skills.sh/b/symbaiex/usagemax/usage-observability" alt="usage-observability on skills.sh"></a>
+    <a href="https://www.skills.sh/symbaiex/usagemax/enterprise-reporting"><img src="https://skills.sh/b/symbaiex/usagemax/enterprise-reporting" alt="enterprise-reporting on skills.sh"></a>
+    <a href="https://www.skills.sh/symbaiex/usagemax/collector-diagnostics"><img src="https://skills.sh/b/symbaiex/usagemax/collector-diagnostics" alt="collector-diagnostics on skills.sh"></a>
+  </p>
 </div>
 
 <p align="center">
@@ -251,8 +257,8 @@ The public MCP server is published in the official Registry as
 [`io.github.SYMBaiEX/usagemax@1.0.0`](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest).
 The [server.json](server.json) file is the versioned source metadata for that
 listing; it contains no package or credential claim. The three `skills/` cards
-have valid `name` and
-`description` frontmatter and can be installed from the public source with:
+have valid `name` and `description` frontmatter and are indexed on
+[skills.sh](https://www.skills.sh/symbaiex/usagemax/usage-observability):
 
 ```bash
 npx skills add SYMBaiEX/usagemax --skill usage-observability
@@ -260,10 +266,10 @@ npx skills add SYMBaiEX/usagemax --skill enterprise-reporting
 npx skills add SYMBaiEX/usagemax --skill collector-diagnostics
 ```
 
-No skills.sh install count, listing, or security audit is claimed until the
-external directory has indexed the source. The digest-pinned
-[Agent Skills index](https://usagemax.com/.well-known/agent-skills/index.json)
-is the deployed inventory; the raw GitHub files are the install sources.
+The digest-pinned [Agent Skills index](https://usagemax.com/.well-known/agent-skills/index.json)
+is the deployed inventory; the raw GitHub files are the install sources. The
+directory's automated security audit state is external to this repository and
+can change independently of these files.
 
 ## Development
 

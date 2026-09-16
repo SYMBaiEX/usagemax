@@ -18,7 +18,8 @@ describe("/llms.txt", () => {
     expect(body).toContain("npx skills add SYMBaiEX/usagemax --skill collector-diagnostics");
     expect(body).toContain("npm exec --yes usagemax@latest -- --help");
     expect(body).toContain("npm install --global usagemax");
-    expect(body).toContain("do not by themselves claim a skills.sh listing or");
+    expect(body).toContain("The public directory");
+    expect(body).toContain("https://www.skills.sh/symbaiex/usagemax/usage-observability");
     expect(body).toContain("public JSON capability");
     expect(body).toContain("does not mint OAuth tokens");
     expect(body).toContain("Personal and small-team plans are free");

@@ -63,8 +63,12 @@ Install a selected source skill from the default branch with
 \`npx skills add SYMBaiEX/usagemax --skill usage-observability\`,
 \`npx skills add SYMBaiEX/usagemax --skill enterprise-reporting\`, or
 \`npx skills add SYMBaiEX/usagemax --skill collector-diagnostics\`. The local
-files and digest-pinned index do not by themselves claim a skills.sh listing or
-install usage.
+files and digest-pinned index are the source inventory. The public directory
+currently indexes [usage-observability](https://www.skills.sh/symbaiex/usagemax/usage-observability),
+[enterprise-reporting](https://www.skills.sh/symbaiex/usagemax/enterprise-reporting), and
+[collector-diagnostics](https://www.skills.sh/symbaiex/usagemax/collector-diagnostics).
+Its automated security audit is external and can change independently; inspect
+the source before installing.
 
 Install the collector with \`bunx usagemax@latest --help\`,
 \`npm exec --yes usagemax@latest -- --help\`, or
