@@ -10,6 +10,7 @@ last-updated: 2026-09-16
 UsageMax accepts a proprietary, installation-bound, write-only collector token in the Authorization header. It does not currently provide an OAuth authorization server, token endpoint, or delegated API exchange.
 
 - Resource: https://usagemax.com/api
+- Collector scopes: \`telemetry:write\`, \`outcomes:write\`
 - [Authentication guidance](https://usagemax.com/auth.md)
 `;
 
