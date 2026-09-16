@@ -208,6 +208,9 @@ Before uploading, the CLI saves the exact run, ordered request payloads and next
 checkpoint in the private config. `sync` resumes this journal before scanning new
 data. Local snapshots advance only after completion is acknowledged. A resumed
 command finishes the saved scan; run `sync` again to collect subsequent changes.
+Accepted snapshot batches include a read-only `statusUrl` and `Location` header;
+call it with the same bearer token and installation UUID to inspect progress
+without downloading or exposing any snapshot contents.
 `sync --dry-run` reports pending work without uploading. Do not delete config.json
 to retry a failed upload. A successful relink or unlink replaces/removes the local
 journal along with its credential.
@@ -233,5 +236,5 @@ next command reports the owner PID and exact path. Confirm that process has exit
 before removing only that lock file, then rerun sync. Never remove an active lock
 or the saved config to recover. Normal completion and handled failures release it.
 
-See the [collector coverage audit](../../docs/collector-coverage-audit.md) for
-the full support matrix and known boundaries.
+See the [collector coverage audit](https://github.com/SYMBaiEX/usagemax/blob/main/docs/collector-coverage-audit.md)
+for the full support matrix and known boundaries.

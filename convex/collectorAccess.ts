@@ -1,10 +1,10 @@
 import { ConvexError } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
-import type { MutationCtx } from "./_generated/server";
+import type { QueryCtx } from "./_generated/server";
 
 // Membership checks close ingestion immediately; queued cleanup is not an auth boundary.
 export async function assertCollectorMembership(
-  ctx: MutationCtx,
+  ctx: Pick<QueryCtx, "db">,
   collector: Doc<"collectors">,
 ) {
   const workspace = await ctx.db.get(collector.workspaceId);

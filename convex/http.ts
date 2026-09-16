@@ -9,6 +9,16 @@ import type { telemetryEventValidator } from "./telemetry";
 type NormalizedEvent = typeof telemetryEventValidator.type;
 type JsonObject = Record<string, unknown>;
 const RECOMMENDED_CLI_VERSION = "0.3.6";
+const PUBLIC_SNAPSHOT_STATUS_ORIGIN = "https://usagemax.com";
+
+function snapshotStatusUrl(runId: string) {
+  return `${PUBLIC_SNAPSHOT_STATUS_ORIGIN}/api/v2/usage/snapshots/${encodeURIComponent(runId)}`;
+}
+
+function snapshotResponse(runId: string, body: Record<string, unknown>, status: number) {
+  const statusUrl = snapshotStatusUrl(runId);
+  return jsonResponse({ runId, statusUrl, ...body }, status, status === 202 ? { location: statusUrl } : undefined);
+}
 
 function newCollectorToken() {
   const bytes = new Uint8Array(32);
@@ -433,7 +443,7 @@ const snapshots = httpAction(async (ctx, request) => {
         coverageEndDay: optionalText(body.coverageEndDay, 10),
         now,
       });
-      return jsonResponse({ ok: true, recommendedCliVersion: RECOMMENDED_CLI_VERSION, ...result }, result.replay ? 200 : 202);
+      return snapshotResponse(runId, { ok: true, recommendedCliVersion: RECOMMENDED_CLI_VERSION, ...result }, result.replay ? 200 : 202);
     }
     if (operation === "sessions") {
       const rawSessions = array(body.sessions);
@@ -451,7 +461,7 @@ const snapshots = httpAction(async (ctx, request) => {
         };
       });
       const result = await ctx.runMutation(internal.snapshots.commitSessions, { ...auth, runId, sessions, now });
-      return jsonResponse({ ok: true, recommendedCliVersion: RECOMMENDED_CLI_VERSION, ...result }, 202);
+      return snapshotResponse(runId, { ok: true, recommendedCliVersion: RECOMMENDED_CLI_VERSION, ...result }, 202);
     }
     if (operation === "partitions") {
       const rawPartitions = array(body.partitions);
@@ -513,7 +523,7 @@ const snapshots = httpAction(async (ctx, request) => {
         correctionRows += result.correctionRows;
         replays += result.replay ? 1 : 0;
       }
-      return jsonResponse({ ok: true, recommendedCliVersion: RECOMMENDED_CLI_VERSION, changedRows, correctionRows, replays }, 202);
+      return snapshotResponse(runId, { ok: true, recommendedCliVersion: RECOMMENDED_CLI_VERSION, changedRows, correctionRows, replays }, 202);
     }
     if (operation === "complete") {
       const result = await ctx.runMutation(internal.snapshots.completeRun, { ...auth, runId, now });
@@ -540,6 +550,39 @@ const snapshots = httpAction(async (ctx, request) => {
     if (message.includes("PROJECTION_UNDERFLOW")) return jsonResponse({ error: "reconciliation_required" }, 409);
     if (message.includes("INVALID_") || message.includes("PAYLOAD_") || message.includes("DUPLICATE_")) return jsonResponse({ error: "invalid_snapshot" }, 400);
     return jsonResponse({ error: "snapshot_failed" }, 500);
+  }
+});
+
+const snapshotStatus = httpAction(async (ctx, request) => {
+  const marker = "/v2/usage/snapshots/";
+  const pathname = new URL(request.url).pathname;
+  const encodedRunId = pathname.startsWith(marker) ? pathname.slice(marker.length) : "";
+  let runId = "";
+  try {
+    runId = decodeURIComponent(encodedRunId);
+  } catch {
+    return jsonResponse({ error: "invalid_snapshot_run_id" }, 400);
+  }
+  if (!/^[A-Za-z0-9._:-]{1,80}$/.test(runId)) return jsonResponse({ error: "invalid_snapshot_run_id" }, 400);
+
+  let auth: Awaited<ReturnType<typeof authorizationContext>>;
+  try {
+    auth = await authorizationContext(request);
+  } catch (error) {
+    if (String(error).includes("INVALID_DEVICE_ID")) return jsonResponse({ error: "invalid_device_id" }, 400);
+    return jsonResponse({ error: "unauthorized" }, 401, { "www-authenticate": 'Bearer resource_metadata="https://usagemax.com/.well-known/oauth-protected-resource"' });
+  }
+  if (!auth.installationIdHash) return jsonResponse({ error: "invalid_device_id" }, 400);
+
+  try {
+    const result = await ctx.runQuery(internal.snapshots.inspectRun, { ...auth, installationIdHash: auth.installationIdHash, runId });
+    if (!result) return jsonResponse({ error: "snapshot_not_found" }, 404);
+    return jsonResponse({ ok: true, ...result });
+  } catch (error) {
+    const message = String(error);
+    if (message.includes("DEVICE_ID_MISMATCH")) return jsonResponse({ error: "device_identity_mismatch" }, 409);
+    if (message.includes("INVALID_COLLECTOR")) return jsonResponse({ error: "unauthorized" }, 401, { "www-authenticate": 'Bearer resource_metadata="https://usagemax.com/.well-known/oauth-protected-resource"' });
+    return jsonResponse({ error: "snapshot_status_unavailable" }, 503);
   }
 });
 
@@ -686,6 +729,8 @@ http.route({ path: "/health", method: "GET", handler: httpAction(async () => jso
 http.route({ path: "/v1/devices/link", method: "POST", handler: linkDevice });
 http.route({ path: "/v1/devices/status", method: "GET", handler: collectorStatus });
 http.route({ path: "/v1/devices/revoke", method: "POST", handler: revokeDevice });
+http.route({ pathPrefix: "/v2/usage/snapshots/", method: "GET", handler: snapshotStatus });
+http.route({ pathPrefix: "/v2/usage/snapshots/", method: "OPTIONS", handler: cors });
 http.route({ path: "/v2/usage/snapshots", method: "POST", handler: snapshots });
 http.route({ path: "/v1/telemetry/llm", method: "POST", handler: httpAction((ctx, request) => ingest(ctx, request, "native")) });
 http.route({ path: "/v1/telemetry/llm", method: "OPTIONS", handler: cors });

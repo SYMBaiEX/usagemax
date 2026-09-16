@@ -49,12 +49,46 @@ describe("authoritative collector snapshots", () => {
       await seed(t, Date.now());
       const plan = buildSnapshotPlan({ daily: [{ agent: "codex", period: "2026-09-14", modelBreakdowns: Array.from({ length: 101 }, (_, i) => ({ modelName: `gpt-test-${i}`, inputTokens: 1 })) }] }, {}, { bootstrap: true, full: true, complete: false, runId: "wire", revision: Date.now() });
       const post = (payload: unknown) => t.fetch("/v2/usage/snapshots", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json", "x-usagemax-device-id": "01234567-89ab-4cde-8fab-0123456789ab" }, body: JSON.stringify(payload) });
-      expect((await post({ operation: "begin", runId: "wire", mode: "full", partitionCount: plan.partitions.length, sourceCount: 1, inventoryComplete: false, inventoryErrors: 0, inventoryTruncated: false })).status).toBe(202);
+      const started = await post({ operation: "begin", runId: "wire", mode: "full", partitionCount: plan.partitions.length, sourceCount: 1, inventoryComplete: false, inventoryErrors: 0, inventoryTruncated: false });
+      expect(started.status).toBe(202);
+      expect(started.headers.get("location")).toBe("https://usagemax.com/api/v2/usage/snapshots/wire");
+      expect(await started.json()).toMatchObject({ ok: true, runId: "wire", statusUrl: "https://usagemax.com/api/v2/usage/snapshots/wire" });
       const committed = await post({ operation: "partitions", runId: "wire", partitions: plan.partitions });
       expect(await committed.json()).toMatchObject({ ok: true });
       expect((await post({ operation: "complete", runId: "wire" })).status).toBe(200);
       expect((await t.query(api.public.profile, { handle: "snapshot" }))?.stats?.totalTokens).toBe(101);
     } finally { vi.useRealTimers(); }
+  });
+
+  test("snapshot status is read-only, installation-bound, and does not bind an advanced key", async () => {
+    const now = Date.UTC(2026, 8, 14, 12);
+    await seed(t, now);
+    const installationId = "01234567-89ab-4cde-8fab-0123456789ab";
+    const installationIdHash = createHash("sha256").update(installationId).digest("hex");
+
+    expect(await t.query(internal.snapshots.inspectRun, { keyHash, installationIdHash, runId: "not-started" })).toBeNull();
+    expect(await t.run(async (ctx) => (await ctx.db.query("collectors").filter((q) => q.eq(q.field("keyHash"), keyHash)).unique())?.installationIdHash ?? null)).toBeNull();
+
+    await t.mutation(internal.snapshots.beginRun, {
+      keyHash,
+      installationIdHash,
+      runId: "status-run",
+      mode: "full",
+      sourceCount: 1,
+      partitionCount: 2,
+      inventoryComplete: true,
+      inventoryErrors: 0,
+      inventoryTruncated: false,
+      now,
+    });
+    expect(await t.query(internal.snapshots.inspectRun, { keyHash, installationIdHash, runId: "status-run" })).toMatchObject({
+      runId: "status-run",
+      status: "uploading",
+      sourceCount: 1,
+      partitionCount: 2,
+      acceptedPartitions: 0,
+    });
+    await expect(t.query(internal.snapshots.inspectRun, { keyHash, installationIdHash: "different-installation-hash", runId: "status-run" })).rejects.toThrow("DEVICE_ID_MISMATCH");
   });
 
   test("applies downward corrections and keeps provider identity", async () => {

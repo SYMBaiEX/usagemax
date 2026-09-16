@@ -4,7 +4,7 @@ const DEVICE_PATTERN = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 const API_DOCUMENTATION = "https://usagemax.com/docs";
 
 type ForwardOptions = {
-  path: string;
+  path: string | ((request: Request) => string);
   maxBytes: number;
   auth?: "optional" | "required";
   device?: "optional" | "required";
@@ -38,7 +38,7 @@ function rateLimitHeaders(policy: string) {
 
 function safeResponseHeaders(source: Headers) {
   const headers = new Headers({ "cache-control": "no-store", "x-request-id": crypto.randomUUID(), "x-api-version": "1" });
-  for (const name of ["content-type", "retry-after", "www-authenticate", "x-request-id", "rate-limit", "rate-limit-policy", "rate-limit-limit", "rate-limit-remaining", "rate-limit-reset"]) {
+  for (const name of ["content-type", "location", "retry-after", "www-authenticate", "x-request-id", "rate-limit", "rate-limit-policy", "rate-limit-limit", "rate-limit-remaining", "rate-limit-reset"]) {
     const value = source.get(name);
     if (value) headers.set(name, value);
   }
@@ -83,7 +83,8 @@ export async function forwardCollectorRequest(request: Request, options: Forward
     if (value) headers.set(name, value);
   }
 
-  const response = await fetch(`${convexSiteUrl}${options.path}`, {
+  const upstreamPath = typeof options.path === "function" ? options.path(request) : options.path;
+  const response = await fetch(`${convexSiteUrl}${upstreamPath}`, {
     method: request.method,
     headers,
     body: request.method === "POST" && body.byteLength > 0 ? body : undefined,
@@ -114,7 +115,7 @@ export function collectorCors(request: Request) {
     headers: {
       "access-control-allow-origin": origin!,
       "access-control-allow-headers": "authorization, content-type, idempotency-key, x-usagemax-device-id",
-      "access-control-allow-methods": "POST, OPTIONS",
+      "access-control-allow-methods": "GET, POST, OPTIONS",
       "access-control-max-age": "86400",
       "cache-control": "private, max-age=86400",
       vary: "Origin",
