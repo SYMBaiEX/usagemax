@@ -2,6 +2,11 @@
 
 _Control record — updated September 15, 2026_
 
+This is an internal readiness record, not customer-facing product
+documentation or a compliance certificate. For the public team overview, see
+the [enterprise page](https://usagemax.com/enterprise). For the repository
+documentation map, see [docs/README.md](README.md).
+
 New workspace features are implemented and locally verified. Production WorkOS
 roles were explicitly approved, applied and verified; the matching Convex backend
 is deployed. Website rollout evidence is tracked in

@@ -1,5 +1,9 @@
 # TokenMaxxing parity, pricing, and data audit
 
+_Historical research and audit record. It is not the current UsageMax product
+contract; use the live route and OpenAPI links from [docs/README.md](README.md)
+for current behavior._
+
 Audited 2026-09-14 against TokenMaxxing CLI/API release `v0.6.0`, ccusage
 `v20.0.20`, the live `symbaiex` profile, and current provider documentation.
 

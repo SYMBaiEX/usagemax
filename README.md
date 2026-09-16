@@ -241,6 +241,10 @@ skills/          Direct-installable agent skills and source notes
 server.json      MCP Registry submission metadata for the public remote server
 ```
 
+For the documentation map, start with [docs/README.md](docs/README.md). It
+separates public product and integration guidance from contributor, operator,
+release, and historical records.
+
 ## MCP Registry and skills.sh status
 
 The public MCP server is published in the official Registry as
@@ -260,37 +264,6 @@ No skills.sh install count, listing, or security audit is claimed until the
 external directory has indexed the source. The digest-pinned
 [Agent Skills index](https://usagemax.com/.well-known/agent-skills/index.json)
 is the deployed inventory; the raw GitHub files are the install sources.
-
-### Maintainer-only external submission recipe
-
-These commands are not part of normal development. A maintainer can validate a
-future metadata version and verify the active listing with:
-
-```bash
-mcp-publisher validate server.json
-mcp-publisher login github
-mcp-publisher publish server.json
-curl -fsS --get \
-  --data-urlencode 'search=io.github.SYMBaiEX/usagemax' \
-  https://registry.modelcontextprotocol.io/v0.1/servers
-```
-
-For skills.sh, install each skill from the default branch to seed its
-anonymous directory telemetry, then verify the indexed IDs and URLs via [the
-skills.sh API](https://www.skills.sh/docs/api):
-
-```bash
-npx --yes skills add SYMBaiEX/usagemax --skill usage-observability
-npx --yes skills add SYMBaiEX/usagemax --skill enterprise-reporting
-npx --yes skills add SYMBaiEX/usagemax --skill collector-diagnostics
-curl -fsS --get \
-  --data-urlencode 'q=UsageMax' \
-  --data-urlencode 'owner=SYMBaiEX' \
-  https://www.skills.sh/api/v1/skills/search
-```
-
-Those steps may create third-party listing or usage state, so they remain
-explicit maintainer actions.
 
 ## Development
 
