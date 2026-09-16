@@ -162,6 +162,28 @@ describe("WorkOS-backed accounts", () => {
     expect((await session.query(api.account.current, {}))?.collectors[0]?.name).toBe("Work laptop");
   });
 
+  test("preserves the account name when an older CLI sends its Windows default", async () => {
+    const session = t.withIdentity({
+      subject: "user_01LEGACY_LINK_NAME",
+      issuer: "https://api.workos.com/",
+      tokenIdentifier: "https://api.workos.com/|user_01LEGACY_LINK_NAME",
+    });
+    await session.mutation(api.account.ensureProfile, { handle: "legacy-link-name" });
+    const link = await session.action(api.account.createDeviceLink, { name: "Work laptop" });
+    const token = `umx_${"c".repeat(64)}`;
+    const redeemed = await t.mutation(internal.account.redeemDeviceLink, {
+      codeHash: await sha256(link.code),
+      keyHash: await sha256(token),
+      keyPrefix: token.slice(0, 12),
+      name: "Windows PC",
+      platform: "win32",
+      cliVersion: "0.3.3",
+      now: Date.now(),
+    });
+    expect(redeemed.deviceName).toBe("Work laptop");
+    expect((await session.query(api.account.current, {}))?.collectors[0]?.name).toBe("Work laptop");
+  });
+
   test("relinks one installation by rotating its collector instead of duplicating it", async () => {
     const session = t.withIdentity({
       subject: "user_01STABLE_DEVICE",

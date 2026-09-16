@@ -8,6 +8,7 @@ import { internal } from "./_generated/api";
 import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { cleanText, sha256 } from "./lib";
 import { productPolicy } from "./productPolicy";
+import { resolveDeviceName } from "./device_name";
 
 const RESERVED_HANDLES = new Set([
   "account",
@@ -560,6 +561,7 @@ export const redeemDeviceLink = internalMutation({
     keyHash: v.string(),
     keyPrefix: v.string(),
     name: v.optional(v.string()),
+    nameIsExplicit: v.optional(v.boolean()),
     platform: v.optional(v.string()),
     cliVersion: v.optional(v.string()),
     installationIdHash: v.optional(v.string()),
@@ -597,7 +599,12 @@ export const redeemDeviceLink = internalMutation({
     }
     const update = {
       ownerUserId: link.userId,
-      name: cleanText(args.name, link.deviceName, 80),
+      name: resolveDeviceName({
+        linkName: cleanText(link.deviceName, "My computer", 80),
+        requestedName: typeof args.name === "string" ? cleanText(args.name, "", 80) : undefined,
+        platform: args.platform,
+        explicit: args.nameIsExplicit,
+      }),
       keyHash: args.keyHash,
       keyPrefix: args.keyPrefix,
       scopes: ["telemetry:write", "outcomes:write"],

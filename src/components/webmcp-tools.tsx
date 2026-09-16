@@ -11,7 +11,7 @@ type ToolDefinition = {
 };
 
 type ModelContext = {
-  registerTool?: (tool: ToolDefinition) => void | (() => void);
+  registerTool?: (tool: ToolDefinition, options?: { signal?: AbortSignal }) => Promise<void> | void;
   unregisterTool?: (name: string) => void;
 };
 
@@ -94,22 +94,36 @@ export function WebMcpTools() {
   useEffect(() => {
     // WebMCP is a progressive enhancement. Unsupported browsers pay only for
     // this feature-detection branch and keep the normal UI unchanged.
-    const context = document.modelContext ?? navigator.modelContext;
-    if (!context?.registerTool) return undefined;
+    const controller = new AbortController();
+    const standardContext = document.modelContext;
+    if (standardContext?.registerTool) {
+      for (const tool of tools) {
+        try {
+          // Keep the normative WebMCP call explicit. The browser API is
+          // document.modelContext.registerTool(), with AbortSignal lifecycle.
+          void Promise.resolve(document.modelContext!.registerTool!(tool, { signal: controller.signal })).catch(() => undefined);
+        } catch {
+          // A proposed browser API can change between origin-trial versions;
+          // failing closed must never affect the visible UsageMax experience.
+        }
+      }
+      return () => controller.abort();
+    }
 
-    const cleanups: Array<() => void> = [];
+    // Older previews exposed the same shape on navigator.modelContext. Keep
+    // this as a trailing fallback so the standards path remains authoritative.
+    const legacyContext = navigator.modelContext;
+    if (!legacyContext?.registerTool) return undefined;
     for (const tool of tools) {
       try {
-        const cleanup = context.registerTool(tool);
-        if (typeof cleanup === "function") cleanups.push(cleanup);
+        void Promise.resolve(legacyContext.registerTool(tool, { signal: controller.signal })).catch(() => undefined);
       } catch {
-        // A proposed browser API can change between origin-trial versions;
-        // failing closed must never affect the visible UsageMax experience.
+        // Ignore unsupported preview behavior.
       }
     }
     return () => {
-      for (const cleanup of cleanups) cleanup();
-      if (context.unregisterTool) for (const tool of tools) context.unregisterTool(tool.name);
+      controller.abort();
+      if (legacyContext.unregisterTool) for (const tool of tools) legacyContext.unregisterTool(tool.name);
     };
   }, []);
 

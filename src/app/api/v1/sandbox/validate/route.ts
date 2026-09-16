@@ -1,14 +1,9 @@
 import { apiError, apiResponse } from "@/lib/api-response";
+import { SANDBOX_EVENT_FIELDS, validateSandboxEvent } from "@/lib/sandbox-validation";
 
 export const dynamic = "force-dynamic";
 const MAX_BYTES = 16_384;
-const eventKeys = new Set([
-  "eventKey", "logicalRequestId", "sessionId", "agentId", "agentExternalId", "parentAgentId", "parentAgentExternalId", "agentName",
-  "eventType", "source", "provider", "requestedModel", "model", "inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens",
-  "reasoningTokens", "totalTokens", "costMicros", "costBasis", "pricingSource", "pricingVersion", "serviceTier", "region", "currency",
-  "projectId", "costCenter", "latencyMs", "timeToFirstTokenMs", "status", "state", "task", "traceId", "spanId", "occurredAt", "schemaVersion",
-  "completeness", "accountingMode",
-]);
+const eventKeys = new Set<string>(SANDBOX_EVENT_FIELDS);
 
 export async function POST(request: Request) {
   if (!(request.headers.get("content-type")?.toLowerCase() ?? "").includes("application/json")) return apiError("content_type_must_be_application_json", 415);
@@ -22,7 +17,7 @@ export async function POST(request: Request) {
   for (const event of input.events) {
     if (!event || typeof event !== "object" || Array.isArray(event)) return apiError("invalid_sandbox_input", 400);
     const record = event as Record<string, unknown>;
-    if (Object.keys(record).some((key) => !eventKeys.has(key)) || typeof record.eventKey !== "string" || record.eventKey.length < 1 || record.eventKey.length > 180 || typeof record.model !== "string" || record.model.length < 1 || record.model.length > 120 || !(typeof record.occurredAt === "string" || Number.isInteger(record.occurredAt))) return apiError("invalid_sandbox_input", 400);
+    if (Object.keys(record).some((key) => !eventKeys.has(key)) || validateSandboxEvent(record)) return apiError("invalid_sandbox_input", 400);
   }
   return apiResponse({ ok: true, accepted: input.events.length, writes: false, message: "Input is valid for the content-free telemetry batch contract." });
 }

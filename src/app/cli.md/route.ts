@@ -20,6 +20,8 @@ Run <code>bunx usagemax@latest --help</code> or install the package from [npm](h
 3. Run <code>bunx usagemax@latest link UMX-XXXX-XXXX-XXXX-XXXX</code> on the computer.
 4. Run <code>bunx usagemax@latest sync</code> to upload a bounded reconciliation.
 
+The computer name selected in Account is retained. Use <code>--name "Work laptop"</code> only when you want the current CLI to explicitly override that account-side name.
+
 The link code and collector token are never included in documentation examples, URLs, telemetry fields, or logs. Use <code>bunx usagemax@latest status</code> to inspect local state without printing the token.
 
 ## Optional scheduling
