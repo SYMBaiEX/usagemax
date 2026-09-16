@@ -107,7 +107,7 @@ describe("telemetry ingestion", () => {
     });
     expect(response.status).toBe(200);
     const body = await response.json();
-    expect(body).toMatchObject({ ok: true, status: "active", credentialType: "collector", writeOnly: true, activation: "not_required", deviceBinding: "unbound" });
+    expect(body).toMatchObject({ ok: true, status: "active", credentialType: "collector", writeOnly: true, activation: "not_required", scopeStatus: "valid", ingestAuthorized: true, deviceBinding: "unbound" });
     expect(JSON.stringify(body)).not.toContain(token);
     expect(body).not.toHaveProperty("keyHash");
 
@@ -116,6 +116,19 @@ describe("telemetry ingestion", () => {
       headers: { authorization: `Bearer umx_${"f".repeat(64)}` },
     });
     expect(unknown.status).toBe(401);
+  });
+
+  test("diagnoses a recognized collector that cannot ingest because its scope is missing", async () => {
+    await t.run(async (ctx) => {
+      const collector = await ctx.db.query("collectors").unique();
+      await ctx.db.patch(collector!._id, { scopes: ["outcomes:write"] });
+    });
+    const response = await t.fetch("/v1/devices/status", {
+      method: "GET",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: false, status: "scope_missing", scopeStatus: "missing_telemetry_write", ingestAuthorized: false });
   });
 
   test("commits once and updates realtime projections", async () => {

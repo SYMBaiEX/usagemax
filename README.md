@@ -10,6 +10,23 @@ CLI performs bounded, one-shot local scans and sends aggregate snapshots over
 the versioned `https://usagemax.com/api` contract. It does not run a resident
 scanner or filesystem watcher.
 
+[Website](https://usagemax.com) · [Documentation](https://usagemax.com/docs) ·
+[OpenAPI](https://usagemax.com/openapi.json) · [CLI guide](packages/cli/README.md) ·
+[License](LICENSE)
+
+## At a glance
+
+| Surface | Purpose |
+| --- | --- |
+| Private workspace | Reconcile usage across computers, providers, models, projects, and cost centers. |
+| Public profile | Publish only the aggregate view you choose, including model mix and activity. |
+| Collector API | Accept installation-bound, write-only snapshots and content-free telemetry. |
+| Open source CLI | Scan locally, upload idempotently, and optionally run on an OS scheduler. |
+
+The boundary is intentional: local files stay local, public reads are bounded,
+and the optional screen/HUD is a separate project rather than a hidden service
+inside the collector.
+
 ## Quick start
 
 The CLI requires Node.js 20 or newer and works with Bun or npm:

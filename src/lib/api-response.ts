@@ -16,6 +16,11 @@ const errorGuidance: Record<string, { message: string; hint: string }> = {
   api_route_not_found: { message: "This UsageMax API route does not exist.", hint: "Use the OpenAPI contract or the API guide to choose a supported endpoint." },
 };
 
+const API_DOCUMENTATION = "https://usagemax.com/docs";
+
+export type ApiErrorBody = { error: string; message: string; hint: string; documentation: string };
+export type ApiRateLimitPolicy = { limit: number; windowSeconds: number };
+
 export const API_VERSION = "1";
 
 export function apiResponse(body: unknown, init?: ResponseInit) {
@@ -27,15 +32,21 @@ export function apiResponse(body: unknown, init?: ResponseInit) {
   return response;
 }
 
-export function apiError(error: string, status: number, guidance?: Partial<{ message: string; hint: string }>) {
+export function apiError(error: string, status: number, guidance?: Partial<{ message: string; hint: string; documentation: string }>, rateLimitPolicy?: ApiRateLimitPolicy) {
   const detail = errorGuidance[error] ?? {
     message: "The request could not be completed.",
     hint: "Check the request and consult https://usagemax.com/docs.",
   };
-  const response = NextResponse.json({ error, message: guidance?.message ?? detail.message, hint: guidance?.hint ?? detail.hint }, { status });
+  const body: ApiErrorBody = { error, message: guidance?.message ?? detail.message, hint: guidance?.hint ?? detail.hint, documentation: guidance?.documentation ?? API_DOCUMENTATION };
+  const response = NextResponse.json(body, { status });
   response.headers.set("access-control-allow-origin", "*");
   response.headers.set("cache-control", "no-store");
   response.headers.set("x-request-id", crypto.randomUUID());
   response.headers.set("x-api-version", API_VERSION);
+  if (rateLimitPolicy) {
+    response.headers.set("RateLimit-Policy", `${rateLimitPolicy.limit};w=${rateLimitPolicy.windowSeconds}`);
+    response.headers.set("RateLimit-Limit", String(rateLimitPolicy.limit));
+    response.headers.set("RateLimit-Reset", String(rateLimitPolicy.windowSeconds));
+  }
   return response;
 }

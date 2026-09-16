@@ -20,6 +20,10 @@ declare global {
   interface Navigator { modelContext?: ModelContext; }
 }
 
+export function detectWebMcpContext(documentContext: ModelContext | undefined, navigatorContext: ModelContext | undefined) {
+  return documentContext?.registerTool ? { context: documentContext, source: "document" as const } : navigatorContext?.registerTool ? { context: navigatorContext, source: "navigator" as const } : undefined;
+}
+
 async function readPublicJson(path: string) {
   const response = await fetch(path, { cache: "no-store", credentials: "omit", headers: { accept: "application/json" } });
   const body = await response.json().catch(() => null);
@@ -95,13 +99,13 @@ export function WebMcpTools() {
     // WebMCP is a progressive enhancement. Unsupported browsers pay only for
     // this feature-detection branch and keep the normal UI unchanged.
     const controller = new AbortController();
-    const standardContext = document.modelContext;
-    if (standardContext?.registerTool) {
+    const detected = detectWebMcpContext(document.modelContext, navigator.modelContext);
+    if (detected?.source === "document") {
       for (const tool of tools) {
         try {
           // Keep the normative WebMCP call explicit. The browser API is
           // document.modelContext.registerTool(), with AbortSignal lifecycle.
-          void Promise.resolve(document.modelContext!.registerTool!(tool, { signal: controller.signal })).catch(() => undefined);
+          void Promise.resolve(detected.context.registerTool!(tool, { signal: controller.signal })).catch(() => undefined);
         } catch {
           // A proposed browser API can change between origin-trial versions;
           // failing closed must never affect the visible UsageMax experience.
@@ -112,7 +116,7 @@ export function WebMcpTools() {
 
     // Older previews exposed the same shape on navigator.modelContext. Keep
     // this as a trailing fallback so the standards path remains authoritative.
-    const legacyContext = navigator.modelContext;
+    const legacyContext = detected?.source === "navigator" ? detected.context : undefined;
     if (!legacyContext?.registerTool) return undefined;
     for (const tool of tools) {
       try {

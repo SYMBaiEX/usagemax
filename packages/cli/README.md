@@ -146,8 +146,10 @@ printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
 ```
 
 The diagnostic reports the key format, collector type, scopes, activation
-state, profile/name, and whether the supplied installation is unbound, bound,
-matched, or mismatched. It never returns or prints the token. Advanced keys
+state, ingest authorization, profile/name, and whether the supplied installation
+is unbound, bound, matched, or mismatched. It never returns or prints the token.
+If `scopeStatus` is `missing_telemetry_write`, the key is recognized but cannot
+write to the LLM telemetry endpoint. Advanced keys
 are active immediately, do not need propagation, and bind their first valid
 installation on the first write. Use the [zero-token telemetry example](https://usagemax.com/api/v1/sandbox)
 for a no-accounting contract check.

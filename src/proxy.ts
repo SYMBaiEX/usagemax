@@ -16,6 +16,8 @@ const markdownRoutes: Record<string, string> = {
   "/.well-known/oauth-protected-resource": "/.well-known/oauth-protected-resource.md",
   "/api/llms.txt": "/api/llms.txt.md",
   "/sandbox": "/sandbox.md",
+  "/about": "/about.md",
+  "/contact": "/contact.md",
 };
 
 const nonProfileRootPaths = new Set([
