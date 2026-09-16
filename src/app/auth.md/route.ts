@@ -1,11 +1,11 @@
-const markdown = `---
+const markdown = `# UsageMax authentication
+
+<!--
 title: UsageMax authentication
 description: The credentials and supported authentication boundaries for UsageMax.
 canonical: https://usagemax.com/auth.md
 last-updated: 2026-09-16
----
-
-# UsageMax authentication
+-->
 
 UsageMax separates public read access, website sign-in, and local collector uploads. This document describes the credentials that actually exist today; UsageMax does not expose a general OAuth token exchange for API delegation.
 
@@ -65,6 +65,7 @@ UsageMax stores bounded projections for public profiles and enterprise reporting
 const headers = {
   "cache-control": "public, max-age=3600, stale-while-revalidate=86400",
   "content-type": "text/markdown; charset=utf-8",
+  link: '<https://usagemax.com/auth.md>; rel="canonical"',
   vary: "Accept",
 };
 
