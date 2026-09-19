@@ -67,6 +67,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <link rel="alternate" type="application/linkset+json" href="/.well-known/api-catalog" title="UsageMax API catalog" />
         <link rel="service-desc" type="application/vnd.oai.openapi+json" href="/openapi.json" title="UsageMax OpenAPI contract" />
         <link rel="alternate" type="text/plain" href="/llms.txt" title="UsageMax agent guide" />
+        <link rel="alternate" type="text/plain" href="/docs/llms.txt" title="UsageMax documentation agent guide" />
+        <link rel="alternate" type="text/plain" href="/api/llms.txt" title="UsageMax API agent guide" />
+        <link rel="alternate" type="text/plain" href="/developers/llms.txt" title="UsageMax developer agent guide" />
+        <link rel="alternate" type="text/plain" href="/enterprise/llms.txt" title="UsageMax enterprise agent guide" />
+        <link rel="alternate" type="text/plain" href="/integrations/llms.txt" title="UsageMax integrations agent guide" />
         <link rel="alternate" type="application/json" href="/.well-known/agent-skills/index.json" title="UsageMax agent skills" />
         <link rel="alternate" type="application/json" href="/agent.json" title="UsageMax agent capability index" />
         <link rel="alternate" type="application/json" href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest" title="UsageMax MCP Registry listing" />
