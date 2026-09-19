@@ -6,6 +6,7 @@ import { PageIntro, TextLink } from "@/components/site-shell";
 
 export const metadata: Metadata = {
   title: "Sandbox",
+  alternates: { canonical: "https://usagemax.com/sandbox" },
   description: "Validate a bounded UsageMax telemetry batch without writing production data.",
 };
 

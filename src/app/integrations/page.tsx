@@ -7,6 +7,7 @@ import { PageIntro } from "@/components/site-shell";
 export const metadata: Metadata = {
   title: "Integrations | UsageMax",
   description: "Connect UsageMax to AI agents, developer tools, local collectors, and observability systems.",
+  alternates: { canonical: "https://usagemax.com/integrations" },
 };
 
 const integrations = [

@@ -7,6 +7,7 @@ import { PageIntro, TextLink } from "@/components/site-shell";
 export const metadata: Metadata = {
   title: "Pricing",
   description: "UsageMax is free for individual builders and small teams, with custom enterprise capacity by agreement.",
+  alternates: { canonical: "https://usagemax.com/pricing" },
 };
 
 const plans = [

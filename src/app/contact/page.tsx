@@ -7,6 +7,7 @@ import { ArrowUpRight, ShieldCheck } from "@/components/icons";
 export const metadata: Metadata = {
   title: "Contact UsageMax",
   description: "Contact UsageMax about support, enterprise workspaces, security, privacy, or public profile requests.",
+  alternates: { canonical: "https://usagemax.com/contact" },
 };
 
 export default function ContactPage() {

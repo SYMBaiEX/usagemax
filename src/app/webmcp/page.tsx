@@ -6,6 +6,7 @@ import { PageIntro, TextLink } from "@/components/site-shell";
 
 export const metadata: Metadata = {
   title: "WebMCP",
+  alternates: { canonical: "https://usagemax.com/webmcp" },
   description: "Expose bounded, read-only UsageMax tools to browser-based AI agents.",
 };
 

@@ -7,6 +7,7 @@ import { ArrowRight, ArrowUpRight, ShieldCheck } from "@/components/icons";
 export const metadata: Metadata = {
   title: "About UsageMax",
   description: "UsageMax makes AI work measurable across models, agents, and computers without collecting prompt content.",
+  alternates: { canonical: "https://usagemax.com/about" },
 };
 
 export default function AboutPage() {
