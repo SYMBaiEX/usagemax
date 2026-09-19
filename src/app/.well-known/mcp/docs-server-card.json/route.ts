@@ -15,7 +15,9 @@ export function GET() {
     tools: DOC_TOOL_DEFINITIONS.map(({ name, title, description, inputSchema, outputSchema, annotations }) => ({ name, title, description, inputSchema, ...(outputSchema ? { outputSchema } : {}), annotations })),
     endpoints: [{ url: "https://usagemax.com/docs-mcp", methods: ["POST"], tools: DOC_TOOL_DEFINITIONS.map(({ name }) => name) }],
     authentication: { schemes: [] },
-    capabilities: { tools: { listChanged: false }, resources: false, prompts: false },
+    // This surface is intentionally tool-only. Omit resources instead of
+    // advertising a boolean capability that is not part of the MCP handshake.
+    capabilities: { tools: { listChanged: false }, prompts: false },
     limitations: ["No mutations", "No private or account data", "No telemetry ingestion", "JSON responses only; no SSE streaming", "Request bodies capped at 64 KiB", "Origin validation is enforced when Origin is supplied"],
   }, { headers: { "cache-control": "public, max-age=300" } });
 }

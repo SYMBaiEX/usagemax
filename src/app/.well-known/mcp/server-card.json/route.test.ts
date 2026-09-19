@@ -29,5 +29,7 @@ describe("MCP server cards", () => {
     expect(body).toMatchObject(MCP_SERVER_BRANDING);
     expect(body.tools).toEqual(cardTools(DOC_TOOL_DEFINITIONS));
     expect(body.endpoints).toEqual([{ url: "https://usagemax.com/docs-mcp", methods: ["POST"], tools: DOC_TOOL_DEFINITIONS.map(({ name }) => name) }]);
+    expect(body.capabilities).toEqual({ tools: { listChanged: false }, prompts: false });
+    expect(body).not.toHaveProperty("resources");
   });
 });
