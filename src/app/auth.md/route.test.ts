@@ -4,7 +4,8 @@ import { GET, HEAD } from "./route";
 describe("auth.md", () => {
   it("documents the traversable collector path and explicit OAuth boundary", async () => {
     const body = await (GET() as Response).text();
-    expect(body.trimStart().startsWith("---\ntitle: UsageMax authentication")).toBe(true);
+    expect(body.trimStart().startsWith("# UsageMax authentication")).toBe(true);
+    expect(body.length).toBeGreaterThanOrEqual(200);
     expect(body).toContain("# UsageMax authentication");
     expect(body).toContain("title: UsageMax authentication");
     expect(body).toContain("description: The credentials and supported authentication boundaries for UsageMax.");
@@ -18,6 +19,7 @@ describe("auth.md", () => {
     expect(body).toContain("no `authorization_endpoint`, `token_endpoint`, `identity_endpoint`");
     expect(body).toContain("https://usagemax.com/.well-known/oauth-protected-resource");
     expect(body).toContain("CLI `0.3.6`");
+    expect(body).not.toContain("agent_auth");
   });
 
   it("serves markdown for GET and HEAD", () => {
