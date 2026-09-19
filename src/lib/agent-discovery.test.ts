@@ -53,7 +53,14 @@ describe("agent resource links", () => {
     expect(agentHomepage().onboarding).toMatchObject({
       freeTier: true,
       noCardRequired: true,
-      sandbox: { url: "https://usagemax.com/sandbox", writes: false, authentication: "none" },
+      sandbox: {
+        url: "https://usagemax.com/sandbox",
+        endpoint: "https://usagemax.com/api/v1/sandbox/validate",
+        method: "POST",
+        writes: false,
+        authentication: "none",
+        response: "{ok:true,accepted:number,writes:false}",
+      },
       steps: [
         expect.objectContaining({ order: 1, action: "sign_in", url: "https://usagemax.com/auth/start" }),
         expect.objectContaining({ order: 2, action: "link_computer", command: "bunx usagemax" }),

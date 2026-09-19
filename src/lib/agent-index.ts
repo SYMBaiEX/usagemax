@@ -37,7 +37,15 @@ export function agentHomepage() {
     onboarding: {
       freeTier: true,
       noCardRequired: true,
-      sandbox: { url: "https://usagemax.com/sandbox", writes: false, authentication: "none" },
+      sandbox: {
+        url: "https://usagemax.com/sandbox",
+        endpoint: "https://usagemax.com/api/v1/sandbox/validate",
+        method: "POST",
+        writes: false,
+        authentication: "none",
+        request: "{events:[content-free event objects]}",
+        response: "{ok:true,accepted:number,writes:false}",
+      },
       firstSync: "bunx usagemax",
       steps: [
         {
