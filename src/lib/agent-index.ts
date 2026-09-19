@@ -10,6 +10,7 @@ export function agentHomepage() {
     name: "UsageMax",
     docs: "https://usagemax.com/docs",
     pricing: "https://usagemax.com/pricing.md",
+    integrationGuide: "https://usagemax.com/integrations",
     sandbox: "https://usagemax.com/sandbox",
     pricingPlans: [
       {
@@ -177,6 +178,7 @@ export function agentHomepage() {
       { name: "agentSkills", url: "https://usagemax.com/.well-known/agent-skills/index.json", mediaType: "application/json" },
       { name: "authentication", url: "https://usagemax.com/auth.md", mediaType: "text/markdown" },
       { name: "pricing", url: "https://usagemax.com/pricing.md", mediaType: "text/markdown" },
+      { name: "integrations", url: "https://usagemax.com/integrations", mediaType: "text/html", markdownUrl: "https://usagemax.com/integrations.md" },
       { name: "profileMarkdown", url: "https://usagemax.com/profile.md", mediaType: "text/markdown", template: true, exampleUrl: "https://usagemax.com/symbiex.md", pathPattern: "/{handle}.md" },
       { name: "cliGuide", url: "https://usagemax.com/cli.md", mediaType: "text/markdown" },
       { name: "webmcp", url: "https://usagemax.com/webmcp", mediaType: "text/html" },
@@ -192,6 +194,7 @@ export function agentHomepage() {
       { name: "a2a-agent-card", url: "/.well-known/agent-card.json", contentType: "application/json", authentication: "none", readOnly: true },
       { name: "agent-skills", url: "/.well-known/agent-skills/index.json", contentType: "application/json", authentication: "none", readOnly: true },
       { name: "pricing", url: "/pricing.md", contentType: "text/markdown", authentication: "none", readOnly: true },
+      { name: "integrations", url: "/integrations.md", contentType: "text/markdown", authentication: "none", readOnly: true },
       { name: "profileMarkdown", url: "/symbiex.md", contentType: "text/markdown", authentication: "none", readOnly: true, template: true, pathPattern: "/{handle}.md" },
       { name: "http-message-signatures-directory", url: "/.well-known/http-message-signatures-directory", contentType: "application/http-message-signatures-directory+json", authentication: "none", readOnly: true },
       { name: "agentRules", url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/AGENTS.md", contentType: "text/plain", authentication: "none", readOnly: true },
