@@ -19,8 +19,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${baseUrl}/webmcp.md`, lastModified: now, changeFrequency: "monthly", priority: 0.4 },
     { url: `${baseUrl}/api-versioning.md`, lastModified: now, changeFrequency: "monthly", priority: 0.4 },
     { url: `${baseUrl}/openapi.json`, lastModified: now, changeFrequency: "weekly", priority: 0.5 },
-    { url: `${baseUrl}/mcp`, lastModified: now, changeFrequency: "weekly", priority: 0.4 },
-    { url: `${baseUrl}/docs-mcp`, lastModified: now, changeFrequency: "weekly", priority: 0.4 },
     { url: `${baseUrl}/.well-known/mcp`, lastModified: now, changeFrequency: "weekly", priority: 0.4 },
     { url: `${baseUrl}/.well-known/mcp/server-card.json`, lastModified: now, changeFrequency: "weekly", priority: 0.4 },
     { url: `${baseUrl}/.well-known/mcp/docs-server-card.json`, lastModified: now, changeFrequency: "weekly", priority: 0.4 },
