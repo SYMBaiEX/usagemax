@@ -26,6 +26,12 @@ function error(message: string, status: number, headers?: HeadersInit, rateLimit
   if (headers) {
     for (const [name, value] of new Headers(headers)) responseHeaders.set(name, value);
   }
+  // Generated transient errors must provide the same bounded retry signal as
+  // normalized upstream errors so agents never have to guess a backoff.
+  if ((status === 429 || status === 503) && !responseHeaders.has("retry-after")) {
+    const firstWindow = rateLimitPolicy.match(/(?:^|,\s*)\d+;w=(\d+)/)?.[1];
+    if (firstWindow) responseHeaders.set("retry-after", firstWindow);
+  }
   return Response.json({ error: message, message: guidance.message, hint: guidance.hint, documentation: API_DOCUMENTATION }, {
     status,
     headers: responseHeaders,
