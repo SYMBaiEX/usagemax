@@ -33,6 +33,7 @@ describe("landing page", () => {
     expect(html).toContain("Not an invoice.");
     expect(html).toContain('href="/?mode=agent"');
     expect(html).toContain("Agent mode");
+    expect(html).toContain('href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest"');
     expect(html).toContain("Free for individuals and small teams. No card required.");
     expect(queryMock).toHaveBeenCalledTimes(2);
     expect(queryMock.mock.calls[1][1]).toEqual({ period: "all", metric: "tokens", limit: 5 });

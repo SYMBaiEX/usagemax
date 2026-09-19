@@ -145,6 +145,7 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
         <span>Integrations</span>
         <ul aria-label="Supported local coding agents">{sources.map((source) => <li key={source}>{source}</li>)}</ul>
         <Link href="/docs">16 local sources <ArrowUpRight size={12} /></Link>
+        <Link href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest" rel="external">MCP Registry <ArrowUpRight size={12} /></Link>
       </div>
 
       <MotionSurface><PublicLedger rows={rows} period={period} metric={metric} setPeriod={setPeriod} setMetric={setMetric} connected={connected} /></MotionSurface>
