@@ -9,5 +9,8 @@ describe("API agent guide", () => {
     expect(body.startsWith("---\n")).toBe(true);
     expect(body).toContain("\n# UsageMax API\n");
     expect(body).toContain("canonical: https://usagemax.com/api/llms.txt");
+    expect(body).toContain("/api/profiles/symbiex");
+    expect(body).not.toContain("/api/profiles/{handle}");
+    expect(body).not.toContain("/api/v2/usage/snapshots/{runId}");
   });
 });

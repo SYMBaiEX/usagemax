@@ -16,12 +16,12 @@ The UsageMax HTTP API has public read operations and authenticated, content-free
 - [Authentication](/auth.md): credential, header, revocation, and error guidance
 - [Pricing](/pricing.md): machine-readable personal, small-team, and enterprise plan boundaries
 - [Collector status](/api/v1/devices/status): read-only key and device-binding diagnostic
-- [Snapshot run status](/api/v2/usage/snapshots/{runId}): read-only progress for the same bearer token and device UUID
+- [Snapshot run status schema](/openapi.json#/paths/~1api~1v2~1usage~1snapshots~1%7BrunId%7D/get): read-only progress for a run owned by the same bearer token and device UUID; the run id is a path value in the OpenAPI contract
 - [API catalog](/.well-known/api-catalog): RFC 9727 Linkset discovery
 - [AI Catalog compatibility](/.well-known/ai-catalog.json): equivalent legacy discovery catalog
 - [Network stats](/api/stats): bounded public aggregate totals
 - [Leaderboard](/api/leaderboard?metric=tokens&window=all): bounded public rankings
-- [Public profile](/api/profiles/{handle}): opt-in profile projection
+- [Public profile example](/api/profiles/symbiex): opt-in profile projection; use the \`handle\` path parameter for another published profile
 - [MCP](/mcp): read-only tool interface for public projections
 - [WebMCP](/webmcp): browser-local read-only tools using document.modelContext
 - [A2A](/a2a): read-only JSON-RPC agent interface for bounded public questions

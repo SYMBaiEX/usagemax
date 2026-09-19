@@ -13,6 +13,28 @@ const sameAs = [
   registryUrl,
 ];
 
+// A postal address is only emitted when the operator supplies a complete,
+// verified address in the deployment environment. Keeping this opt-in avoids
+// publishing a guessed home, registered-agent, or mailbox address while still
+// making the Organization schema complete for businesses that have one.
+const organizationAddress = (() => {
+  const streetAddress = process.env.USAGEMAX_ORG_ADDRESS_STREET?.trim();
+  const addressLocality = process.env.USAGEMAX_ORG_ADDRESS_LOCALITY?.trim();
+  const addressRegion = process.env.USAGEMAX_ORG_ADDRESS_REGION?.trim();
+  const postalCode = process.env.USAGEMAX_ORG_ADDRESS_POSTAL_CODE?.trim();
+  const addressCountry = process.env.USAGEMAX_ORG_ADDRESS_COUNTRY?.trim();
+
+  if (!streetAddress || !addressLocality || !addressRegion || !postalCode || !addressCountry) return undefined;
+  return {
+    "@type": "PostalAddress",
+    streetAddress,
+    addressLocality,
+    addressRegion,
+    postalCode,
+    addressCountry,
+  } as const;
+})();
+
 export const usageMaxStructuredData = {
   "@context": "https://schema.org",
   "@graph": [
@@ -40,6 +62,7 @@ export const usageMaxStructuredData = {
       description: "UsageMax is an open-source usage observability platform for people and teams building with AI.",
       logo: logoUrl,
       email: "hello@usagemax.com",
+      ...(organizationAddress ? { address: organizationAddress } : {}),
       identifier: [
         { "@type": "PropertyValue", propertyID: "github", value: repositoryUrl },
         { "@type": "PropertyValue", propertyID: "npm", value: "https://www.npmjs.com/package/usagemax" },

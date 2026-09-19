@@ -24,6 +24,25 @@ membership keeps the latest authorization-change timestamp, so retries and
 out-of-order delivery cannot restore stale access. Privileged operations reject
 JWTs issued before a membership authorization change and require session refresh.
 
+## Public organization metadata
+
+The site emits the factual UsageMax Organization JSON-LD identity by default.
+If the business has a verified postal address that should be public, configure
+all five values on the web deployment so the schema can publish a complete
+`PostalAddress` rather than a partial or guessed location:
+
+```text
+USAGEMAX_ORG_ADDRESS_STREET
+USAGEMAX_ORG_ADDRESS_LOCALITY
+USAGEMAX_ORG_ADDRESS_REGION
+USAGEMAX_ORG_ADDRESS_POSTAL_CODE
+USAGEMAX_ORG_ADDRESS_COUNTRY
+```
+
+The address is intentionally all-or-nothing. Leaving any value unset keeps it
+out of public metadata; do not use a private residence or an unverified
+registered-agent address.
+
 After configuration, exercise active → inactive → active membership transitions,
 an organization deletion in a disposable tenant, a replayed event, an invalid
 signature, and an older event delivered after a newer event. Retain the event IDs
