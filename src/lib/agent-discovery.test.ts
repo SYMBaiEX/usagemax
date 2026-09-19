@@ -26,6 +26,16 @@ describe("agent authentication metadata", () => {
   });
 });
 
+describe("agent pricing metadata", () => {
+  it("publishes comparable plan tiers without inventing enterprise pricing", () => {
+    expect(agentHomepage().pricingPlans).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "personal", price: { amount: 0, currency: "USD", interval: "month" } }),
+      expect.objectContaining({ id: "small-teams", limits: expect.objectContaining({ members: 10 }) }),
+      expect.objectContaining({ id: "enterprise", price: expect.objectContaining({ qualifier: "custom_agreement", amount: null }) }),
+    ]));
+  });
+});
+
 describe("agent resource links", () => {
   it("exposes predictable first-party and source-controlled developer resources", () => {
     const index = agentHomepage();

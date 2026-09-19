@@ -17,6 +17,9 @@ describe("pricing resource", () => {
     expect(body).toContain("plan_id: enterprise");
     expect(body).toContain("price: custom_agreement");
     expect(body).toContain("billing: written_agreement_before_activation");
+    expect(body).toContain("## Feature and limit matrix");
+    expect(body).toContain("SSO and directory provisioning");
+    expect(body).toContain("Governed exports and SIEM delivery");
     expect(body).not.toContain("$99");
   });
 

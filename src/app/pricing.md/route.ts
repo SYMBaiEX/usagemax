@@ -53,6 +53,35 @@ These identifiers are descriptive documentation, not an API or a promise of
 automatic upgrades. The free plan records are available without a payment
 method; the enterprise record is a scoped commercial conversation.
 
+## Feature and limit matrix
+
+The compact matrix below is intentionally explicit so an agent can compare a
+plan without interpreting prose. A check means the capability is included in
+the published boundary; **scoped** means it is enabled only when the written
+enterprise agreement names the control and its capacity.
+
+| Capability | Personal | Small teams | Enterprise |
+| --- | --- | --- | --- |
+| Monthly price | $0 | $0 | Custom agreement |
+| Private usage history | Included | Included | Included |
+| One-shot local sync | Included | Included | Included |
+| Public profile | Optional | Optional | Optional / governed |
+| Workspace members | 1 | Up to 10 | Scoped |
+| Linked computers | Up to 25 | Up to 25 | Scoped |
+| Teams and projects | — | Included | Included / scoped |
+| Invitations and roles | — | Included | Included / scoped |
+| SSO and directory provisioning | — | — | Scoped |
+| Private attribution and cost centers | — | Included | Included / scoped |
+| Data residency choices | — | — | Scoped |
+| Governed exports and SIEM delivery | Bounded | Bounded | Scoped |
+| Detailed retention | 30 days | 30 days | Scoped |
+| Support commitment | Community | Community | Contracted |
+
+An em dash means the capability is not part of that plan's published boundary;
+it is not a promise that the service will accept the data through an
+undocumented path. Enterprise controls are activated only after the scope,
+identity boundary, retention schedule, and support contact are recorded.
+
 ## Personal — $0/month
 
 - No credit card and no trial clock.

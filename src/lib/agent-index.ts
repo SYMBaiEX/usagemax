@@ -11,6 +11,32 @@ export function agentHomepage() {
     docs: "https://usagemax.com/docs",
     pricing: "https://usagemax.com/pricing.md",
     sandbox: "https://usagemax.com/sandbox",
+    pricingPlans: [
+      {
+        id: "personal",
+        name: "Personal",
+        price: { amount: 0, currency: "USD", interval: "month" },
+        billing: "no_card_no_trial",
+        features: ["private_history", "one_shot_syncs", "optional_public_profile", "bounded_exports"],
+        limits: { linkedComputers: 25, budgets: 5, detailedRetentionDays: 30 },
+      },
+      {
+        id: "small-teams",
+        name: "Small teams",
+        price: { amount: 0, currency: "USD", interval: "month" },
+        billing: "no_card_no_trial",
+        features: ["private_workspace", "invitations", "roles", "teams", "projects", "shared_reporting"],
+        limits: { members: 10, teams: 5, projects: 20, devices: 25, detailedRetentionDays: 30 },
+      },
+      {
+        id: "enterprise",
+        name: "Enterprise",
+        price: { amount: null, currency: "USD", interval: "month", qualifier: "custom_agreement" },
+        billing: "written_agreement_before_activation",
+        features: ["higher_capacity", "sso", "directory_setup", "private_attribution", "residency_choices", "governed_exports", "support_commitments"],
+        limits: "contract_specific",
+      },
+    ],
     brand: {
       name: "UsageMax",
       url: "https://usagemax.com",

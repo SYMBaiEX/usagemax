@@ -12,7 +12,7 @@ describe("UsageMax structured data", () => {
       url: "https://usagemax.com",
       description: expect.stringContaining("open-source usage observability platform"),
       logo: "https://usagemax.com/brand/icon-192.png",
-      contactPoint: { "@type": "ContactPoint", url: "https://usagemax.com/contact" },
+      contactPoint: { "@type": "ContactPoint", url: "https://usagemax.com/contact", availableLanguage: "English" },
       email: "hello@usagemax.com",
       identifier: expect.arrayContaining([
         expect.objectContaining({ propertyID: "github", value: "https://github.com/SYMBaiEX/usagemax" }),

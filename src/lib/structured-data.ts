@@ -40,6 +40,7 @@ export const usageMaxStructuredData = {
         contactType: "customer support",
         email: "hello@usagemax.com",
         url: "https://usagemax.com/contact",
+        availableLanguage: "English",
       },
     },
     {
