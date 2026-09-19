@@ -1,8 +1,13 @@
-const markdown = `# UsageMax API
+const markdown = `---
+title: UsageMax API agent guide
+description: Public reads, sandbox validation, and content-free collector contracts.
+canonical: https://usagemax.com/api/llms.txt
+last-updated: 2026-09-19
+---
+
+# UsageMax API
 
 The UsageMax HTTP API has public read operations and authenticated, content-free collector write operations.
-
-<!-- title: UsageMax API agent guide; canonical: https://usagemax.com/api/llms.txt; last-updated: 2026-09-16 -->
 
 - [OpenAPI contract](/openapi.json): canonical typed request and response schema
 - [API versioning](/api-versioning.md): compatibility and deprecation policy

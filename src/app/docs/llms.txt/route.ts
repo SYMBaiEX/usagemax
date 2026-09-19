@@ -1,8 +1,13 @@
-const markdown = `# UsageMax documentation
+const markdown = `---
+title: UsageMax documentation agent guide
+description: Product, privacy, and integration guidance for UsageMax.
+canonical: https://usagemax.com/docs/llms.txt
+last-updated: 2026-09-19
+---
+
+# UsageMax documentation
 
 Use this section when you need to understand the product, privacy boundary, or integration contract before calling UsageMax.
-
-<!-- title: UsageMax documentation agent guide; canonical: https://usagemax.com/docs/llms.txt; last-updated: 2026-09-16 -->
 
 - [Documentation](/docs): human-facing setup and telemetry guidance
 - [Methodology](/methodology): aggregation, pricing, completeness, and ranking rules
