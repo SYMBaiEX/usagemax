@@ -183,7 +183,7 @@ export function agentHomepage() {
       { name: "webmcpMarkdown", url: "https://usagemax.com/webmcp.md", mediaType: "text/markdown" },
       { name: "agentPlugin", url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/plugin.json", mediaType: "application/json" },
       { name: "agentPluginOnDomain", url: "https://usagemax.com/plugin.json", mediaType: "application/json" },
-      { name: "agentRules", url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/AGENTS.md", mediaType: "text/markdown" },
+      { name: "agentRules", url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/AGENTS.md", mediaType: "text/plain" },
       { name: "mcpRegistry", url: "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest", mediaType: "application/json" },
     ],
     resources: [
@@ -194,7 +194,7 @@ export function agentHomepage() {
       { name: "pricing", url: "/pricing.md", contentType: "text/markdown", authentication: "none", readOnly: true },
       { name: "profileMarkdown", url: "/symbiex.md", contentType: "text/markdown", authentication: "none", readOnly: true, template: true, pathPattern: "/{handle}.md" },
       { name: "http-message-signatures-directory", url: "/.well-known/http-message-signatures-directory", contentType: "application/http-message-signatures-directory+json", authentication: "none", readOnly: true },
-      { name: "agentRules", url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/AGENTS.md", contentType: "text/markdown", authentication: "none", readOnly: true },
+      { name: "agentRules", url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/AGENTS.md", contentType: "text/plain", authentication: "none", readOnly: true },
       { name: "mcp-registry", url: "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest", contentType: "application/json", authentication: "none", readOnly: true },
     ],
     protocols: {
@@ -219,7 +219,7 @@ export function agentHomepage() {
       apiV1: "https://usagemax.com/api/v1",
       mcp: "/mcp",
       a2a: "/a2a",
-      ask: "/ask",
+      ask: "/ask?query=UsageMax",
       skills: "/.well-known/agent-skills/index.json",
       pricing: "https://usagemax.com/pricing.md",
       pricingPage: "/pricing",
