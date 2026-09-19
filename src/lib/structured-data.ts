@@ -9,6 +9,7 @@ const sameAs = [
   "https://github.com/SYMBaiEX",
   "https://www.npmjs.com/package/usagemax",
   "https://www.npmjs.com/~symbaiex",
+  "https://glama.ai/mcp/connectors/io.github.SYMBaiEX/usagemax",
   registryUrl,
 ];
 

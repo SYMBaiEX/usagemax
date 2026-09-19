@@ -23,6 +23,7 @@ describe("UsageMax structured data", () => {
         "https://github.com/SYMBaiEX",
         "https://www.npmjs.com/package/usagemax",
         "https://www.npmjs.com/~symbaiex",
+        "https://glama.ai/mcp/connectors/io.github.SYMBaiEX/usagemax",
         "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest",
       ]),
     });
