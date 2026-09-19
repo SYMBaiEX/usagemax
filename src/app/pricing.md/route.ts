@@ -19,6 +19,15 @@ meter, trial expiration, or required payment method on the free plans.
 | Small teams | **$0/month** | Private workspace, invitations, roles, teams, projects, shared provider/model reporting, cost-center context | Up to 10 members, 5 teams, 20 projects, 25 devices, 30-day detailed retention |
 | Enterprise | **Custom agreement** | Higher capacity, SSO and directory setup, private attribution, retention/residency choices, governed exports, support commitments | Contract-specific limits, controls, and service levels |
 
+## Plan tiers, prices, features, and limits
+
+This page publishes three plan tiers: Personal, Small teams, and Enterprise.
+Each tier states its price, included features, and operating limits above and
+below. Personal and Small teams are free at **$0/month**; Enterprise is a
+custom agreement with no undisclosed public rate. The tables are the source of
+truth for agent comparisons, while the explanatory sections define how those
+limits are applied.
+
 ## Machine-readable plan summary
 
 The following records repeat the public plan boundary in a compact form for

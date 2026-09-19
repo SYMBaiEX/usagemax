@@ -21,6 +21,7 @@ describe("pricing resource", () => {
     expect(body).toContain("SSO and directory provisioning");
     expect(body).toContain("Governed exports and SIEM delivery");
     expect(body).toContain("## Definitions used in this pricing document");
+    expect(body).toContain("## Plan tiers, prices, features, and limits");
     expect(body).toContain("## Example plan decisions");
     expect(body).toContain("## Enterprise procurement questions");
     expect(body).toContain("## Cost and accounting definitions");
