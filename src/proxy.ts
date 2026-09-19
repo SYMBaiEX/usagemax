@@ -61,6 +61,11 @@ function publicHeaders(headers: Headers, cacheControl: string, markdownPath?: st
     "</.well-known/api-catalog>; rel=\"api-catalog\"; type=\"application/linkset+json\"; profile=\"https://www.rfc-editor.org/info/rfc9727\"",
     "</openapi.json>; rel=\"service-desc\"; type=\"application/vnd.oai.openapi+json\"",
     "</ask>; rel=\"nlweb\"",
+    "</docs/llms.txt>; rel=\"alternate\"; type=\"text/plain\"; title=\"UsageMax documentation agent guide\"",
+    "</api/llms.txt>; rel=\"alternate\"; type=\"text/plain\"; title=\"UsageMax API agent guide\"",
+    "</developers/llms.txt>; rel=\"alternate\"; type=\"text/plain\"; title=\"UsageMax developer agent guide\"",
+    "</enterprise/llms.txt>; rel=\"alternate\"; type=\"text/plain\"; title=\"UsageMax enterprise agent guide\"",
+    "</integrations/llms.txt>; rel=\"alternate\"; type=\"text/plain\"; title=\"UsageMax integrations agent guide\"",
   ];
   if (canonicalPath) links.push(`<${canonicalPath}>; rel=\"canonical\"`);
   if (markdownPath) links.push(`<${markdownPath}>; rel=\"alternate\"; type=\"text/markdown\"`);
