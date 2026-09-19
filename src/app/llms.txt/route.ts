@@ -2,7 +2,7 @@ const llmsText = `# UsageMax
 
 > UsageMax is a public observability layer for builders running serious AI systems. It turns reported model, tool, agent, and outcome telemetry into compact, bounded public projections.
 
-<!-- title: UsageMax agent guide; canonical: https://usagemax.com/llms.txt; last-updated: 2026-09-16 -->
+<!-- title: UsageMax agent guide; canonical: https://usagemax.com/llms.txt; last-updated: 2026-09-19 -->
 
 ## When to use UsageMax
 
