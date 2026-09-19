@@ -114,6 +114,8 @@ export async function registerDocumentWebMcpTools(signal: AbortSignal): Promise<
   if (signal.aborted || typeof document === "undefined" || !document.modelContext || typeof document.modelContext.registerTool !== "function") return 0;
 
   const context = document.modelContext;
+  const registerTool = context.registerTool;
+  if (typeof registerTool !== "function") return 0;
   const registeredNames = new Set<string>();
   // AbortSignal cleanup is the normative lifecycle mechanism. A few early
   // WebMCP previews accepted the signal but did not actually unregister, so
@@ -127,7 +129,7 @@ export async function registerDocumentWebMcpTools(signal: AbortSignal): Promise<
   for (const tool of tools) {
     if (signal.aborted) break;
     try {
-      await context.registerTool(tool, { signal });
+      await registerTool.call(context, tool, { signal });
       registeredNames.add(tool.name);
       registered += 1;
     } catch {
@@ -139,7 +141,8 @@ export async function registerDocumentWebMcpTools(signal: AbortSignal): Promise<
 }
 
 export async function registerNavigatorWebMcpTools(context: ModelContext, signal: AbortSignal): Promise<number> {
-  if (signal.aborted || typeof context.registerTool !== "function") return 0;
+  const registerTool = context.registerTool;
+  if (signal.aborted || typeof registerTool !== "function") return 0;
 
   const registeredNames = new Set<string>();
   const cleanup = () => {
@@ -151,7 +154,7 @@ export async function registerNavigatorWebMcpTools(context: ModelContext, signal
   for (const tool of tools) {
     if (signal.aborted) break;
     try {
-      await context.registerTool(tool, { signal });
+      await registerTool.call(context, tool, { signal });
       registeredNames.add(tool.name);
       registered += 1;
     } catch {
