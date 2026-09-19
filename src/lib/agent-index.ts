@@ -169,6 +169,11 @@ export function agentHomepage() {
     },
     errors: { format: "application/json", schema: "/openapi.json#/components/schemas/Error", recovery: "/not-found.md" },
     links: {
+      agent: "https://usagemax.com/agent.json",
+      auth: "https://usagemax.com/auth.md",
+      endpoint: "https://usagemax.com/openapi.json",
+      integration: "https://usagemax.com/docs",
+      llms: "https://usagemax.com/llms.txt",
       markdown: "/index.md",
       docs: "/docs",
       api: "/openapi.json",

@@ -65,4 +65,14 @@ describe("agent resource links", () => {
       errors: expect.stringContaining("machine-readable"),
     });
   });
+
+  it("publishes explicit agent-mode discovery aliases", () => {
+    expect(agentHomepage().links).toMatchObject({
+      agent: "https://usagemax.com/agent.json",
+      auth: "https://usagemax.com/auth.md",
+      endpoint: "https://usagemax.com/openapi.json",
+      integration: "https://usagemax.com/docs",
+      llms: "https://usagemax.com/llms.txt",
+    });
+  });
 });
