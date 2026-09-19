@@ -53,6 +53,88 @@ These identifiers are descriptive documentation, not an API or a promise of
 automatic upgrades. The free plan records are available without a payment
 method; the enterprise record is a scoped commercial conversation.
 
+## Plan decision rules
+
+The Personal plan is the default choice for one builder who wants a private
+record across their own computers.
+
+The Small teams plan is the default choice when more than one person needs a
+shared workspace, invitations, roles, projects, or cost-center context.
+
+The Enterprise plan is the default choice when an organization needs a written
+capacity commitment, directory lifecycle, SSO, data residency, private
+attribution, governed exports, or a contracted support channel.
+
+No plan charges by prompt, completion, model name, provider name, or token
+counter. Those values are reporting dimensions, not billable line items.
+
+No plan accepts prompts, completions, source code, file contents, credentials,
+provider keys, or arbitrary secrets as UsageMax accounting data.
+
+No plan silently changes a workspace from free to paid. A custom agreement is
+required before Enterprise capacity or a paid service commitment is activated.
+
+## Personal plan detail
+
+- Price is zero USD per month.
+- A payment method is not required.
+- There is no trial clock and no automatic expiration.
+- One person controls the personal workspace.
+- Up to 25 linked computers are included as an operating guardrail.
+- Up to five budgets are included for personal organization.
+- Detailed reporting is retained for the published 30-day reference window.
+- Aggregate history can be reconciled with the one-shot local collector.
+- Public profile publication is optional and off by default.
+- Public leaderboard participation is optional.
+- The no-write sandbox is available before a collector is linked.
+- Public HTTP reads and documentation MCP reads do not require a token.
+
+## Small teams plan detail
+
+- Price is zero USD per month.
+- A payment method is not required.
+- Up to 10 workspace members are included as a guardrail.
+- Up to five teams can organize people and connected computers.
+- Up to 20 projects can provide a shared reporting context.
+- Up to 25 linked devices are included as a guardrail.
+- Invitations and workspace roles are supported.
+- Provider and model reporting is shared inside the private workspace.
+- Cost-center context can be attached to private reporting dimensions.
+- Public profile publication remains optional for each participating builder.
+- Detailed reporting uses the published 30-day reference window.
+- Higher limits are a capacity conversation, not an automatic upsell.
+
+## Enterprise plan detail
+
+- Price is a custom agreement in USD; no public rate is implied.
+- Activation requires a named workspace and billing owner.
+- Member and device capacity is written into the agreement.
+- Retention and deletion schedules are written into the agreement.
+- SSO and directory provisioning can be scoped to the organization.
+- Private attribution and cost-center reporting can remain tenant-scoped.
+- Data residency requirements are reviewed before activation.
+- Governed exports can name approved destinations and operators.
+- SIEM or audit delivery is enabled only when explicitly scoped.
+- Support channels and response commitments are written down.
+- A lower-bound pilot can precede a larger capacity commitment.
+- Enterprise controls never expand the privacy boundary around prompts,
+  completions, credentials, source code, or secrets.
+
+## Capacity examples
+
+| Question | Personal answer | Small teams answer | Enterprise answer |
+| --- | --- | --- | --- |
+| How many people? | One owner | Up to 10 members | Contract-specific |
+| How many computers? | Up to 25 | Up to 25 | Contract-specific |
+| How many teams? | Not included | Up to 5 | Contract-specific |
+| How many projects? | Not included | Up to 20 | Contract-specific |
+| How long is detail retained? | 30-day reference | 30-day reference | Contract-specific |
+| Is SSO included? | No | No | Scoped by agreement |
+| Is directory provisioning included? | No | No | Scoped by agreement |
+| Is private attribution included? | Personal only | Included in workspace | Scoped by agreement |
+| Are governed exports included? | Bounded | Bounded | Scoped by agreement |
+| Is support contracted? | Community | Community | Contracted |
+
 ## Feature and limit matrix
 
 The compact matrix below is intentionally explicit so an agent can compare a
