@@ -32,7 +32,7 @@ const markdownRoutes: Record<string, string> = {
 
 const nonProfileRootPaths = new Set([
   "about", "account", "agent.json", "api-versioning.md", "api-versioning", "api", "ask", "auth.md", "auth", "callback", "cli.md", "cli", "contact",
-  "docs-mcp", "docs.md", "docs", "enterprise.md", "enterprise", "index", "index.md", "leaderboard.md", "leaderboard", "llms.txt", "mcp.md",
+  "docs-mcp", "docs.md", "docs", "enterprise.md", "enterprise", "index", "index.md", "leaderboard.md", "leaderboard", "llms.txt", "mcp", "mcp.md",
   "methodology.md", "methodology", "not-found.md", "openapi.json", "pricing.md", "pricing", "privacy.md", "privacy", "profile.md", "robots.txt", "sandbox.md", "sandbox", "webmcp.md", "webmcp",
   "schema-feed.jsonl", "schemamap.xml", "security.md", "security", "sign-in", "sign-up", "sitemap.xml", "terms.md", "terms", "workspace",
 ]);
