@@ -26,6 +26,18 @@ describe("agent authentication metadata", () => {
   });
 });
 
+describe("agent brand authority metadata", () => {
+  it("only advertises verified first-party profiles and registries", () => {
+    expect(agentHomepage().brand.sameAs).toEqual(expect.arrayContaining([
+      "https://github.com/SYMBaiEX/usagemax",
+      "https://github.com/SYMBaiEX",
+      "https://www.npmjs.com/package/usagemax",
+      "https://www.npmjs.com/~symbaiex",
+      "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest",
+    ]));
+  });
+});
+
 describe("agent pricing metadata", () => {
   it("publishes comparable plan tiers without inventing enterprise pricing", () => {
     expect(agentHomepage().pricingPlans).toEqual(expect.arrayContaining([

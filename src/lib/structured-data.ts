@@ -1,7 +1,16 @@
 const repositoryUrl = "https://github.com/SYMBaiEX/usagemax";
 const logoUrl = "https://usagemax.com/brand/icon-192.png";
 const registryUrl = "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest";
-const sameAs = [repositoryUrl, "https://github.com/SYMBaiEX", "https://www.npmjs.com/package/usagemax", registryUrl];
+// Keep this list limited to profiles and registries that are actually owned by
+// or verifiably represent UsageMax. Do not add guessed social accounts: stale
+// sameAs links make entity resolution less trustworthy than a shorter list.
+const sameAs = [
+  repositoryUrl,
+  "https://github.com/SYMBaiEX",
+  "https://www.npmjs.com/package/usagemax",
+  "https://www.npmjs.com/~symbaiex",
+  registryUrl,
+];
 
 export const usageMaxStructuredData = {
   "@context": "https://schema.org",
