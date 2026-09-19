@@ -12,7 +12,7 @@ export function GET() {
     serverUrl: "https://usagemax.com/mcp",
     ...MCP_SERVER_BRANDING,
     transport: "streamable-http",
-    tools: USAGEMAX_TOOLS.map(({ name, title, description, inputSchema, annotations, _meta }) => ({ name, title, description, inputSchema, annotations, ...(_meta ? { _meta } : {}) })),
+    tools: USAGEMAX_TOOLS.map(({ name, title, description, inputSchema, outputSchema, annotations, _meta }) => ({ name, title, description, inputSchema, ...(outputSchema ? { outputSchema } : {}), annotations, ...(_meta ? { _meta } : {}) })),
     resources: MCP_APP_RESOURCES,
     endpoints: [
       { url: "https://usagemax.com/mcp", methods: ["POST"], tools: USAGEMAX_TOOLS.map(({ name }) => name) },

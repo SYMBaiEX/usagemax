@@ -2,12 +2,13 @@ import { MCP_APP_RESOURCES, MCP_PROTOCOL_VERSION, MCP_SERVER_INSTRUCTIONS, MCP_S
 
 export const dynamic = "force-static";
 
-function toolMetadata(tool: { name: string; title: string; description: string; inputSchema: unknown; annotations: unknown; _meta?: unknown }) {
+function toolMetadata(tool: { name: string; title: string; description: string; inputSchema: unknown; outputSchema?: unknown; annotations: unknown; _meta?: unknown }) {
   return {
     name: tool.name,
     title: tool.title,
     description: tool.description,
     inputSchema: tool.inputSchema,
+    ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
     annotations: tool.annotations,
     ...(tool._meta ? { _meta: tool._meta } : {}),
   };

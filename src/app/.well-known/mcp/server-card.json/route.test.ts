@@ -3,11 +3,12 @@ import { DOC_TOOL_DEFINITIONS, MCP_APP_RESOURCES, MCP_SERVER_BRANDING, MCP_SERVE
 import { GET as getProductCard } from "./route";
 import { GET as getDocsCard } from "../docs-server-card.json/route";
 
-const cardTools = (tools: typeof USAGEMAX_TOOLS | typeof DOC_TOOL_DEFINITIONS) => tools.map(({ name, title, description, inputSchema, annotations, ...tool }) => ({
+const cardTools = (tools: typeof USAGEMAX_TOOLS | typeof DOC_TOOL_DEFINITIONS) => tools.map(({ name, title, description, inputSchema, outputSchema, annotations, ...tool }) => ({
   name,
   title,
   description,
   inputSchema,
+  ...(outputSchema ? { outputSchema } : {}),
   annotations,
   ...(tool._meta ? { _meta: tool._meta } : {}),
 }));
