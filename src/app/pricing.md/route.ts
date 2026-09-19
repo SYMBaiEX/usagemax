@@ -402,6 +402,80 @@ converted to paid plans.
 limit response and the workspace can contact UsageMax for a scoped review. It
 does not ingest unbounded data or silently drop an accounting boundary.
 
+## Plan field reference
+
+The following field reference is deliberately repetitive: it gives a billing
+system, procurement bot, or SDK a stable sentence for each public value instead
+of asking it to infer meaning from a marketing table.
+
+| Field | Personal | Small teams | Enterprise |
+| --- | --- | --- | --- |
+| plan_id | personal | small-teams | enterprise |
+| price.amount | 0 | 0 | null |
+| price.currency | USD | USD | USD |
+| price.interval | month | month | month |
+| billing | no_card_no_trial | no_card_no_trial | written_agreement_before_activation |
+| members | 1 owner | up to 10 | contract-specific |
+| linked_computers | up to 25 | up to 25 | contract-specific |
+| teams | not included | up to 5 | contract-specific |
+| projects | not included | up to 20 | contract-specific |
+| budgets | up to 5 | workspace-scoped | contract-specific |
+| detailed_retention_days | 30 reference | 30 reference | contract-specific |
+| public_profile | optional | optional | optional / governed |
+| leaderboard | optional | optional | governed |
+| sso | not included | not included | scoped |
+| directory_provisioning | not included | not included | scoped |
+| data_residency | not included | not included | scoped |
+| governed_exports | bounded | bounded | scoped |
+| support | community | community | contracted |
+
+The field values are documentation, not a second billing API. A consumer must
+not interpret null as zero, contract-specific as unlimited, or bounded as
+an invitation to send unbounded data. A missing capability is represented as
+not included or an em dash, never as an implicit upgrade. If an enterprise
+quote changes a field, the written quote is authoritative for that workspace.
+
+## Accounting and invoice semantics
+
+UsageMax separates the product plan from the usage numbers displayed by the
+product. This avoids a common integration error where an agent treats a token
+counter as a billable meter:
+
+- plan_price is the published monthly plan amount shown above.
+- reported_cost is a provider-supplied or integration-supplied estimate.
+- estimated_cost is calculated from a named pricing source and version.
+- token_count is an aggregate reporting dimension, not an invoice quantity.
+- provider and model identify a reporting bucket, not a paid add-on.
+- retention_days describes detailed reporting, not prompt storage.
+- api_volume describes an agreed operating boundary, not a per-token fee.
+- export_volume describes governed delivery, not a public leaderboard charge.
+
+Public free plans therefore have a zero monthly plan price even when their
+profiles display large token totals or source estimates. Enterprise contracts
+may add service commitments, but they still name the operational unit and the
+approval path in writing. No page, endpoint, or collector silently converts a
+reported number into an invoice.
+
+## Plan change and limit response contract
+
+When a workspace reaches a published guardrail, the service keeps the plan
+boundary explicit. Clients should show the limit response, preserve their
+local content-free checkpoint, and ask the workspace owner whether a scoped
+change is needed. Clients should not retry an oversized payload indefinitely or
+assume that a failed write means data was silently accepted.
+
+The safe sequence is:
+
+1. Read the response code and request ID.
+2. Keep the local content-free checkpoint unchanged.
+3. Reduce the request to the documented batch or retention boundary.
+4. Use the sandbox to validate the reduced shape without a production write.
+5. Contact UsageMax when the published free guardrail is not sufficient.
+
+This contract applies equally to Personal, Small teams, and Enterprise. The
+Enterprise agreement can raise a boundary, but it does not remove the privacy
+or content-free requirements described in this document.
+
 ## Same privacy boundary on every plan
 
 UsageMax may process bounded aggregate usage context such as model, provider,
