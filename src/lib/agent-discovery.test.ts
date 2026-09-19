@@ -110,6 +110,8 @@ describe("agent resource links", () => {
       mcpUrl: "https://usagemax.com/mcp",
       authenticationUrl: "https://usagemax.com/auth.md",
       pricingUrl: "https://usagemax.com/pricing.md",
+      sdkUrl: "https://www.npmjs.com/package/usagemax",
+      webhook: "https://usagemax.com/api/webhooks/workos",
     });
     expect(agentHomepage().links).toMatchObject({
       agent: "https://usagemax.com/agent.json",
@@ -117,6 +119,8 @@ describe("agent resource links", () => {
       endpoint: "https://usagemax.com/openapi.json",
       integration: "https://usagemax.com/docs",
       llms: "https://usagemax.com/llms.txt",
+      sdk: "https://www.npmjs.com/package/usagemax",
+      webhook: "https://usagemax.com/api/webhooks/workos",
     });
   });
 });
