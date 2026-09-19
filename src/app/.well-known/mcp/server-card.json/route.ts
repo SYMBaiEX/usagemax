@@ -24,3 +24,7 @@ export function GET() {
     limitations: ["No mutations", "No private or account data", "No telemetry ingestion", "JSON responses only; no SSE streaming", "Request bodies capped at 64 KiB", "Origin validation is enforced when Origin is supplied"],
   }, { headers: { "cache-control": "public, max-age=300" } });
 }
+
+export function HEAD() {
+  return new Response(null, { headers: { "cache-control": "public, max-age=300", "content-type": "application/json; charset=utf-8" } });
+}
