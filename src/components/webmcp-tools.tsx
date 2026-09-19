@@ -145,6 +145,20 @@ export async function registerNavigatorWebMcpTools(context: ModelContext, signal
 
 export function WebMcpTools() {
   useEffect(() => {
+    // Providers mounts this component for every route, while the public
+    // landing surface mounts it as well so crawlers and WebMCP-capable
+    // browsers see the normative registration in the page bundle. Share one
+    // owner across both mounts to avoid duplicate tool registration.
+    type RuntimeState = { refs: number; owner: symbol };
+    const runtime = globalThis as typeof globalThis & { __usagemaxWebMcpState?: RuntimeState };
+    const state = runtime.__usagemaxWebMcpState ?? { refs: 0, owner: Symbol("usagemax-webmcp-owner") };
+    state.refs += 1;
+    runtime.__usagemaxWebMcpState = state;
+    if (state.refs > 1) return () => {
+      state.refs -= 1;
+      if (state.refs === 0) delete runtime.__usagemaxWebMcpState;
+    };
+
     const controller = new AbortController();
     let disposed = false;
     let registrationStarted = false;
@@ -186,6 +200,8 @@ export function WebMcpTools() {
       if (timer) clearTimeout(timer);
       controller.abort();
       if (legacyContext?.unregisterTool) for (const tool of tools) legacyContext.unregisterTool(tool.name);
+      state.refs -= 1;
+      if (state.refs === 0 && runtime.__usagemaxWebMcpState?.owner === state.owner) delete runtime.__usagemaxWebMcpState;
     };
   }, []);
 

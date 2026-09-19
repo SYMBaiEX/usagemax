@@ -2,7 +2,7 @@ const markdown = `---
 title: UsageMax pricing
 description: Free personal usage observability and custom enterprise capacity.
 canonical: https://usagemax.com/pricing
-last-updated: 2026-09-16
+last-updated: 2026-09-19
 ---
 
 # UsageMax pricing
@@ -10,7 +10,8 @@ last-updated: 2026-09-16
 UsageMax keeps the core usage record free for individual builders and small
 teams. The published prices below are intentionally simple; capacity guardrails
 protect the shared service, while enterprise capacity is scoped to the
-customer's data, identity, and operating requirements.
+customer's data, identity, and operating requirements. There is no surprise
+meter, trial expiration, or required payment method on the free plans.
 
 | Plan | Price | Included | Published capacity guardrails |
 | --- | --- | --- | --- |
@@ -47,6 +48,48 @@ customer-specific configuration and evidence are complete.
 For a scoped evaluation, [contact UsageMax](https://usagemax.com/contact) with
 the number of people and computers, providers, retention expectations, identity
 requirements, and any private cost-center or SIEM requirements.
+
+## What counts toward capacity
+
+Capacity is measured using bounded operational objects rather than prompt
+content: linked computers, workspace members, projects, reported events,
+retention windows, and export or API volume. A model name, provider name, or
+token counter is not sold as a separate line item. UsageMax rejects prompts,
+completions, source code, credentials, and arbitrary unbounded payloads at the
+collector boundary.
+
+## Billing and plan changes
+
+- Personal and Small teams are **$0/month** and do not require a card.
+- Enterprise pricing is agreed before activation; UsageMax does not silently
+  move a free workspace onto a paid plan.
+- An enterprise evaluation can use the no-write [sandbox](https://usagemax.com/sandbox)
+  and the public [OpenAPI contract](https://usagemax.com/openapi.json) without
+  creating production records.
+- A workspace can remain on its current plan while you contact the team about
+  capacity, retention, identity, residency, or support requirements.
+
+## Included interfaces
+
+Every plan can use the public profile and leaderboard, the documented HTTP
+reads, and the lightweight bunx usagemax collector for supported local
+histories. Enterprise workspaces can scope private attribution, retention,
+identity, export, and service-level requirements in a written agreement. The
+same privacy boundary applies to the website, CLI, HTTP API, MCP, A2A, and
+OpenTelemetry integrations.
+
+## Plan selection at a glance
+
+| Need | Recommended plan |
+| --- | --- |
+| Personal history across a few computers | Personal |
+| A small private workspace with invitations and projects | Small teams |
+| SSO, directory setup, private attribution, residency, governed exports, or contracted support | Enterprise |
+
+See the [documentation](https://usagemax.com/docs) for setup, the
+[security model](https://usagemax.com/security) for data boundaries, and
+[contact UsageMax](https://usagemax.com/contact) when the published guardrails
+do not fit your organization.
 
 ## Same privacy boundary on every plan
 
