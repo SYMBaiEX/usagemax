@@ -148,7 +148,7 @@ export function agentHomepage() {
       { name: "agentSkills", url: "https://usagemax.com/.well-known/agent-skills/index.json", mediaType: "application/json" },
       { name: "authentication", url: "https://usagemax.com/auth.md", mediaType: "text/markdown" },
       { name: "pricing", url: "https://usagemax.com/pricing.md", mediaType: "text/markdown" },
-      { name: "profileMarkdown", url: "https://usagemax.com/<handle>.md", mediaType: "text/markdown", template: true },
+      { name: "profileMarkdown", url: "https://usagemax.com/profile.md", mediaType: "text/markdown", template: true, handlePattern: "https://usagemax.com/<handle>.md" },
       { name: "cliGuide", url: "https://usagemax.com/cli.md", mediaType: "text/markdown" },
       { name: "webmcp", url: "https://usagemax.com/webmcp", mediaType: "text/html" },
       { name: "webmcpMarkdown", url: "https://usagemax.com/webmcp.md", mediaType: "text/markdown" },

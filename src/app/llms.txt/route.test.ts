@@ -11,6 +11,8 @@ describe("/llms.txt", () => {
     expect(body).toContain("https://usagemax.com/?mode=agent");
     expect(body).toContain("https://usagemax.com/.well-known/oauth-authorization-server");
     expect(body).toContain("https://usagemax.com/.well-known/mcp/docs-server-card.json");
+    expect(body).toContain("https://usagemax.com/ask?query=UsageMax");
+    expect(body).toContain("POST `/mcp`");
     expect(body).toContain("https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/server.json");
     expect(body).toContain("https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest");
     expect(body).toContain("https://www.skills.sh/");

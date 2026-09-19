@@ -32,11 +32,10 @@ source code, credentials, or private workspace data.
 - [API context](https://usagemax.com/api/llms.txt): scoped API guidance
 - [Documentation context](https://usagemax.com/docs/llms.txt): scoped documentation guidance
 - [Agent mode](https://usagemax.com/?mode=agent): public JSON capability view for the homepage
-- [NLWeb ask](https://usagemax.com/ask): bounded JSON or finite SSE answers about public UsageMax resources
+- [NLWeb ask](https://usagemax.com/ask?query=UsageMax): bounded JSON or finite SSE answers about public UsageMax resources; clients POST to \`/ask\` for arbitrary queries
 - [A2A agent](https://usagemax.com/a2a): bounded JSON-RPC answers about public UsageMax resources
-- [MCP](https://usagemax.com/mcp): read-only Streamable HTTP tools, when supported by the client
-- [Documentation MCP](https://usagemax.com/docs-mcp): read-only documentation tools
-- [Documentation MCP card](https://usagemax.com/.well-known/mcp/docs-server-card.json): documentation-server identity and tool contract
+- [MCP server card](https://usagemax.com/.well-known/mcp/server-card.json): read-only Streamable HTTP tools at POST \`/mcp\`, when supported by the client
+- [Documentation MCP server card](https://usagemax.com/.well-known/mcp/docs-server-card.json): read-only documentation tools at POST \`/docs-mcp\`
 - [WebMCP guide](https://usagemax.com/webmcp): in-page tools registered through the current document.modelContext API
 - [MCP Registry listing](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest): official active listing for the public MCP remote
 - [MCP Registry metadata](https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/server.json): versioned source metadata for the published listing
