@@ -17,7 +17,7 @@ source code, credentials, or private workspace data.
 
 - [Home](https://usagemax.com/): product overview and realtime network signal
 - [Leaderboard](https://usagemax.com/leaderboard): ranked public profiles by tokens or indexed spend
-- [Profile markdown](https://usagemax.com/profile.md): template and entry point for heading-led, frontmatter-backed read-only profiles; append a public handle as \`/<handle>.md\` (for example, \`/builder.md\`)
+- [Profile markdown](https://usagemax.com/profile.md): template and entry point for heading-led, frontmatter-backed read-only profiles; a published example is [symbiex.md](https://usagemax.com/symbiex.md). For another opted-in profile, replace the symbiex segment with its public handle.
 - [Documentation](https://usagemax.com/docs): native telemetry and OpenTelemetry ingestion
 - [Methodology](https://usagemax.com/methodology): aggregation, completeness, and ranking definitions
 - [Security](https://usagemax.com/security): public data boundaries and bounded reads

@@ -15,10 +15,11 @@ last-updated: 2026-09-19
 
 # UsageMax profile markdown
 
-Use this document as the profile Markdown entry point for agents. For a public
-handle, append the handle to the site origin as \`/<handle>.md\` (for example,
-\`/builder.md\`). A profile is available only when its owner has opted in to
-public sharing; private or unknown handles return an agent-readable 404.
+Use this document as the profile Markdown entry point for agents. A published
+example is [symbiex.md](${origin}/symbiex.md); for another opted-in profile,
+replace the handle segment in that path. A profile is available only when its
+owner has opted in to public sharing; private or unknown handles return an
+agent-readable 404.
 
 Each profile document contains bounded aggregate totals, model mix, active days,
 and links to the HTML profile, methodology, privacy boundary, and OpenAPI

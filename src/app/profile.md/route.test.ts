@@ -16,7 +16,7 @@ describe("public profile markdown route", () => {
     expect(response.headers.get("content-type")).toContain("text/markdown");
     expect(response.headers.get("link")).toBe('<https://usagemax.com/profile.md>; rel="canonical"');
     expect(body).toContain("# UsageMax profile markdown");
-    expect(body).toContain("/<handle>.md");
+    expect(body).toContain("https://usagemax.com/symbiex.md");
   });
 
   it("renders a heading-led, frontmatter-backed profile", async () => {
