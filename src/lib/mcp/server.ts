@@ -9,7 +9,14 @@ export const MCP_SERVER_NAMES = {
   public: "UsageMax public product MCP",
   docs: "UsageMax documentation MCP",
 } as const;
-export const MCP_SERVER_BRANDING = { websiteUrl: "https://usagemax.com", icon: "https://usagemax.com/brand/icon-192.png" } as const;
+const MCP_SERVER_ICON = "https://usagemax.com/brand/icon-192.png";
+export const MCP_SERVER_BRANDING = {
+  websiteUrl: "https://usagemax.com",
+  // Keep the scalar field for clients that consumed the early card shape.
+  icon: MCP_SERVER_ICON,
+  // The MCP server-card shape uses an array so clients can select a supported icon.
+  icons: [{ src: MCP_SERVER_ICON, mimeType: "image/png", sizes: ["192x192"] }],
+} as const;
 export const MCP_APP_RESOURCE_URI = "ui://usagemax/public-observability.html";
 export const MCP_APP_RESOURCE_MIME = "text/html;profile=mcp-app";
 const MCP_APP_UI_META = {
