@@ -25,6 +25,10 @@ describe("pricing resource", () => {
     expect(body).toContain("## Example plan decisions");
     expect(body).toContain("## Enterprise procurement questions");
     expect(body).toContain("## Cost and accounting definitions");
+    expect(body).toContain("## Plan field reference");
+    expect(body).toContain("## Accounting and invoice semantics");
+    expect(body).toContain("## Plan change and limit response contract");
+    expect(body).toContain("plan_price is the published monthly plan amount");
     expect(body.split("\n").filter(Boolean).length).toBeGreaterThan(350);
     expect(body).not.toContain("$99");
   });
