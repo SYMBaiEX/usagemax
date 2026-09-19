@@ -19,6 +19,40 @@ meter, trial expiration, or required payment method on the free plans.
 | Small teams | **$0/month** | Private workspace, invitations, roles, teams, projects, shared provider/model reporting, cost-center context | Up to 10 members, 5 teams, 20 projects, 25 devices, 30-day detailed retention |
 | Enterprise | **Custom agreement** | Higher capacity, SSO and directory setup, private attribution, retention/residency choices, governed exports, support commitments | Contract-specific limits, controls, and service levels |
 
+## Machine-readable plan summary
+
+The following records repeat the public plan boundary in a compact form for
+agents and procurement systems. The price field is a monthly USD amount only
+when a fixed public amount exists; custom_agreement means UsageMax does not
+publish a rate and does not activate the plan without a written agreement.
+
+\`\`\`text
+plan_id: personal
+name: Personal
+price: 0 USD/month
+billing: no_card_no_trial
+features: private_history,one_shot_syncs,optional_public_profile,bounded_exports
+capacity: 25_linked_computers,5_budgets,30_day_detailed_retention
+
+plan_id: small-teams
+name: Small teams
+price: 0 USD/month
+billing: no_card_no_trial
+features: private_workspace,invitations,roles,teams,projects,shared_reporting
+capacity: 10_members,5_teams,20_projects,25_devices,30_day_detailed_retention
+
+plan_id: enterprise
+name: Enterprise
+price: custom_agreement
+billing: written_agreement_before_activation
+features: higher_capacity,sso,directory_setup,private_attribution,residency_choices,governed_exports,support_commitments
+capacity: contract_specific
+\`\`\`
+
+These identifiers are descriptive documentation, not an API or a promise of
+automatic upgrades. The free plan records are available without a payment
+method; the enterprise record is a scoped commercial conversation.
+
 ## Personal — $0/month
 
 - No credit card and no trial clock.

@@ -12,6 +12,11 @@ describe("pricing resource", () => {
     expect(body).toContain("Up to 10 members");
     expect(body).toContain("no trial clock");
     expect(body).toContain("Prompts, completions, source code");
+    expect(body).toContain("plan_id: personal");
+    expect(body).toContain("price: 0 USD/month");
+    expect(body).toContain("plan_id: enterprise");
+    expect(body).toContain("price: custom_agreement");
+    expect(body).toContain("billing: written_agreement_before_activation");
     expect(body).not.toContain("$99");
   });
 
