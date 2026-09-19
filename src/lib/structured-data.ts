@@ -4,6 +4,11 @@ const registryUrl = "https://registry.modelcontextprotocol.io/v0.1/servers/io.gi
 // Keep this list limited to profiles and registries that are actually owned by
 // or verifiably represent UsageMax. Do not add guessed social accounts: stale
 // sameAs links make entity resolution less trustworthy than a shorter list.
+const configuredSameAs = (process.env.USAGEMAX_ORG_SAME_AS ?? "")
+  .split(",")
+  .map((value) => value.trim())
+  .filter((value) => /^https:\/\//i.test(value));
+
 const sameAs = [
   repositoryUrl,
   "https://github.com/SYMBaiEX",
@@ -11,7 +16,8 @@ const sameAs = [
   "https://www.npmjs.com/~symbaiex",
   "https://glama.ai/mcp/connectors/io.github.SYMBaiEX/usagemax",
   registryUrl,
-];
+  ...configuredSameAs,
+].filter((value, index, values) => values.indexOf(value) === index);
 
 // A postal address is only emitted when the operator supplies a complete,
 // verified address in the deployment environment. Keeping this opt-in avoids

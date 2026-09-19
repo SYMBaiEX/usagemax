@@ -39,6 +39,13 @@ USAGEMAX_ORG_ADDRESS_POSTAL_CODE
 USAGEMAX_ORG_ADDRESS_COUNTRY
 ```
 
+Verified authority profiles can be added in the same deployment with
+`USAGEMAX_ORG_SAME_AS`, as a comma-separated list of HTTPS URLs (for example,
+an official LinkedIn, Wikidata, or Wikipedia page once it genuinely exists).
+Only supplied HTTPS URLs are emitted and duplicates are removed. Do not add
+search results, impersonating profiles, or links that are not controlled by or
+verifiably about UsageMax.
+
 The address is intentionally all-or-nothing. Leaving any value unset keeps it
 out of public metadata; do not use a private residence or an unverified
 registered-agent address.
