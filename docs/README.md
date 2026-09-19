@@ -25,6 +25,8 @@ contribute to UsageMax.
 - [Automatic sync](automatic-sync.md) — optional scheduling behavior.
 - [Visual system](visual-system.md) — interface tokens and motion guidance.
 - [Agent skills](../skills/README.md) — installable agent-facing skills.
+- [SDK and integration surface](sdk-ecosystem.md) — published package scope,
+  generated-client guidance, and the supported authentication boundary.
 
 The public agent and protocol surfaces are listed in the root README and
 maintained by their route contracts: [OpenAPI](https://usagemax.com/openapi.json),

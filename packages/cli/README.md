@@ -16,6 +16,10 @@ integrations, use the documented [OpenAPI contract](https://usagemax.com/openapi
 or the public [agent surfaces](https://usagemax.com/?mode=agent); the package
 itself is intended to be invoked as a short-lived local process.
 
+See the repository's [SDK and integration surface](../../docs/sdk-ecosystem.md)
+for the supported client matrix. UsageMax does not advertise Python or Go
+packages until they are separately reviewed and published.
+
 ## Requirements
 
 - Node.js 20 or newer
