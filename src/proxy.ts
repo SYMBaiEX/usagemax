@@ -117,6 +117,7 @@ export default async function proxy(request: NextRequest) {
   // profile handle for markdown/agent requests; a 404 is safe to rewrite,
   // while any backend failure leaves the normal route/error behavior intact.
   const profileHandle = request.nextUrl.pathname.slice(1);
+  let knownProfileRoute = false;
   if (
     requestsMarkdown(request)
     && profileHandle
@@ -132,6 +133,7 @@ export default async function proxy(request: NextRequest) {
       if (profileResponse.status === 404) {
         return rewriteNotFound(request, headers);
       }
+      if (profileResponse.status !== 404) knownProfileRoute = true;
     } catch {
       // Preserve normal routing if the profile probe is unavailable.
     }
@@ -141,7 +143,7 @@ export default async function proxy(request: NextRequest) {
   // API paths stay with the JSON catch-all so clients never receive an HTML or
   // markdown response where the API contract promises JSON.
   const assetExtension = /\.(?:html?|css|js|json|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|webmanifest)$/i;
-  if (requestsMarkdown(request) && !isKnownRoute(request.nextUrl.pathname) && !assetExtension.test(request.nextUrl.pathname)) {
+  if (requestsMarkdown(request) && !isKnownRoute(request.nextUrl.pathname) && !knownProfileRoute && !assetExtension.test(request.nextUrl.pathname)) {
     return rewriteNotFound(request, headers);
   }
 

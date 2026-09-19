@@ -55,6 +55,7 @@ source code, credentials, or private workspace data.
 - [UsageMax source repository](https://github.com/SYMBaiEX/usagemax): canonical open-source implementation
 - [Agent rules](https://github.com/SYMBaiEX/usagemax/blob/main/AGENTS.md): contributor and runtime guidance
 - [Agent Plugin manifest](https://github.com/SYMBaiEX/usagemax/blob/main/plugin.json): installable plugin metadata
+- [Agent Plugin manifest on UsageMax](https://usagemax.com/plugin.json): machine-readable plugin metadata served by the canonical domain
 - [skills.sh](https://www.skills.sh/): public agent-skills directory and CLI documentation
 - [Usage observability skill](https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/skills/usage-observability/SKILL.md): public-data integration guidance
 - [Enterprise reporting skill](https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/skills/enterprise-reporting/SKILL.md): tenant-safe reporting guidance

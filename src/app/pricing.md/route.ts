@@ -134,6 +134,40 @@ private workspace data are not part of the
 public projection. See the [security model](https://usagemax.com/security) and
 [methodology](https://usagemax.com/methodology) for the evidence behind the
 numbers.
+
+## Capacity reference
+
+The following reference points make plan conversations concrete without turning
+aggregate telemetry into a per-token invoice:
+
+| Measure | Free workspace reference | Enterprise conversation |
+| --- | --- | --- |
+| Connected computers | Personal and Small teams guardrails above | Agreed device inventory and ownership model |
+| Workspace members | Small teams invitation limit above | Directory groups, delegated administration, and lifecycle rules |
+| Detailed history | 30-day detailed retention reference | Agreed retention and deletion schedule |
+| Public projection | Opt-in profile and bounded leaderboard rows | Private attribution and tenant-scoped views |
+| Export and API volume | Bounded public reads and collector batches | Contracted quotas, audit exports, and support windows |
+
+These are operating boundaries, not a promise that a free workspace will be
+expanded automatically. UsageMax reports a structured limit response when a
+request exceeds a published boundary. The response includes a request ID and a
+safe recovery hint; it does not accept an oversized payload or silently turn a
+free workspace into a paid one.
+
+## Enterprise evaluation checklist
+
+Before an enterprise agreement is activated, the UsageMax team confirms the
+workspace owner, member and device count, providers in scope, retention period,
+data residency needs, identity provider, export destinations, and support
+contacts. A customer can validate serializers against the no-write sandbox and
+review the OpenAPI, MCP, A2A, and CLI contracts before any production link is
+created.
+
+The agreement records which controls are enabled and which remain customer
+responsibilities. SSO, directory provisioning, residency, private attribution,
+SIEM delivery, and contracted service levels are not implied by the free plans
+or by a public documentation page. They are enabled only after the written
+scope and operational evidence are complete.
 `;
 
 const headers = {

@@ -109,6 +109,7 @@ export function agentHomepage() {
       { name: "webmcp", url: "https://usagemax.com/webmcp", mediaType: "text/html" },
       { name: "webmcpMarkdown", url: "https://usagemax.com/webmcp.md", mediaType: "text/markdown" },
       { name: "agentPlugin", url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/plugin.json", mediaType: "application/json" },
+      { name: "agentPluginOnDomain", url: "https://usagemax.com/plugin.json", mediaType: "application/json" },
       { name: "mcpRegistry", url: "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest", mediaType: "application/json" },
     ],
     resources: [
@@ -154,6 +155,7 @@ export function agentHomepage() {
       protectedResource: "https://usagemax.com/.well-known/oauth-protected-resource",
       skills: "https://usagemax.com/.well-known/agent-skills/index.json",
       plugin: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/plugin.json",
+      pluginOnDomain: "https://usagemax.com/plugin.json",
       webmcp: "https://usagemax.com/webmcp",
       agentMode: "https://usagemax.com/agent.json",
       mcpRegistry: "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest",
