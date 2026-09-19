@@ -17,6 +17,20 @@ describe("Agentic Resource Discovery manifest", () => {
     });
   });
 
+  it("keeps every resource entry conformant and progressively trusted", async () => {
+    const body = await (await GET()).json();
+    expect(body.icon).toBe("https://usagemax.com/brand/icon-192.png");
+    for (const entry of body.entries as Array<Record<string, unknown>>) {
+      expect(entry.identifier).toEqual(expect.stringMatching(/^urn:air:/));
+      expect(entry.type).toEqual(expect.any(String));
+      expect(["url", "data"].filter((key) => key in entry)).toHaveLength(1);
+      expect(entry.trustManifest).toMatchObject({
+        identity: "https://usagemax.com",
+        identityType: "https",
+      });
+    }
+  });
+
   it("supports cacheable JSON metadata HEAD requests", () => {
     const response = HEAD();
     expect(response.status).toBe(200);
