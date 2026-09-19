@@ -11,7 +11,9 @@ describe("Agentic Resource Discovery manifest", () => {
     expect(body.entries.every((entry: { trustManifest?: { identity: string; attestations: { uri: string }[] } }) => entry.trustManifest?.identity === "https://usagemax.com" && entry.trustManifest.attestations[0].uri === "https://github.com/SYMBaiEX/usagemax")).toBe(true);
     expect(body.entries.filter((entry: { representativeQueries?: string[] }) => entry.representativeQueries).every((entry: { representativeQueries: string[] }) => entry.representativeQueries.length >= 2)).toBe(true);
     expect(body.entries.find((entry: { identifier: string }) => entry.identifier === "urn:air:usagemax.com:a2a:public-observability")).toMatchObject({ type: "application/a2a-agent-card+json", url: "https://usagemax.com/.well-known/agent-card.json" });
-    expect(body.entries.find((entry: { identifier: string }) => entry.identifier === "urn:air:usagemax.com:resource:agent-rules")).toMatchObject({ type: "text/markdown", url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/AGENTS.md" });
+    expect(body.entries.find((entry: { identifier: string }) => entry.identifier === "urn:air:usagemax.com:resource:cli")).toMatchObject({ type: "application/json", url: "https://registry.npmjs.org/usagemax" });
+    expect(body.entries.find((entry: { identifier: string }) => entry.identifier === "urn:air:usagemax.com:resource:agent-rules")).toMatchObject({ type: "text/plain", url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/AGENTS.md" });
+    expect(body.entries.find((entry: { identifier: string }) => entry.identifier === "urn:air:usagemax.com:resource:public-query")).toMatchObject({ url: "https://usagemax.com/ask?query=UsageMax" });
     expect(body.entries.find((entry: { identifier: string }) => entry.identifier === "urn:air:usagemax.com:registry:mcp")).toMatchObject({
       url: "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest",
       metadata: { relationship: "official-registry-record", artifactOwner: "modelcontextprotocol.io" },

@@ -94,8 +94,8 @@ export const manifest = {
       "@context": "https://agenticresourcediscovery.org/context/v1",
       identifier: "urn:air:usagemax.com:resource:cli",
       displayName: "UsageMax CLI",
-      type: "application/vnd.npm.install-v1+json",
-      url: "https://www.npmjs.com/package/usagemax",
+      type: "application/json",
+      url: "https://registry.npmjs.org/usagemax",
       trustManifest,
       description: "A lightweight one-shot local collector for supported coding-agent usage histories.",
       capabilities: ["cli", "local-usage-sync", "scheduled-sync"],
@@ -122,7 +122,10 @@ export const manifest = {
       "@context": "https://agenticresourcediscovery.org/context/v1",
       identifier: "urn:air:usagemax.com:resource:agent-rules",
       displayName: "UsageMax agent rules",
-      type: "text/markdown",
+      // GitHub's raw content endpoint serves this artifact as text/plain.
+      // Keep the declared media type truthful so agents do not reject it on
+      // a content-type mismatch.
+      type: "text/plain",
       url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/AGENTS.md",
       trustManifest,
       description: "Repository instructions for AI coding agents contributing to the public UsageMax implementation.",
@@ -145,7 +148,9 @@ export const manifest = {
       identifier: "urn:air:usagemax.com:resource:public-query",
       displayName: "UsageMax public query endpoint",
       type: "application/json",
-      url: `${origin}/ask`,
+      // Keep a valid representative query in the catalog URL. The endpoint
+      // requires a query parameter and returns 400 when called bare.
+      url: `${origin}/ask?query=UsageMax`,
       trustManifest,
       description: "A bounded natural-language query endpoint that answers from first-party public UsageMax resources and returns citations.",
       capabilities: ["public-query", "citations", "nlweb"],
