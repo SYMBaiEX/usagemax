@@ -11,11 +11,20 @@ export function agentHomepage() {
     docs: "https://usagemax.com/docs",
     llms: "https://usagemax.com/llms.txt",
     endpoint: "https://usagemax.com/openapi.json",
+    // Conventional aliases make the agent view easy to consume without
+    // requiring clients to infer which generic field names are URLs.
+    homepage: "https://usagemax.com/",
+    documentationUrl: "https://usagemax.com/docs",
+    apiUrl: "https://usagemax.com/api",
+    openapiUrl: "https://usagemax.com/openapi.json",
     apiEndpoint: "https://usagemax.com/api",
     mcpEndpoint: "https://usagemax.com/mcp",
+    mcpUrl: "https://usagemax.com/mcp",
     integration: "https://usagemax.com/integrations",
     authEndpoint: "https://usagemax.com/auth.md",
+    authenticationUrl: "https://usagemax.com/auth.md",
     pricing: "https://usagemax.com/pricing.md",
+    pricingUrl: "https://usagemax.com/pricing.md",
     integrationGuide: "https://usagemax.com/integrations",
     sandbox: "https://usagemax.com/sandbox",
     pricingPlans: [

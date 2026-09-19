@@ -102,6 +102,15 @@ describe("agent resource links", () => {
   });
 
   it("publishes explicit agent-mode discovery aliases", () => {
+    expect(agentHomepage()).toMatchObject({
+      homepage: "https://usagemax.com/",
+      documentationUrl: "https://usagemax.com/docs",
+      apiUrl: "https://usagemax.com/api",
+      openapiUrl: "https://usagemax.com/openapi.json",
+      mcpUrl: "https://usagemax.com/mcp",
+      authenticationUrl: "https://usagemax.com/auth.md",
+      pricingUrl: "https://usagemax.com/pricing.md",
+    });
     expect(agentHomepage().links).toMatchObject({
       agent: "https://usagemax.com/agent.json",
       auth: "https://usagemax.com/auth.md",
