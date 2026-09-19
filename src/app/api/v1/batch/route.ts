@@ -1,6 +1,8 @@
 import { apiResponse } from "@/lib/api-response";
 
-export const dynamic = "force-static";
+// The descriptor GET is cacheable, but the POST alias must remain dynamic so
+// Next never evaluates the request-body validator during static generation.
+export const dynamic = "force-dynamic";
 
 const descriptor = {
   name: "UsageMax batch validation",

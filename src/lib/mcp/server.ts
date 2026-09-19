@@ -139,7 +139,7 @@ const textResult = (id: RpcRequest["id"], value: unknown) => result(id, { conten
 
 export async function handleMcp(request: RpcRequest, query: QueryFn = (q, args) => fetchQuery(q as never, args as never), surface: "all" | "public" | "docs" = "all") {
   if (request.jsonrpc !== "2.0" || typeof request.method !== "string") return error(request.id, -32600, "invalid_request");
-  if (request.method === "initialize") return result(request.id, { protocolVersion: MCP_PROTOCOL_VERSION, capabilities: { tools: {}, ...(surface === "docs" ? {} : { resources: { listChanged: false, subscribe: false } }) }, serverInfo: { name: surface === "docs" ? MCP_SERVER_NAMES.docs : MCP_SERVER_NAMES.public, version: MCP_SERVER_VERSION }, instructions: surface === "docs" ? MCP_SERVER_INSTRUCTIONS.docs : MCP_SERVER_INSTRUCTIONS.public });
+  if (request.method === "initialize") return result(request.id, { protocolVersion: MCP_PROTOCOL_VERSION, capabilities: { tools: { listChanged: false }, ...(surface === "docs" ? {} : { resources: { listChanged: false, subscribe: false } }) }, serverInfo: { name: surface === "docs" ? MCP_SERVER_NAMES.docs : MCP_SERVER_NAMES.public, version: MCP_SERVER_VERSION }, instructions: surface === "docs" ? MCP_SERVER_INSTRUCTIONS.docs : MCP_SERVER_INSTRUCTIONS.public });
   if (request.method === "tools/list") return result(request.id, { tools: surface === "docs" ? DOC_TOOL_DEFINITIONS : surface === "public" ? USAGEMAX_TOOLS : [...USAGEMAX_TOOLS, ...DOC_TOOL_DEFINITIONS] });
   if (request.method === "resources/list") return result(request.id, { resources: surface === "docs" ? [] : MCP_APP_RESOURCES });
   if (request.method === "resources/read") {

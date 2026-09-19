@@ -15,3 +15,9 @@ export function requestsMarkdown(request: HeaderReader) {
   return (markdownQualities.length > 0 && Math.max(...markdownQualities) > 0)
     || aiBotPattern.test(request.headers.get("user-agent") ?? "");
 }
+
+export function requestsMachineReadable(request: HeaderReader) {
+  const accept = request.headers.get("accept") ?? "";
+  const generic = accept.trim().split(",")[0]?.trim() === "*/*";
+  return requestsMarkdown(request) || generic;
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { agentHomepage } from "@/lib/agent-index";
-import { requestsMarkdown } from "./lib/markdown-negotiation";
+import { requestsMarkdown, requestsMachineReadable } from "./lib/markdown-negotiation";
 
 const request = (headers: Record<string, string>) => ({ headers: new Headers(headers) });
 
@@ -28,6 +28,11 @@ describe("public markdown negotiation", () => {
 
   it("recognizes MCP surfaces as markdown-negotiated content pages", () => {
     expect(requestsMarkdown(request({ "user-agent": "ClaudeBot/1.0", accept: "text/html" }))).toBe(true);
+  });
+
+  it("keeps generic fetch clients eligible for machine-readable recovery", () => {
+    expect(requestsMachineReadable(request({ accept: "*/*" }))).toBe(true);
+    expect(requestsMachineReadable(request({ accept: "text/html" }))).toBe(false);
   });
 });
 

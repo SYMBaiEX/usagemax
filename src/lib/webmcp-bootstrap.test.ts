@@ -7,6 +7,8 @@ describe("WebMCP initial-document bootstrap", () => {
     expect(webmcpBootstrap).toContain("navigator.modelContext");
     expect(webmcpBootstrap).toContain("usagemax_network_stats");
     expect(webmcpBootstrap).toContain("usagemax_ask");
+    expect(webmcpBootstrap).toContain("readOnlyHint: true");
+    expect(webmcpBootstrap).toContain("default: \"tokens\"");
     expect(webmcpBootstrap).not.toContain("Authorization");
   });
 });

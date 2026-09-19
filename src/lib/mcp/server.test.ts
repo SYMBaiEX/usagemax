@@ -4,7 +4,7 @@ import { DOCS, DOC_TOOL_DEFINITIONS, handleMcp, MCP_APP_RESOURCE_URI, MCP_SERVER
 describe("UsageMax MCP", () => {
   it("supports initialize and lists only read tools", async () => {
     const init = await handleMcp({ jsonrpc: "2.0", id: 1, method: "initialize" });
-    expect("result" in init ? init.result : null).toMatchObject({ protocolVersion: "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: MCP_SERVER_NAMES.public, version: MCP_SERVER_VERSION } });
+    expect("result" in init ? init.result : null).toMatchObject({ protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: MCP_SERVER_NAMES.public, version: MCP_SERVER_VERSION } });
     expect("result" in init ? init.result : null).toMatchObject({ instructions: MCP_SERVER_INSTRUCTIONS.public });
     const list = await handleMcp({ jsonrpc: "2.0", id: 2, method: "tools/list" });
     expect(("result" in list ? list.result as { tools: { name: string }[] } : { tools: [] }).tools.map((tool) => tool.name)).toEqual(["public_profile", "leaderboard", "network_stats", "ask_site", "docs_list", "docs_search", "docs_get"]);
@@ -15,7 +15,7 @@ describe("UsageMax MCP", () => {
     const init = await handleMcp({ jsonrpc: "2.0", id: 1, method: "initialize" }, undefined, "docs");
     expect("result" in init ? init.result : null).toMatchObject({ serverInfo: { name: MCP_SERVER_NAMES.docs, version: MCP_SERVER_VERSION }, instructions: MCP_SERVER_INSTRUCTIONS.docs });
     expect("result" in init ? init.result : null).not.toMatchObject({ instructions: expect.stringContaining("MCP App resource") });
-    expect("result" in init ? init.result : null).toMatchObject({ capabilities: { tools: {} } });
+    expect("result" in init ? init.result : null).toMatchObject({ capabilities: { tools: { listChanged: false } } });
   });
   it("annotates every live tool as bounded read-only", () => {
     for (const tool of [...USAGEMAX_TOOLS, ...DOC_TOOL_DEFINITIONS]) {

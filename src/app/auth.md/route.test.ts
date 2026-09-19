@@ -4,7 +4,7 @@ import { GET, HEAD } from "./route";
 describe("auth.md", () => {
   it("documents the traversable collector path and explicit OAuth boundary", async () => {
     const body = await (GET() as Response).text();
-    expect(body.trimStart().startsWith("# UsageMax authentication")).toBe(true);
+    expect(body.trimStart().startsWith("---")).toBe(true);
     expect(body.length).toBeGreaterThanOrEqual(200);
     expect(body).toContain("# UsageMax authentication");
     expect(body).toContain("title: UsageMax authentication");

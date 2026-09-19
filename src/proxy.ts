@@ -2,7 +2,7 @@ import { applyResponseHeaders, authkit, handleAuthkitHeaders, partitionAuthkitHe
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { agentHomepage } from "@/lib/agent-index";
-import { requestsMarkdown } from "@/lib/markdown-negotiation";
+import { requestsMachineReadable, requestsMarkdown } from "@/lib/markdown-negotiation";
 
 const markdownRoutes: Record<string, string> = {
   "/": "/index.md",
@@ -160,7 +160,11 @@ export default async function proxy(request: NextRequest) {
   // API paths stay with the JSON catch-all so clients never receive an HTML or
   // markdown response where the API contract promises JSON.
   const assetExtension = /\.(?:html?|css|js|json|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|webmanifest)$/i;
-  if (requestsMarkdown(request) && !isKnownRoute(request.nextUrl.pathname) && !knownProfileRoute && !assetExtension.test(request.nextUrl.pathname)) {
+  // Fetch clients commonly send `Accept: */*` rather than an explicit
+  // markdown preference. Treat that unambiguous generic request as an
+  // agent-readable recovery request, while keeping browser navigations that
+  // advertise text/html on the normal styled 404 page.
+  if (requestsMachineReadable(request) && !isKnownRoute(request.nextUrl.pathname) && !knownProfileRoute && !assetExtension.test(request.nextUrl.pathname)) {
     return rewriteNotFound(request, headers);
   }
 
