@@ -7,6 +7,7 @@ import { SiteFrame } from "@/components/site-frame";
 import "./globals.css";
 import { themeBootstrap } from "@/lib/theme";
 import { usageMaxStructuredData } from "@/lib/structured-data";
+import { webmcpBootstrap } from "@/lib/webmcp-bootstrap";
 
 const instrumentSans = Instrument_Sans({
   variable: "--font-instrument-sans",
@@ -57,6 +58,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" className={`${instrumentSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
+        <script id="usagemax-webmcp-bootstrap" dangerouslySetInnerHTML={{ __html: webmcpBootstrap }} />
         <script id="usagemax-structured-data" type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(usageMaxStructuredData) }} />
         <link rel="ard" href="/.well-known/ard.json" />
         <link rel="alternate" type="application/json" href="/.well-known/ai-catalog.json" title="UsageMax AI Catalog" />

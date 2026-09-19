@@ -150,7 +150,8 @@ export function WebMcpTools() {
     // browsers see the normative registration in the page bundle. Share one
     // owner across both mounts to avoid duplicate tool registration.
     type RuntimeState = { refs: number; owner: symbol };
-    const runtime = globalThis as typeof globalThis & { __usagemaxWebMcpState?: RuntimeState };
+    const runtime = globalThis as typeof globalThis & { __usagemaxWebMcpState?: RuntimeState; __usagemaxWebMcpClaimed?: boolean };
+    if (runtime.__usagemaxWebMcpClaimed) return;
     const state = runtime.__usagemaxWebMcpState ?? { refs: 0, owner: Symbol("usagemax-webmcp-owner") };
     state.refs += 1;
     runtime.__usagemaxWebMcpState = state;
@@ -158,6 +159,7 @@ export function WebMcpTools() {
       state.refs -= 1;
       if (state.refs === 0) delete runtime.__usagemaxWebMcpState;
     };
+    runtime.__usagemaxWebMcpClaimed = true;
 
     const controller = new AbortController();
     let disposed = false;
@@ -201,7 +203,10 @@ export function WebMcpTools() {
       controller.abort();
       if (legacyContext?.unregisterTool) for (const tool of tools) legacyContext.unregisterTool(tool.name);
       state.refs -= 1;
-      if (state.refs === 0 && runtime.__usagemaxWebMcpState?.owner === state.owner) delete runtime.__usagemaxWebMcpState;
+      if (state.refs === 0 && runtime.__usagemaxWebMcpState?.owner === state.owner) {
+        delete runtime.__usagemaxWebMcpState;
+        delete runtime.__usagemaxWebMcpClaimed;
+      }
     };
   }, []);
 
