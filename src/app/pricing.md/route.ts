@@ -164,6 +164,129 @@ it is not a promise that the service will accept the data through an
 undocumented path. Enterprise controls are activated only after the scope,
 identity boundary, retention schedule, and support contact are recorded.
 
+## Definitions used in this pricing document
+
+| Term | Meaning | What it does not mean |
+| --- | --- | --- |
+| Linked computer | A local installation authorized to submit bounded aggregate usage | A remote shell, screen recorder, or prompt archive |
+| Member | A person with access to a private workspace | A public leaderboard visitor |
+| Team | A workspace grouping used for private ownership and reporting | A separate billing meter |
+| Project | A private reporting context for organizing activity | A model-specific subscription |
+| Detailed retention | The published reference window for detailed reporting rows | A promise to retain prompts or completions |
+| Aggregate history | Deduplicated totals and rollups from content-free events | Raw provider files stored by UsageMax |
+| Reported cost | A cost supplied by a provider or integration | A UsageMax invoice |
+| Estimated cost | A calculation labelled with its pricing source and version | A guaranteed billing amount |
+| Guardrail | A published operating boundary for a free workspace | An automatic paid upgrade |
+| Custom agreement | Written enterprise scope agreed before activation | An unpublished default price |
+
+Token totals are a reporting dimension. They are not a metered price on any
+published plan. Provider, model, project, and cost-center fields can support
+attribution when supplied by an integration, but they do not create a charge.
+
+## Example plan decisions
+
+### One builder, several computers
+
+Choose Personal when one person wants to reconcile supported local histories
+across their own computers. The published reference includes up to 25 linked
+computers, five budgets, and 30 days of detailed reporting. A public profile
+is optional and can remain private.
+
+### A small product team
+
+Choose Small teams when colleagues need a private workspace, invitations,
+roles, teams, projects, and shared provider or model reporting. The published
+reference includes up to 10 members, five teams, 20 projects, and 25 devices.
+The workspace remains free and does not require a payment method.
+
+### A regulated organization
+
+Start an Enterprise conversation when the organization must document SSO,
+directory lifecycle, data residency, private attribution, governed exports,
+retention, or a support commitment. The agreement names capacity and
+controls; none are inferred from a public page.
+
+### An integration evaluation
+
+Use the no-write sandbox first when a team evaluates serializers or API
+clients. It validates bounded content-free event shape without changing
+production totals. Review the OpenAPI contract and authentication guide before
+linking a computer or issuing a collector credential.
+
+## Capacity, retention, and privacy reference
+
+| Concern | Personal | Small teams | Enterprise |
+| --- | --- | --- | --- |
+| Identity boundary | One workspace owner | Invited workspace members | Customer-scoped identity and directory rules |
+| Device ownership | Owner-linked installations | Workspace-linked installations | Agreed inventory and ownership model |
+| Detailed reporting | 30-day reference | 30-day reference | Written retention schedule |
+| Aggregate reconciliation | Supported local histories | Shared workspace reporting | Contracted sources and controls |
+| Public visibility | Opt-in profile | Per-builder opt-in | Governed by workspace policy |
+| Prompt and completion handling | Never accepted | Never accepted | Never accepted |
+| Credential handling | Collector token only | Installation-bound collector tokens | Contract-governed rotation and revocation |
+| Export boundary | Bounded exports | Bounded workspace exports | Approved destinations and operators |
+
+UsageMax can process bounded aggregate context such as model, provider, event
+type, token counters, status, timing, and attribution fields when supplied.
+Those fields support reporting and reconciliation. They do not expand the
+privacy boundary to prompts, completions, source code, credentials, provider
+keys, or arbitrary file contents.
+
+## Enterprise procurement questions
+
+An enterprise evaluation should answer these questions before activation:
+
+1. Which workspace owner and billing contact are responsible for the service?
+2. How many members, teams, projects, and linked computers are in scope?
+3. Which providers and model families need attribution?
+4. What detailed-retention and deletion schedule is required?
+5. Is SSO or directory provisioning required, and which identity provider is in scope?
+6. Are residency requirements or private attribution boundaries required?
+7. Which export destinations and operators are approved?
+8. Which support channel and response commitments should be written into the agreement?
+9. Which API, MCP, A2A, CLI, or OpenTelemetry surfaces need evaluation?
+10. Which controls remain the customer's responsibility?
+
+The answer is recorded as agreement scope rather than inferred from usage.
+Changing a model, provider, or token counter does not silently change the
+plan. Changing members, devices, retention, exports, identity, or support
+requirements may require a capacity review.
+
+## Plan-change and limit behavior
+
+| Situation | UsageMax behavior |
+| --- | --- |
+| Free workspace is below its guardrails | Continue normal bounded operation |
+| A request reaches a published guardrail | Return a structured limit response with a recovery hint |
+| A team needs more capacity | Contact UsageMax for a scoped review |
+| Enterprise controls are requested | Record the written agreement before activation |
+| A computer is revoked | Invalidate its installation-bound credential |
+| A workspace stops syncing | Follow the documented account and deletion behavior |
+| An agent needs to test a payload | Use the no-write sandbox first |
+
+A limit response is not an invoice and is not a silent downgrade. It gives
+the caller a request identifier and a safe next step. The service does not
+accept an oversized payload merely because the caller is on a free plan.
+
+## Cost and accounting definitions
+
+UsageMax keeps these concepts separate:
+
+- **Tokens:** counters reported by a provider or integration.
+- **Tracked cost:** a reported amount or API-equivalent estimate shown with
+  its cost basis.
+- **Cost basis:** whether the value is reported, estimated, or unknown.
+- **Pricing source:** the provider rate card, calculator, or export version
+  used to explain an estimate.
+- **Capacity:** operational objects such as members, devices, retained days,
+  API volume, or export volume.
+- **Plan price:** the published monthly price for Personal or Small teams, or
+  a custom written agreement for Enterprise.
+
+These definitions prevent a usage chart from being mistaken for a bill. A
+missing price remains unknown rather than being treated as zero, and a token
+counter never becomes a separate UsageMax charge.
+
 ## Personal — $0/month
 
 - No credit card and no trial clock.

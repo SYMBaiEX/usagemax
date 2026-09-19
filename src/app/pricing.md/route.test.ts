@@ -20,6 +20,11 @@ describe("pricing resource", () => {
     expect(body).toContain("## Feature and limit matrix");
     expect(body).toContain("SSO and directory provisioning");
     expect(body).toContain("Governed exports and SIEM delivery");
+    expect(body).toContain("## Definitions used in this pricing document");
+    expect(body).toContain("## Example plan decisions");
+    expect(body).toContain("## Enterprise procurement questions");
+    expect(body).toContain("## Cost and accounting definitions");
+    expect(body.split("\n").filter(Boolean).length).toBeGreaterThan(350);
     expect(body).not.toContain("$99");
   });
 
