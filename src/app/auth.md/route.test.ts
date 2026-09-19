@@ -4,12 +4,12 @@ import { GET, HEAD } from "./route";
 describe("auth.md", () => {
   it("documents the traversable collector path and explicit OAuth boundary", async () => {
     const body = await (GET() as Response).text();
-    expect(body.trimStart().startsWith("---\ntitle: UsageMax authentication")).toBe(true);
+    expect(body.trimStart().startsWith("# UsageMax authentication")).toBe(true);
     expect(body).toContain("# UsageMax authentication");
     expect(body).toContain("title: UsageMax authentication");
     expect(body).toContain("description: The credentials and supported authentication boundaries for UsageMax.");
     expect(body).toContain("canonical: https://usagemax.com/auth.md");
-    expect(body).toContain("last-updated: 2026-09-16");
+    expect(body).toContain("last-updated: 2026-09-19");
     expect(body).toContain("https://usagemax.com/sign-in");
     expect(body).toContain("https://usagemax.com/account");
     expect(body).toContain("https://usagemax.com/api/v1/devices/link");

@@ -20,6 +20,11 @@ export function agentHomepage() {
     description: "A public observability layer for bounded AI usage telemetry.",
     canonicalUrl: "https://usagemax.com/?mode=agent",
     purpose: "Help agents discover public UsageMax data, understand the collector boundary, and choose a safe integration path.",
+    auth: "https://usagemax.com/auth.md",
+    openapi: "https://usagemax.com/openapi.json",
+    mcp: "https://usagemax.com/mcp",
+    agentCard: "https://usagemax.com/.well-known/agent-card.json",
+    skills: "https://usagemax.com/.well-known/agent-skills/index.json",
     capabilities: ["public aggregate usage", "leaderboard", "documentation", "pricing", "OpenAPI", "MCP", "WebMCP", "A2A"],
     integrations: [
       { name: "HTTP API", url: "https://usagemax.com/openapi.json", mode: "read-and-content-free-telemetry" },

@@ -168,6 +168,34 @@ responsibilities. SSO, directory provisioning, residency, private attribution,
 SIEM delivery, and contracted service levels are not implied by the free plans
 or by a public documentation page. They are enabled only after the written
 scope and operational evidence are complete.
+
+## What a quote includes
+
+An enterprise quote names the workspace, billing owner, included members and
+devices, retention window, supported ingestion sources, export destinations,
+support channel, and renewal or review date. It also identifies whether the
+workspace is private, whether profiles can be published, and which roles can
+invite members or rotate collector credentials.
+
+UsageMax does not charge separately for a model name, provider name, token
+counter, or public leaderboard row. If a contract includes an allowance, the
+allowance is stated in operational terms such as devices, members, retained
+days, API requests, or export volume. A customer can ask for a lower-bound
+pilot before committing to a larger capacity tier.
+
+## Changes, cancellation, and deletion
+
+Free workspaces can stop syncing at any time and can revoke linked computers
+from the account surface. A new link creates a new installation-bound token;
+revoking a device invalidates its old credential. Enterprise agreements define
+their own notice, renewal, retention, export, and deletion schedule. UsageMax
+does not retain a secret merely because a workspace changes plans.
+
+For a pricing question, send the smallest useful context to
+[hello@usagemax.com](mailto:hello@usagemax.com): approximate members, devices,
+providers, retention, residency, and export needs. Never include a collector
+token, provider credential, prompt, completion, source code, or private event
+payload in a pricing request.
 `;
 
 const headers = {
