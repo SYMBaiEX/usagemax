@@ -14,7 +14,7 @@ export function agentHomepage() {
     apiEndpoint: "https://usagemax.com/api",
     mcpEndpoint: "https://usagemax.com/mcp",
     integration: "https://usagemax.com/integrations",
-    authentication: "https://usagemax.com/auth.md",
+    authEndpoint: "https://usagemax.com/auth.md",
     pricing: "https://usagemax.com/pricing.md",
     integrationGuide: "https://usagemax.com/integrations",
     sandbox: "https://usagemax.com/sandbox",
