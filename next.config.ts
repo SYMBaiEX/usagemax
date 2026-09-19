@@ -44,7 +44,11 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return {
-      beforeFiles: [],
+      beforeFiles: [
+        // Keep one canonical 512px asset while supporting the conventional
+        // filename used by agent registries and app manifests.
+        { source: "/brand/icon-512.png", destination: "/brand/icon-light.png" },
+      ],
       afterFiles: [],
       fallback: [
         {
