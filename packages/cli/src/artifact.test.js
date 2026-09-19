@@ -22,7 +22,11 @@ test("offline packed artifact includes scheduler and emits midnight timestamps b
   const temporary = await mkdtemp(join(tmpdir(), "usagemax-artifact-"));
   try {
     const root = dirname(dirname(fileURLToPath(import.meta.url)));
-    const { stdout } = await exec("npm", ["pack", "--offline", "--ignore-scripts", "--json", "--cache", join(temporary, "cache"), "--pack-destination", temporary], { cwd: root });
+    // `npm publish --dry-run` propagates npm_config_dry_run to lifecycle
+    // scripts. The nested pack must still materialize an artifact so this
+    // test verifies the exact tarball that would be published.
+    const env = { ...process.env, npm_config_dry_run: "false", NPM_CONFIG_DRY_RUN: "false" };
+    const { stdout } = await exec("npm", ["pack", "--offline", "--ignore-scripts", "--json", "--cache", join(temporary, "cache"), "--pack-destination", temporary], { cwd: root, env });
     const packedResult = JSON.parse(stdout);
     const packed = Array.isArray(packedResult) ? packedResult[0] : packedResult?.usagemax ?? packedResult;
     assert.equal(packed.filename, "usagemax-0.3.6.tgz");
