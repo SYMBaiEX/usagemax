@@ -1,4 +1,4 @@
-const aiBotPattern = /(?:GPTBot|ClaudeBot|ChatGPT-User|PerplexityBot|Google-Extended|Applebot-Extended|ora-agent|DeepSeekBot)/i;
+const aiBotPattern = /(?:GPTBot|OAI-SearchBot|ClaudeBot|anthropic-ai|ChatGPT-User|PerplexityBot|Google-Extended|Google-CloudVertexBot|Applebot-Extended|Bytespider|CCBot|FacebookBot|PetalBot|YouBot|cohere-ai|ora-agent|DeepSeekBot)/i;
 
 type HeaderReader = { headers: { get(name: string): string | null } };
 

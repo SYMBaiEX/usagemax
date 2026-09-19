@@ -12,6 +12,7 @@ The requested URL does not exist or is not public.
 - [Home](https://usagemax.com/)
 - [Documentation](https://usagemax.com/docs)
 - [Agent guide](https://usagemax.com/llms.txt)
+- [Homepage agent mode](https://usagemax.com/?mode=agent)
 - [Sitemap](https://usagemax.com/sitemap.xml)
 - [API catalog](https://usagemax.com/.well-known/api-catalog)
 `;

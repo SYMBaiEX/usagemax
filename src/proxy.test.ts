@@ -5,7 +5,7 @@ import { requestsMarkdown, requestsMachineReadable } from "./lib/markdown-negoti
 const request = (headers: Record<string, string>) => ({ headers: new Headers(headers) });
 
 describe("public markdown negotiation", () => {
-  it.each(["GPTBot/1.0", "ClaudeBot", "ChatGPT-User", "PerplexityBot", "Google-Extended", "Applebot-Extended", "ora-agent", "DeepSeekBot"]) ("serves markdown to %s", (userAgent) => {
+  it.each(["GPTBot/1.0", "OAI-SearchBot", "ClaudeBot", "anthropic-ai", "ChatGPT-User", "PerplexityBot", "Google-Extended", "Google-CloudVertexBot", "Applebot-Extended", "Bytespider", "CCBot", "FacebookBot", "PetalBot", "YouBot", "cohere-ai", "ora-agent", "DeepSeekBot"]) ("serves markdown to %s", (userAgent) => {
     expect(requestsMarkdown(request({ "user-agent": userAgent }))).toBe(true);
   });
 

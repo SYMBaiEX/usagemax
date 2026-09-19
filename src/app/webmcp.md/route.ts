@@ -1,7 +1,7 @@
 const markdown = `---
 title: UsageMax WebMCP
 description: Register bounded UsageMax tools for browser-based AI agents.
-canonical: https://usagemax.com/webmcp.md
+canonical: https://usagemax.com/webmcp
 last-updated: 2026-09-16
 ---
 

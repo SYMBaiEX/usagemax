@@ -1,7 +1,7 @@
 const markdown = `---
 title: UsageMax API versioning and deprecation policy
 description: Compatibility and retirement signals for UsageMax API clients.
-canonical: https://usagemax.com/api-versioning.md
+canonical: https://usagemax.com/api-versioning
 last-updated: 2026-09-16
 ---
 
