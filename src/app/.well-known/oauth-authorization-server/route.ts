@@ -7,7 +7,7 @@ export const dynamic = "force-static";
 const metadata = {
   issuer: "https://usagemax.com",
   x_usagemax_authentication: {
-    browser_sign_in_endpoint: "https://usagemax.com/auth/start",
+    browser_sign_in_endpoint: "https://usagemax.com/sign-in",
     website_session: "WorkOS AuthKit browser session; not an API bearer token",
     collector_token: "Installation-bound write-only bearer token created by the account link flow",
     oauth_delegation: false,
