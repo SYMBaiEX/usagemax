@@ -115,6 +115,7 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
       <div hidden aria-hidden="true">
         <form {...({ toolname: "usagemax_network_stats", tooldescription: "Read bounded public UsageMax network statistics." } as Record<string, string>)} action="/api/stats" method="get"><button type="submit">Read network stats</button></form>
         <form {...({ toolname: "usagemax_leaderboard", tooldescription: "Read the bounded public UsageMax leaderboard." } as Record<string, string>)} action="/api/leaderboard" method="get"><button type="submit">Read leaderboard</button></form>
+        <form {...({ toolname: "usagemax_ask", tooldescription: "Ask a bounded question about public UsageMax documentation and receive cited resources." } as Record<string, string>)} action="/ask" method="get"><label>Question <input name="query" type="text" minLength={1} maxLength={500} /></label><button type="submit">Ask UsageMax</button></form>
         <form {...({ toolname: "usagemax_sandbox_validate", tooldescription: "Validate content-free UsageMax telemetry without writing data." } as Record<string, string>)} action="/api/v1/sandbox/validate" method="post"><button type="submit">Validate telemetry</button></form>
       </div>
       <section className={styles.hero} aria-labelledby="landing-title" data-webmcp="document.modelContext.registerTool">
