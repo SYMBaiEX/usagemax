@@ -23,12 +23,13 @@ type RpcRequest = { jsonrpc: "2.0"; id?: string | number | null; method: string;
 type QueryFn = (query: unknown, args: Record<string, unknown>) => Promise<unknown>;
 
 const readOnlyAnnotations = { readOnlyHint: true, destructiveHint: false, openWorldHint: false } as const;
+const jsonObjectOutput = { type: "object", additionalProperties: true } as const;
 
 export const USAGEMAX_TOOLS = [
-  { name: "public_profile", title: "Read public profile", description: "Read one opt-in public UsageMax profile and aggregate statistics.", inputSchema: { type: "object", properties: { handle: { type: "string", minLength: 1, maxLength: 80 } }, required: ["handle"], additionalProperties: false }, annotations: readOnlyAnnotations },
-  { name: "leaderboard", title: "Read public leaderboard", description: "Read the public UsageMax leaderboard (maximum 100 rows).", inputSchema: { type: "object", properties: { metric: { type: "string", enum: ["tokens", "spend"], default: "tokens" }, period: { type: "string", enum: ["7d", "30d", "all"], default: "all" } }, additionalProperties: false }, annotations: readOnlyAnnotations },
-  { name: "network_stats", title: "Read network statistics", description: "Read aggregate public UsageMax network statistics and render the optional inline observability view.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: readOnlyAnnotations, _meta: { ui: { resourceUri: MCP_APP_RESOURCE_URI } } },
-  { name: "ask_site", title: "Ask UsageMax documentation", description: "Ask a bounded natural-language question about UsageMax and receive cited public resources.", inputSchema: { type: "object", properties: { query: { type: "string", minLength: 1, maxLength: 500 } }, required: ["query"], additionalProperties: false }, annotations: readOnlyAnnotations },
+  { name: "public_profile", title: "Read public profile", description: "Read one opt-in public UsageMax profile and aggregate statistics.", inputSchema: { type: "object", properties: { handle: { type: "string", minLength: 1, maxLength: 80 } }, required: ["handle"], additionalProperties: false }, outputSchema: jsonObjectOutput, annotations: readOnlyAnnotations },
+  { name: "leaderboard", title: "Read public leaderboard", description: "Read the public UsageMax leaderboard (maximum 100 rows).", inputSchema: { type: "object", properties: { metric: { type: "string", enum: ["tokens", "spend"], default: "tokens" }, period: { type: "string", enum: ["7d", "30d", "all"], default: "all" } }, additionalProperties: false }, outputSchema: jsonObjectOutput, annotations: readOnlyAnnotations },
+  { name: "network_stats", title: "Read network statistics", description: "Read aggregate public UsageMax network statistics and render the optional inline observability view.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, outputSchema: jsonObjectOutput, annotations: readOnlyAnnotations, _meta: { ui: { resourceUri: MCP_APP_RESOURCE_URI } } },
+  { name: "ask_site", title: "Ask UsageMax documentation", description: "Ask a bounded natural-language question about UsageMax and receive cited public resources.", inputSchema: { type: "object", properties: { query: { type: "string", minLength: 1, maxLength: 500 } }, required: ["query"], additionalProperties: false }, outputSchema: jsonObjectOutput, annotations: readOnlyAnnotations },
 ];
 
 export const MCP_APP_RESOURCES = [
@@ -109,9 +110,9 @@ const DOC_RESOURCE_METADATA = {
 } as const;
 
 export const DOC_TOOL_DEFINITIONS = [
-  { name: "docs_list", title: "List UsageMax documentation", description: "List the bounded public UsageMax documentation resources available to this MCP server.", inputSchema: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 3, default: 3, description: "Maximum number of documentation resources to return." } }, required: [], additionalProperties: false }, annotations: readOnlyAnnotations },
-  { name: "docs_search", title: "Search UsageMax documentation", description: "Search the bounded public UsageMax documentation index.", inputSchema: { type: "object", properties: { query: { type: "string", minLength: 1, maxLength: 200 } }, required: ["query"], additionalProperties: false }, annotations: readOnlyAnnotations },
-  { name: "docs_get", title: "Read UsageMax documentation", description: "Retrieve one bounded public UsageMax documentation resource.", inputSchema: { type: "object", properties: { id: { type: "string", enum: Object.keys(DOCS) } }, required: ["id"], additionalProperties: false }, annotations: readOnlyAnnotations },
+  { name: "docs_list", title: "List UsageMax documentation", description: "List the bounded public UsageMax documentation resources available to this MCP server.", inputSchema: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 3, default: 3, description: "Maximum number of documentation resources to return." } }, required: [], additionalProperties: false }, outputSchema: jsonObjectOutput, annotations: readOnlyAnnotations },
+  { name: "docs_search", title: "Search UsageMax documentation", description: "Search the bounded public UsageMax documentation index.", inputSchema: { type: "object", properties: { query: { type: "string", minLength: 1, maxLength: 200 } }, required: ["query"], additionalProperties: false }, outputSchema: jsonObjectOutput, annotations: readOnlyAnnotations },
+  { name: "docs_get", title: "Read UsageMax documentation", description: "Retrieve one bounded public UsageMax documentation resource.", inputSchema: { type: "object", properties: { id: { type: "string", enum: Object.keys(DOCS) } }, required: ["id"], additionalProperties: false }, outputSchema: jsonObjectOutput, annotations: readOnlyAnnotations },
 ];
 
 const instructionsFor = (surface: "all" | "public" | "docs") => surface === "docs"

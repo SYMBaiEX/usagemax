@@ -8,6 +8,8 @@ describe("UsageMax MCP", () => {
     expect("result" in init ? init.result : null).toMatchObject({ instructions: MCP_SERVER_INSTRUCTIONS.public });
     const list = await handleMcp({ jsonrpc: "2.0", id: 2, method: "tools/list" });
     expect(("result" in list ? list.result as { tools: { name: string }[] } : { tools: [] }).tools.map((tool) => tool.name)).toEqual(["public_profile", "leaderboard", "network_stats", "ask_site", "docs_list", "docs_search", "docs_get"]);
+    const listedTools = ("result" in list ? list.result as { tools: { name: string; outputSchema?: { type?: string } }[] } : { tools: [] }).tools;
+    expect(listedTools.find((tool) => tool.name === "network_stats")?.outputSchema).toMatchObject({ type: "object" });
   });
   it("describes the docs surface without claiming product resources", async () => {
     const init = await handleMcp({ jsonrpc: "2.0", id: 1, method: "initialize" }, undefined, "docs");
