@@ -54,6 +54,15 @@ describe("agent resource links", () => {
       freeTier: true,
       noCardRequired: true,
       sandbox: { url: "https://usagemax.com/sandbox", writes: false, authentication: "none" },
+      steps: [
+        expect.objectContaining({ order: 1, action: "sign_in", url: "https://usagemax.com/auth/start" }),
+        expect.objectContaining({ order: 2, action: "link_computer", command: "bunx usagemax" }),
+        expect.objectContaining({ order: 3, action: "verify", readOnly: true }),
+      ],
+    });
+    expect(agentHomepage().responseFormats).toMatchObject({
+      publicReads: expect.arrayContaining(["application/json", "text/markdown"]),
+      errors: expect.stringContaining("machine-readable"),
     });
   });
 });

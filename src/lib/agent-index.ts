@@ -39,6 +39,31 @@ export function agentHomepage() {
       noCardRequired: true,
       sandbox: { url: "https://usagemax.com/sandbox", writes: false, authentication: "none" },
       firstSync: "bunx usagemax",
+      steps: [
+        {
+          order: 1,
+          action: "sign_in",
+          url: "https://usagemax.com/auth/start",
+          description: "Sign in with the hosted UsageMax browser flow when an account is required.",
+          authentication: "WorkOS AuthKit session",
+        },
+        {
+          order: 2,
+          action: "link_computer",
+          url: "https://usagemax.com/cli.md",
+          command: "bunx usagemax",
+          description: "Run the one-shot CLI on each computer to link it and upload bounded aggregate usage.",
+          writes: "content-free aggregate telemetry only",
+        },
+        {
+          order: 3,
+          action: "verify",
+          url: "https://usagemax.com/api/v1/devices/status",
+          description: "Use the collector status endpoint to verify the linked device without exposing its secret.",
+          authentication: "installation-bound collector bearer",
+          readOnly: true,
+        },
+      ],
     },
     keyCapabilities: {
       read: ["network totals", "public profiles", "leaderboard", "bounded daily rollups", "bounded live activity"],
@@ -53,6 +78,11 @@ export function agentHomepage() {
       website: "WorkOS AuthKit session; not an API token",
       browserSignIn: "https://usagemax.com/auth/start",
       oauthDelegation: false,
+    },
+    responseFormats: {
+      publicReads: ["application/json", "text/markdown"],
+      collectorWrites: ["application/json"],
+      errors: "application/json with machine-readable code and recovery hint",
     },
     endpoints: [
       { name: "networkStats", method: "GET", path: "/api/stats", authentication: "none" },

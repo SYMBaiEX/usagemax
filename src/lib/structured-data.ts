@@ -30,6 +30,10 @@ export const usageMaxStructuredData = {
       description: "UsageMax is an open-source usage observability platform for people and teams building with AI.",
       logo: logoUrl,
       email: "hello@usagemax.com",
+      identifier: [
+        { "@type": "PropertyValue", propertyID: "github", value: repositoryUrl },
+        { "@type": "PropertyValue", propertyID: "npm", value: "https://www.npmjs.com/package/usagemax" },
+      ],
       sameAs,
       contactPoint: {
         "@type": "ContactPoint",

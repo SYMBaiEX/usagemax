@@ -14,6 +14,10 @@ describe("UsageMax structured data", () => {
       logo: "https://usagemax.com/brand/icon-192.png",
       contactPoint: { "@type": "ContactPoint", url: "https://usagemax.com/contact" },
       email: "hello@usagemax.com",
+      identifier: expect.arrayContaining([
+        expect.objectContaining({ propertyID: "github", value: "https://github.com/SYMBaiEX/usagemax" }),
+        expect.objectContaining({ propertyID: "npm", value: "https://www.npmjs.com/package/usagemax" }),
+      ]),
       sameAs: expect.arrayContaining([
         "https://github.com/SYMBaiEX/usagemax",
         "https://github.com/SYMBaiEX",
