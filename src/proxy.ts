@@ -31,7 +31,7 @@ const markdownRoutes: Record<string, string> = {
 };
 
 const nonProfileRootPaths = new Set([
-  "about", "account", "agent.json", "api-versioning.md", "api-versioning", "api", "ask", "auth.md", "auth", "callback", "cli.md", "cli", "contact",
+  "about", "account", "a2a", "agent.json", "api-versioning.md", "api-versioning", "api", "ask", "auth.md", "auth", "callback", "cli.md", "cli", "contact",
   "docs-mcp", "docs.md", "docs", "enterprise.md", "enterprise", "index", "index.md", "leaderboard.md", "leaderboard", "llms.txt", "mcp", "mcp.md",
   "methodology.md", "methodology", "not-found.md", "openapi.json", "pricing.md", "pricing", "privacy.md", "privacy", "profile.md", "robots.txt", "sandbox.md", "sandbox", "webmcp.md", "webmcp",
   "schema-feed.jsonl", "schemamap.xml", "security.md", "security", "sign-in", "sign-up", "sitemap.xml", "terms.md", "terms", "workspace",
@@ -39,7 +39,7 @@ const nonProfileRootPaths = new Set([
 
 const knownExactPaths = new Set([
   "/", "/about", "/account", "/agent.json", "/api", "/api-versioning.md", "/api-versioning", "/ask", "/auth.md", "/auth", "/callback", "/cli.md", "/cli", "/contact",
-  "/docs", "/docs-mcp", "/docs.md", "/enterprise", "/enterprise.md", "/index.md", "/leaderboard", "/leaderboard.md", "/llms.txt",
+  "/a2a", "/docs", "/docs-mcp", "/docs.md", "/enterprise", "/enterprise.md", "/index.md", "/leaderboard", "/leaderboard.md", "/llms.txt",
   "/mcp", "/mcp.md", "/docs-mcp.md", "/methodology", "/methodology.md", "/not-found.md", "/openapi.json", "/pricing", "/pricing.md", "/privacy", "/privacy.md",
   "/profile.md", "/robots.txt", "/sandbox", "/sandbox.md", "/schema-feed.jsonl", "/schemamap.xml", "/security", "/security.md", "/sign-in", "/sign-up", "/webmcp", "/webmcp.md",
   "/sitemap.xml", "/terms", "/terms.md", "/workspace",
