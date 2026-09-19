@@ -43,6 +43,8 @@ describe("agent resource links", () => {
     expect(index.discovery.aiCatalog).toBe("https://usagemax.com/.well-known/ai-catalog.json");
     expect(index.discovery.apiCatalog).toBe("https://usagemax.com/.well-known/api-catalog");
     expect(index.discovery.schemaFeed).toBe("https://usagemax.com/schema-feed.jsonl");
+    expect(index.api.versionRoot).toBe("https://usagemax.com/api/v1");
+    expect(index.endpoints).toContainEqual(expect.objectContaining({ name: "v1Namespace", path: "/api/v1", authentication: "collector bearer hint" }));
   });
 
   it("describes integrations and no-write onboarding explicitly", () => {
