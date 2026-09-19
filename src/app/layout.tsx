@@ -22,10 +22,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://usagemax.com"),
   title: {
-    default: "UsageMax — Your AI work, made visible",
+    default: "UsageMax — AI usage observability for builders",
     template: "%s · UsageMax",
   },
-  description: "Track your AI token usage, compare stats, and share the public record of what you build.",
+  description: "UsageMax is privacy-first AI usage observability for models, agents, and tools across connected computers.",
   applicationName: "UsageMax",
   keywords: ["AI telemetry", "agent observability", "LLM usage", "AI usage analytics", "OpenTelemetry"],
   authors: [{ name: "UsageMax" }],
@@ -37,14 +37,14 @@ export const metadata: Metadata = {
     type: "website",
     url: "https://usagemax.com",
     siteName: "UsageMax",
-    title: "UsageMax — Your AI work, made visible",
-    description: "Track your AI usage, compare stats, and share your public profile.",
+    title: "UsageMax — AI usage observability for builders",
+    description: "Privacy-first observability for AI models, agents, and tools across connected computers.",
   },
   twitter: {
     images: ["/brand/social-card.png"],
     card: "summary_large_image",
-    title: "UsageMax — Your AI work, made visible",
-    description: "Track your AI usage, compare stats, and share your public profile.",
+    title: "UsageMax — AI usage observability for builders",
+    description: "Privacy-first observability for AI models, agents, and tools across connected computers.",
   },
   robots: { index: true, follow: true },
 };
