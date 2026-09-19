@@ -111,13 +111,24 @@ export const tools: ToolDefinition[] = [
  * navigator path below is retained only for older previews.
  */
 export async function registerDocumentWebMcpTools(signal: AbortSignal): Promise<number> {
-  if (signal.aborted || !document.modelContext || typeof document.modelContext.registerTool !== "function") return 0;
+  if (signal.aborted || typeof document === "undefined" || !document.modelContext || typeof document.modelContext.registerTool !== "function") return 0;
 
+  const context = document.modelContext;
+  const registeredNames = new Set<string>();
+  // AbortSignal cleanup is the normative lifecycle mechanism. A few early
+  // WebMCP previews accepted the signal but did not actually unregister, so
+  // keep the explicit hook as a harmless compatibility backstop.
+  const cleanup = () => {
+    if (!context.unregisterTool) return;
+    for (const name of registeredNames) context.unregisterTool(name);
+  };
+  signal.addEventListener("abort", cleanup, { once: true });
   let registered = 0;
   for (const tool of tools) {
     if (signal.aborted) break;
     try {
-      await document.modelContext.registerTool(tool, { signal });
+      await context.registerTool(tool, { signal });
+      registeredNames.add(tool.name);
       registered += 1;
     } catch {
       // A browser may reject a duplicate or a not-yet-enabled origin trial;
@@ -130,11 +141,18 @@ export async function registerDocumentWebMcpTools(signal: AbortSignal): Promise<
 export async function registerNavigatorWebMcpTools(context: ModelContext, signal: AbortSignal): Promise<number> {
   if (signal.aborted || typeof context.registerTool !== "function") return 0;
 
+  const registeredNames = new Set<string>();
+  const cleanup = () => {
+    if (!context.unregisterTool) return;
+    for (const name of registeredNames) context.unregisterTool(name);
+  };
+  signal.addEventListener("abort", cleanup, { once: true });
   let registered = 0;
   for (const tool of tools) {
     if (signal.aborted) break;
     try {
       await context.registerTool(tool, { signal });
+      registeredNames.add(tool.name);
       registered += 1;
     } catch {
       // Ignore unsupported preview behavior.

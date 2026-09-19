@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { detectWebMcpContext, registerDocumentWebMcpTools, tools } from "./webmcp-tools";
+import { detectWebMcpContext, registerDocumentWebMcpTools, registerNavigatorWebMcpTools, tools } from "./webmcp-tools";
 
 describe("WebMCP detection", () => {
   it("prefers the standard document modelContext API", () => {
@@ -49,5 +49,31 @@ describe("WebMCP detection", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("unregisters partially registered document tools when the lifecycle aborts", async () => {
+    const registerTool = vi.fn().mockResolvedValue(undefined);
+    const unregisterTool = vi.fn();
+    vi.stubGlobal("document", { modelContext: { registerTool, unregisterTool } });
+    const controller = new AbortController();
+
+    try {
+      await expect(registerDocumentWebMcpTools(controller.signal)).resolves.toBe(tools.length);
+      controller.abort();
+      expect(unregisterTool.mock.calls.map(([name]) => name)).toEqual(tools.map((tool) => tool.name));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("uses the same abort cleanup for the legacy navigator fallback", async () => {
+    const registerTool = vi.fn().mockResolvedValue(undefined);
+    const unregisterTool = vi.fn();
+    const controller = new AbortController();
+    const context = { registerTool, unregisterTool };
+
+    await expect(registerNavigatorWebMcpTools(context, controller.signal)).resolves.toBe(tools.length);
+    controller.abort();
+    expect(unregisterTool.mock.calls.map(([name]) => name)).toEqual(tools.map((tool) => tool.name));
   });
 });
