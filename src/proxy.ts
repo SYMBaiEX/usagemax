@@ -150,7 +150,7 @@ export default async function proxy(request: NextRequest) {
     const profileMarkdownUrl = new URL(profileMarkdownPath, request.url);
     profileMarkdownUrl.searchParams.set("handle", profileHandle);
     const response = applyResponseHeaders(NextResponse.rewrite(profileMarkdownUrl, { request: { headers: requestHeaders } }), responseHeaders);
-    publicHeaders(response.headers, "public, max-age=60, stale-while-revalidate=300", `/${encodeURIComponent(profileHandle)}.md`, request.nextUrl.pathname, `/${encodeURIComponent(profileHandle)}`);
+    publicHeaders(response.headers, "public, max-age=60, stale-while-revalidate=300", `/${encodeURIComponent(profileHandle)}.md`, `/${encodeURIComponent(profileHandle)}`);
     return response;
   }
 
