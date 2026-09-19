@@ -12,6 +12,8 @@ describe("/llms.txt", () => {
     expect(body).toContain("https://usagemax.com/.well-known/oauth-authorization-server");
     expect(body).toContain("https://usagemax.com/.well-known/mcp/docs-server-card.json");
     expect(body).toContain("https://usagemax.com/symbiex.md");
+    expect(body).toContain("https://usagemax.com/sign-in");
+    expect(body).not.toContain("https://usagemax.com/account), create a one-use");
     expect(body).not.toContain("<handle>");
     expect(body).toContain("https://usagemax.com/ask?query=UsageMax");
     expect(body).toContain("POST `/mcp`");

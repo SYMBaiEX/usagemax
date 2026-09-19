@@ -93,7 +93,9 @@ preview fallback. See the [WebMCP guide](https://usagemax.com/webmcp).
 ## Getting started
 
 1. Create an account at [UsageMax sign-up](https://usagemax.com/sign-up).
-2. In [Account](https://usagemax.com/account), create a one-use computer link.
+2. [Sign in](https://usagemax.com/sign-in), then open Account to create a one-use
+   computer link. The sign-in URL is public and does not redirect an agent into
+   an authenticated-only page.
 3. Run \`bunx usagemax@latest link UMX-XXXX-XXXX-XXXX-XXXX\`, then run
    \`bunx usagemax@latest sync\` for a bounded one-shot upload.
 
