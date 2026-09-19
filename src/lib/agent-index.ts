@@ -18,6 +18,20 @@ export function agentHomepage() {
     canonicalUrl: "https://usagemax.com/?mode=agent",
     purpose: "Help agents discover public UsageMax data, understand the collector boundary, and choose a safe integration path.",
     capabilities: ["public aggregate usage", "leaderboard", "documentation", "pricing", "OpenAPI", "MCP", "WebMCP", "A2A"],
+    integrations: [
+      { name: "HTTP API", url: "https://usagemax.com/openapi.json", mode: "read-and-content-free-telemetry" },
+      { name: "MCP", url: "https://usagemax.com/mcp", mode: "read-only" },
+      { name: "Documentation MCP", url: "https://usagemax.com/docs-mcp", mode: "read-only" },
+      { name: "WebMCP", url: "https://usagemax.com/webmcp", mode: "browser-local-read-only" },
+      { name: "A2A", url: "https://usagemax.com/a2a", mode: "read-only" },
+      { name: "CLI", url: "https://usagemax.com/cli.md", mode: "local-content-free-sync" },
+    ],
+    onboarding: {
+      freeTier: true,
+      noCardRequired: true,
+      sandbox: { url: "https://usagemax.com/sandbox", writes: false, authentication: "none" },
+      firstSync: "bunx usagemax",
+    },
     keyCapabilities: {
       read: ["network totals", "public profiles", "leaderboard", "bounded daily rollups", "bounded live activity"],
       write: ["content-free telemetry", "OpenTelemetry traces", "usage snapshots"],

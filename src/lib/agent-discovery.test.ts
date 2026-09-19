@@ -43,4 +43,16 @@ describe("agent resource links", () => {
     expect(index.discovery.apiCatalog).toBe("https://usagemax.com/.well-known/api-catalog");
     expect(index.discovery.schemaFeed).toBe("https://usagemax.com/schema-feed.jsonl");
   });
+
+  it("describes integrations and no-write onboarding explicitly", () => {
+    expect(agentHomepage().integrations).toEqual(expect.arrayContaining([
+      { name: "MCP", url: "https://usagemax.com/mcp", mode: "read-only" },
+      { name: "WebMCP", url: "https://usagemax.com/webmcp", mode: "browser-local-read-only" },
+    ]));
+    expect(agentHomepage().onboarding).toMatchObject({
+      freeTier: true,
+      noCardRequired: true,
+      sandbox: { url: "https://usagemax.com/sandbox", writes: false, authentication: "none" },
+    });
+  });
 });
