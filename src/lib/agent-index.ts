@@ -169,6 +169,9 @@ export function agentHomepage() {
     developerResources: [
       { name: "documentation", url: "https://usagemax.com/docs", mediaType: "text/html" },
       { name: "agentGuide", url: "https://usagemax.com/llms.txt", mediaType: "text/plain" },
+      { name: "developerGuide", url: "https://usagemax.com/developers/llms.txt", mediaType: "text/plain" },
+      { name: "enterpriseGuide", url: "https://usagemax.com/enterprise/llms.txt", mediaType: "text/plain" },
+      { name: "integrationsGuide", url: "https://usagemax.com/integrations/llms.txt", mediaType: "text/plain" },
       { name: "agentMode", url: "https://usagemax.com/agent.json", mediaType: "application/json" },
       { name: "agentResourceDiscovery", url: "https://usagemax.com/.well-known/ard.json", mediaType: "application/json" },
       { name: "aiCatalog", url: "https://usagemax.com/.well-known/ai-catalog.json", mediaType: "application/json" },
@@ -212,6 +215,9 @@ export function agentHomepage() {
     errors: { format: "application/json", schema: "/openapi.json#/components/schemas/Error", recovery: "/not-found.md" },
     links: {
       agent: "https://usagemax.com/agent.json",
+      developers: "https://usagemax.com/developers/llms.txt",
+      enterprise: "https://usagemax.com/enterprise/llms.txt",
+      integrations: "https://usagemax.com/integrations/llms.txt",
       auth: "https://usagemax.com/auth.md",
       endpoint: "https://usagemax.com/openapi.json",
       integration: "https://usagemax.com/docs",

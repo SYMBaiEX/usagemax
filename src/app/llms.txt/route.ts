@@ -32,6 +32,9 @@ source code, credentials, or private workspace data.
 - [OpenAPI](https://usagemax.com/openapi.json): machine-readable HTTP contract
 - [API context](https://usagemax.com/api/llms.txt): scoped API guidance
 - [Documentation context](https://usagemax.com/docs/llms.txt): scoped documentation guidance
+- [Developer context](https://usagemax.com/developers/llms.txt): scoped integration and protocol guidance
+- [Enterprise context](https://usagemax.com/enterprise/llms.txt): scoped team, governance, and capacity guidance
+- [Integrations context](https://usagemax.com/integrations/llms.txt): scoped HTTP, MCP, WebMCP, A2A, and collector guidance
 - [Agent mode](https://usagemax.com/?mode=agent): public JSON capability view for the homepage
 - [NLWeb ask](https://usagemax.com/ask?query=UsageMax): bounded JSON or finite SSE answers about public UsageMax resources; clients POST to \`/ask\` for arbitrary queries
 - [A2A agent](https://usagemax.com/a2a): bounded JSON-RPC answers about public UsageMax resources

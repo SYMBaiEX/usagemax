@@ -81,6 +81,9 @@ function isKnownRoute(pathname: string) {
     || pathname.startsWith("/api/")
     || pathname.startsWith("/auth/")
     || pathname.startsWith("/docs/")
+    || pathname.startsWith("/developers/")
+    || pathname.startsWith("/enterprise/")
+    || pathname.startsWith("/integrations/")
     || pathname.startsWith("/.well-known/");
 }
 
