@@ -33,14 +33,14 @@ const markdownRoutes: Record<string, string> = {
 
 const nonProfileRootPaths = new Set([
   "about", "account", "a2a", "agent-card.json", "agent-skills", "agent.json", "api-versioning.md", "api-versioning", "api", "ask", "auth.md", "auth", "callback", "cli.md", "cli", "contact",
-  "docs-mcp", "docs.md", "docs", "enterprise.md", "enterprise", "index", "index.md", "integrations.md", "integrations", "leaderboard.md", "leaderboard", "llms.txt", "mcp", "mcp.md",
+  "AGENTS.md", "docs-mcp", "docs.md", "docs", "enterprise.md", "enterprise", "index", "index.md", "integrations.md", "integrations", "leaderboard.md", "leaderboard", "llms.txt", "mcp", "mcp.md",
   "methodology.md", "methodology", "not-found.md", "openapi.json", "pricing.md", "pricing", "privacy.md", "privacy", "profile.md", "robots.txt", "sandbox.md", "sandbox", "webmcp.md", "webmcp",
   "schema-feed.jsonl", "schemamap.xml", "security.md", "security", "server-card.json", "sign-in", "sign-up", "sitemap.xml", "terms.md", "terms", "workspace",
 ]);
 
 const knownExactPaths = new Set([
   "/", "/about", "/account", "/agent-card.json", "/agent-skills/index.json", "/agent.json", "/api", "/api-versioning.md", "/api-versioning", "/ask", "/auth.md", "/auth", "/callback", "/cli.md", "/cli", "/contact",
-  "/a2a", "/docs", "/docs-mcp", "/docs.md", "/enterprise", "/enterprise.md", "/index.md", "/integrations", "/integrations.md", "/leaderboard", "/leaderboard.md", "/llms.txt",
+  "/a2a", "/AGENTS.md", "/docs", "/docs-mcp", "/docs.md", "/enterprise", "/enterprise.md", "/index.md", "/integrations", "/integrations.md", "/leaderboard", "/leaderboard.md", "/llms.txt",
   "/mcp", "/mcp.md", "/docs-mcp.md", "/methodology", "/methodology.md", "/not-found.md", "/openapi.json", "/pricing", "/pricing.md", "/privacy", "/privacy.md",
   "/profile.md", "/robots.txt", "/sandbox", "/sandbox.md", "/schema-feed.jsonl", "/schemamap.xml", "/security", "/security.md", "/server-card.json", "/sign-in", "/sign-up", "/webmcp", "/webmcp.md",
   "/sitemap.xml", "/terms", "/terms.md", "/workspace",
