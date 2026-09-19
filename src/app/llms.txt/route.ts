@@ -58,6 +58,7 @@ source code, credentials, or private workspace data.
 ## Source and agent distribution
 
 - [UsageMax source repository](https://github.com/SYMBaiEX/usagemax): canonical open-source implementation
+- [Agent rules on UsageMax](https://usagemax.com/AGENTS.md): same-domain contributor and runtime guidance
 - [Agent rules](https://github.com/SYMBaiEX/usagemax/blob/main/AGENTS.md): contributor and runtime guidance
 - [Agent Plugin manifest](https://github.com/SYMBaiEX/usagemax/blob/main/plugin.json): installable plugin metadata
 - [Agent Plugin manifest on UsageMax](https://usagemax.com/plugin.json): machine-readable plugin metadata served by the canonical domain

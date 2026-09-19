@@ -204,6 +204,7 @@ export function agentHomepage() {
       { name: "agentPlugin", url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/plugin.json", mediaType: "application/json" },
       { name: "agentPluginOnDomain", url: "https://usagemax.com/plugin.json", mediaType: "application/json" },
       { name: "agentRules", url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/AGENTS.md", mediaType: "text/plain" },
+      { name: "agentRulesOnDomain", url: "https://usagemax.com/AGENTS.md", mediaType: "text/markdown" },
       { name: "mcpRegistry", url: "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest", mediaType: "application/json" },
     ],
     resources: [
@@ -253,6 +254,7 @@ export function agentHomepage() {
       apiCatalog: "https://usagemax.com/.well-known/api-catalog",
       schemaFeed: "https://usagemax.com/schema-feed.jsonl",
       agentRules: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/AGENTS.md",
+      agentRulesOnDomain: "https://usagemax.com/AGENTS.md",
     },
     discovery: {
       llms: "https://usagemax.com/llms.txt",
