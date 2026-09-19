@@ -8,6 +8,9 @@ export function agentHomepage() {
     machineReadable: true,
     type: "agent-capability-index",
     name: "UsageMax",
+    docs: "https://usagemax.com/docs",
+    pricing: "https://usagemax.com/pricing.md",
+    sandbox: "https://usagemax.com/sandbox",
     brand: {
       name: "UsageMax",
       url: "https://usagemax.com",
