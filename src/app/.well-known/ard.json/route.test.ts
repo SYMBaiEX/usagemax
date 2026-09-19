@@ -7,7 +7,7 @@ describe("Agentic Resource Discovery manifest", () => {
     expect(body).toEqual(manifest);
     expect(body.specVersion).toBe("0.91");
     expect(body.trustManifest).toEqual({ identity: "https://usagemax.com", identityType: "https", attestations: [{ type: "source-repository", uri: "https://github.com/SYMBaiEX/usagemax", mediaType: "text/html" }] });
-    expect(body.entries).toHaveLength(14);
+    expect(body.entries).toHaveLength(16);
     expect(body.entries.every((entry: { trustManifest?: { identity: string; attestations: { uri: string }[] } }) => entry.trustManifest?.identity === "https://usagemax.com" && entry.trustManifest.attestations[0].uri === "https://github.com/SYMBaiEX/usagemax")).toBe(true);
     expect(body.entries.filter((entry: { representativeQueries?: string[] }) => entry.representativeQueries).every((entry: { representativeQueries: string[] }) => entry.representativeQueries.length >= 2)).toBe(true);
     expect(body.entries.find((entry: { identifier: string }) => entry.identifier === "urn:air:usagemax.com:a2a:public-observability")).toMatchObject({ type: "application/a2a-agent-card+json", url: "https://usagemax.com/.well-known/agent-card.json" });
@@ -17,6 +17,14 @@ describe("Agentic Resource Discovery manifest", () => {
     expect(body.entries.find((entry: { identifier: string }) => entry.identifier === "urn:air:usagemax.com:registry:mcp")).toMatchObject({
       url: "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest",
       metadata: { relationship: "official-registry-record", artifactOwner: "modelcontextprotocol.io" },
+    });
+    expect(body.entries.find((entry: { identifier: string }) => entry.identifier === "urn:air:usagemax.com:resource:agent-plugin")).toMatchObject({
+      type: "application/json",
+      url: "https://usagemax.com/plugin.json",
+    });
+    expect(body.entries.find((entry: { identifier: string }) => entry.identifier === "urn:air:usagemax.com:resource:developer-guide")).toMatchObject({
+      type: "text/plain",
+      url: "https://usagemax.com/developers/llms.txt",
     });
   });
 

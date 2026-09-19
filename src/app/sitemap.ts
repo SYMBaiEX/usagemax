@@ -10,6 +10,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${baseUrl}/docs`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
     { url: `${baseUrl}/webmcp`, lastModified: now, changeFrequency: "weekly", priority: 0.6 },
     { url: `${baseUrl}/agent.json`, lastModified: now, changeFrequency: "weekly", priority: 0.5 },
+    { url: `${baseUrl}/plugin.json`, lastModified: now, changeFrequency: "weekly", priority: 0.4 },
     { url: `${baseUrl}/llms.txt`, lastModified: now, changeFrequency: "weekly", priority: 0.5 },
     { url: `${baseUrl}/AGENTS.md`, lastModified: now, changeFrequency: "weekly", priority: 0.4 },
     { url: `${baseUrl}/api/llms.txt`, lastModified: now, changeFrequency: "weekly", priority: 0.4 },
