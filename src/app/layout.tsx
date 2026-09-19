@@ -75,6 +75,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <link rel="alternate" type="application/json" href="/.well-known/agent-skills/index.json" title="UsageMax agent skills" />
         <link rel="alternate" type="application/json" href="/agent.json" title="UsageMax agent capability index" />
         <link rel="alternate" type="application/json" href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest" title="UsageMax MCP Registry listing" />
+        <link rel="service" type="application/json" href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest" title="UsageMax official MCP Registry service" />
         <link rel="nlweb" href="/ask" title="Ask UsageMax" />
       </head>
       <body className="site-body">
