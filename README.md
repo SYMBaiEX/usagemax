@@ -11,6 +11,8 @@
   <p>
     <a href="https://usagemax.com">Live app</a> ·
     <a href="https://usagemax.com/docs">Docs</a> ·
+    <a href="https://usagemax.com/integrations">Integrations</a> ·
+    <a href="https://usagemax.com/pricing.md">Pricing</a> ·
     <a href="https://usagemax.com/methodology">How we count</a> ·
     <a href="https://github.com/SYMBaiEX/usagemax/issues">Issues</a>
   </p>
