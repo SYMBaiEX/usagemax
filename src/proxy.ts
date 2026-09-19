@@ -31,7 +31,7 @@ const markdownRoutes: Record<string, string> = {
 const nonProfileRootPaths = new Set([
   "about", "account", "agent.json", "api-versioning.md", "api-versioning", "api", "ask", "auth.md", "auth", "callback", "cli.md", "cli", "contact",
   "docs-mcp", "docs.md", "docs", "enterprise.md", "enterprise", "index.md", "leaderboard.md", "leaderboard", "llms.txt",
-  "methodology.md", "methodology", "not-found.md", "openapi.json", "pricing.md", "pricing", "privacy.md", "privacy", "robots.txt", "sandbox.md", "sandbox", "webmcp.md", "webmcp",
+  "methodology.md", "methodology", "not-found.md", "openapi.json", "pricing.md", "pricing", "privacy.md", "privacy", "profile.md", "robots.txt", "sandbox.md", "sandbox", "webmcp.md", "webmcp",
   "schema-feed.jsonl", "schemamap.xml", "security.md", "security", "sign-in", "sign-up", "sitemap.xml", "terms.md", "terms", "workspace",
 ]);
 
@@ -39,7 +39,7 @@ const knownExactPaths = new Set([
   "/", "/about", "/account", "/agent.json", "/api", "/api-versioning.md", "/api-versioning", "/ask", "/auth.md", "/auth", "/callback", "/cli.md", "/cli", "/contact",
   "/docs", "/docs-mcp", "/docs.md", "/enterprise", "/enterprise.md", "/index.md", "/leaderboard", "/leaderboard.md", "/llms.txt",
   "/mcp", "/methodology", "/methodology.md", "/not-found.md", "/openapi.json", "/pricing", "/pricing.md", "/privacy", "/privacy.md",
-  "/robots.txt", "/sandbox", "/sandbox.md", "/schema-feed.jsonl", "/schemamap.xml", "/security", "/security.md", "/sign-in", "/sign-up", "/webmcp", "/webmcp.md",
+  "/profile.md", "/robots.txt", "/sandbox", "/sandbox.md", "/schema-feed.jsonl", "/schemamap.xml", "/security", "/security.md", "/sign-in", "/sign-up", "/webmcp", "/webmcp.md",
   "/sitemap.xml", "/terms", "/terms.md", "/workspace",
 ]);
 
@@ -74,6 +74,7 @@ function rewriteNotFound(request: NextRequest, authHeaders: Headers) {
 
 function isKnownRoute(pathname: string) {
   return knownExactPaths.has(pathname)
+    || /^\/@?[A-Za-z0-9_-]{1,80}\.md$/.test(pathname)
     || pathname.startsWith("/api/")
     || pathname.startsWith("/auth/")
     || pathname.startsWith("/docs/")
@@ -116,10 +117,14 @@ export default async function proxy(request: NextRequest) {
   // rewrite can provide the markdown representation. Probe only a potential
   // profile handle for markdown/agent requests; a 404 is safe to rewrite,
   // while any backend failure leaves the normal route/error behavior intact.
-  const profileHandle = request.nextUrl.pathname.slice(1);
+  const profileMarkdownMatch = request.nextUrl.pathname === "/profile.md"
+    ? null
+    : request.nextUrl.pathname.match(/^\/@?([A-Za-z0-9_-]{1,80})\.md$/);
+  const rawProfileHandle = profileMarkdownMatch?.[1] ?? request.nextUrl.pathname.slice(1);
+  const profileHandle = rawProfileHandle.replace(/^@/, "");
   let knownProfileRoute = false;
   if (
-    requestsMarkdown(request)
+    (requestsMarkdown(request) || Boolean(profileMarkdownMatch))
     && profileHandle
     && !profileHandle.includes("/")
     && /^[A-Za-z0-9_-]{1,80}$/.test(profileHandle)
@@ -137,6 +142,16 @@ export default async function proxy(request: NextRequest) {
     } catch {
       // Preserve normal routing if the profile probe is unavailable.
     }
+  }
+
+  if ((requestsMarkdown(request) || Boolean(profileMarkdownMatch)) && knownProfileRoute) {
+    const { requestHeaders, responseHeaders } = partitionAuthkitHeaders(request, headers);
+    const profileMarkdownPath = "/profile.md";
+    const profileMarkdownUrl = new URL(profileMarkdownPath, request.url);
+    profileMarkdownUrl.searchParams.set("handle", profileHandle);
+    const response = applyResponseHeaders(NextResponse.rewrite(profileMarkdownUrl, { request: { headers: requestHeaders } }), responseHeaders);
+    publicHeaders(response.headers, "public, max-age=60, stale-while-revalidate=300", `/${encodeURIComponent(profileHandle)}.md`, request.nextUrl.pathname, `/${encodeURIComponent(profileHandle)}`);
+    return response;
   }
 
   // Give agents a real markdown recovery document for unknown page paths.
