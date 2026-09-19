@@ -21,7 +21,7 @@ describe("UsageMax MCP", () => {
     for (const tool of [...USAGEMAX_TOOLS, ...DOC_TOOL_DEFINITIONS]) {
       expect(tool.name).toMatch(/^[a-z][a-z0-9_]+$/);
       expect(tool.description.length).toBeGreaterThan(10);
-      expect(tool.inputSchema).toMatchObject({ type: "object", additionalProperties: false });
+      expect(tool.inputSchema).toMatchObject({ type: "object", required: expect.any(Array), additionalProperties: false });
       expect(tool.annotations).toEqual({ readOnlyHint: true, destructiveHint: false, openWorldHint: false });
     }
   });
