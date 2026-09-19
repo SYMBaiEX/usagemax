@@ -56,6 +56,11 @@ export function apiError(error: string, status: number, guidance?: Partial<{ mes
   // Keep the error surface machine-readable too: public API clients should
   // receive the same throttle policy whether a request succeeds or fails.
   applyRateLimitHeaders(response.headers, rateLimitPolicy ?? PUBLIC_READ_RATE_LIMIT);
-  if (status === 429 && !response.headers.has("retry-after")) response.headers.set("retry-after", String((rateLimitPolicy ?? PUBLIC_READ_RATE_LIMIT).windowSeconds));
+  // Tell automated clients when a transient response is safe to retry. 429 is
+  // governed by the published rate-limit window; 503 uses the same bounded
+  // minute so clients do not spin on a temporarily unavailable data service.
+  if ((status === 429 || status === 503) && !response.headers.has("retry-after")) {
+    response.headers.set("retry-after", String((rateLimitPolicy ?? PUBLIC_READ_RATE_LIMIT).windowSeconds));
+  }
   return response;
 }

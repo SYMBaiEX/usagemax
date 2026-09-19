@@ -34,4 +34,10 @@ describe("API response contract", () => {
     expect(response.headers.get("ratelimit-reset")).toBe("60");
     expect(response.headers.get("ratelimit-remaining")).toBeNull();
   });
+
+  it("gives clients a bounded retry hint for transient service failures", () => {
+    const response = apiError("service_unavailable", 503);
+    expect(response.headers.get("retry-after")).toBe("60");
+    expect(response.headers.get("ratelimit-policy")).toBe("60;w=60");
+  });
 });
