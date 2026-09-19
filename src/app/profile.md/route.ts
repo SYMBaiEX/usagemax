@@ -6,6 +6,27 @@ export const dynamic = "force-dynamic";
 
 const origin = "https://usagemax.com";
 
+const templateMarkdown = `---
+title: UsageMax profile markdown
+description: Read-only Markdown representations for opt-in public UsageMax profiles.
+canonical: https://usagemax.com/profile.md
+last-updated: 2026-09-19
+---
+
+# UsageMax profile markdown
+
+Use this document as the profile Markdown entry point for agents. For a public
+handle, append the handle to the site origin as \`/<handle>.md\` (for example,
+\`/builder.md\`). A profile is available only when its owner has opted in to
+public sharing; private or unknown handles return an agent-readable 404.
+
+Each profile document contains bounded aggregate totals, model mix, active days,
+and links to the HTML profile, methodology, privacy boundary, and OpenAPI
+contract. Prompts, completions, source code, credentials, and private workspace
+data are never included. Profile Markdown is read-only and does not mint or
+accept collector credentials.
+`;
+
 function normalizeHandle(handle: string) {
   return handle.replace(/^@/, "").toLowerCase();
 }
@@ -51,6 +72,16 @@ function responseHeaders(handle: string) {
 
 export async function GET(request: Request) {
   const handle = normalizeHandle(new URL(request.url).searchParams.get("handle") ?? "");
+  if (!handle) {
+    return new Response(templateMarkdown, {
+      headers: {
+        "cache-control": "public, max-age=3600, stale-while-revalidate=86400",
+        "content-type": "text/markdown; charset=utf-8",
+        link: `<${origin}/profile.md>; rel="canonical"`,
+        vary: "Accept, User-Agent",
+      },
+    });
+  }
   if (!/^[a-z0-9_-]{1,80}$/.test(handle)) return notFound(handle || "unknown");
 
   const profile = await fetchQuery(api.public.profile, { handle });
@@ -112,5 +143,15 @@ This markdown representation is a read-only convenience for agents and documenta
 
 export async function HEAD(request: Request) {
   const handle = normalizeHandle(new URL(request.url).searchParams.get("handle") ?? "");
+  if (!handle) {
+    return new Response(null, {
+      headers: {
+        "cache-control": "public, max-age=3600, stale-while-revalidate=86400",
+        "content-type": "text/markdown; charset=utf-8",
+        link: `<${origin}/profile.md>; rel="canonical"`,
+        vary: "Accept, User-Agent",
+      },
+    });
+  }
   return new Response(null, { headers: responseHeaders(handle || "profile") });
 }

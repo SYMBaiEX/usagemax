@@ -9,6 +9,16 @@ import { GET, HEAD } from "./route";
 beforeEach(() => fetchQuery.mockReset());
 
 describe("public profile markdown route", () => {
+  it("serves a stable profile template when no handle is supplied", async () => {
+    const response = await GET(new Request("https://test/profile.md"));
+    const body = await response.text();
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/markdown");
+    expect(response.headers.get("link")).toBe('<https://usagemax.com/profile.md>; rel="canonical"');
+    expect(body).toContain("# UsageMax profile markdown");
+    expect(body).toContain("/<handle>.md");
+  });
+
   it("renders a heading-led, frontmatter-backed profile", async () => {
     fetchQuery.mockResolvedValue({
       profile: { handle: "Builder", displayName: "A Builder", isVerified: true },
