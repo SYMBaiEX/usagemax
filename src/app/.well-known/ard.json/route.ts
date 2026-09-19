@@ -120,6 +120,17 @@ export const manifest = {
     },
     {
       "@context": "https://agenticresourcediscovery.org/context/v1",
+      identifier: "urn:air:usagemax.com:resource:agent-rules",
+      displayName: "UsageMax agent rules",
+      type: "text/markdown",
+      url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/AGENTS.md",
+      trustManifest,
+      description: "Repository instructions for AI coding agents contributing to the public UsageMax implementation.",
+      capabilities: ["agent-config", "contributor-guidance"],
+      representativeQueries: ["How should an agent contribute to UsageMax?", "Which repository rules apply to UsageMax code changes?"],
+    },
+    {
+      "@context": "https://agenticresourcediscovery.org/context/v1",
       identifier: "urn:air:usagemax.com:mcp:documentation",
       displayName: "UsageMax documentation MCP",
       type: "application/mcp-server-card+json",

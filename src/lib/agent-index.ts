@@ -183,6 +183,7 @@ export function agentHomepage() {
       { name: "webmcpMarkdown", url: "https://usagemax.com/webmcp.md", mediaType: "text/markdown" },
       { name: "agentPlugin", url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/plugin.json", mediaType: "application/json" },
       { name: "agentPluginOnDomain", url: "https://usagemax.com/plugin.json", mediaType: "application/json" },
+      { name: "agentRules", url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/AGENTS.md", mediaType: "text/markdown" },
       { name: "mcpRegistry", url: "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest", mediaType: "application/json" },
     ],
     resources: [
@@ -193,6 +194,7 @@ export function agentHomepage() {
       { name: "pricing", url: "/pricing.md", contentType: "text/markdown", authentication: "none", readOnly: true },
       { name: "profileMarkdown", url: "/<handle>.md", contentType: "text/markdown", authentication: "none", readOnly: true, template: true },
       { name: "http-message-signatures-directory", url: "/.well-known/http-message-signatures-directory", contentType: "application/http-message-signatures-directory+json", authentication: "none", readOnly: true },
+      { name: "agentRules", url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/AGENTS.md", contentType: "text/markdown", authentication: "none", readOnly: true },
       { name: "mcp-registry", url: "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest", contentType: "application/json", authentication: "none", readOnly: true },
     ],
     protocols: {
@@ -226,6 +228,7 @@ export function agentHomepage() {
       aiCatalog: "https://usagemax.com/.well-known/ai-catalog.json",
       apiCatalog: "https://usagemax.com/.well-known/api-catalog",
       schemaFeed: "https://usagemax.com/schema-feed.jsonl",
+      agentRules: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/AGENTS.md",
     },
     discovery: {
       llms: "https://usagemax.com/llms.txt",
@@ -244,6 +247,7 @@ export function agentHomepage() {
       aiCatalog: "https://usagemax.com/.well-known/ai-catalog.json",
       apiCatalog: "https://usagemax.com/.well-known/api-catalog",
       schemaFeed: "https://usagemax.com/schema-feed.jsonl",
+      agentRules: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/AGENTS.md",
     },
   };
 }

@@ -6,7 +6,7 @@ export const MCP_MAX_BODY_BYTES = 64 * 1024;
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 export const MCP_SERVER_VERSION = "1.0.0";
 export const MCP_SERVER_NAMES = {
-  public: "UsageMax public product MCP",
+  public: "UsageMax public observability",
   docs: "UsageMax documentation MCP",
 } as const;
 const MCP_SERVER_ICON = "https://usagemax.com/brand/icon-192.png";

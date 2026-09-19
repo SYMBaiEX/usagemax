@@ -48,11 +48,13 @@ describe("agent resource links", () => {
       { name: "aiCatalog", url: "https://usagemax.com/.well-known/ai-catalog.json", mediaType: "application/json" },
       { name: "apiCatalog", url: "https://usagemax.com/.well-known/api-catalog", mediaType: "application/linkset+json" },
       { name: "schemaFeed", url: "https://usagemax.com/schema-feed.jsonl", mediaType: "application/jsonl" },
+      { name: "agentRules", url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/AGENTS.md", mediaType: "text/markdown" },
     ]));
     expect(index.discovery.plugin).toBe("https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/plugin.json");
     expect(index.discovery.aiCatalog).toBe("https://usagemax.com/.well-known/ai-catalog.json");
     expect(index.discovery.apiCatalog).toBe("https://usagemax.com/.well-known/api-catalog");
     expect(index.discovery.schemaFeed).toBe("https://usagemax.com/schema-feed.jsonl");
+    expect(index.discovery.agentRules).toBe("https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/AGENTS.md");
     expect(index.api.versionRoot).toBe("https://usagemax.com/api/v1");
     expect(index.endpoints).toContainEqual(expect.objectContaining({ name: "v1Namespace", path: "/api/v1", authentication: "collector bearer hint" }));
   });

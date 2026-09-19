@@ -16,7 +16,7 @@ const cardTools = (tools: typeof USAGEMAX_TOOLS | typeof DOC_TOOL_DEFINITIONS) =
 describe("MCP server cards", () => {
   it("keeps the public card synchronized with the product tool contract", async () => {
     const body = await getProductCard().json();
-    expect(body).toMatchObject({ name: "UsageMax public product MCP", version: MCP_SERVER_VERSION, protocolVersion: "2025-06-18", instructions: expect.stringContaining("read-only"), serverUrl: "https://usagemax.com/mcp", transport: "streamable-http" });
+    expect(body).toMatchObject({ name: "UsageMax public observability", version: MCP_SERVER_VERSION, protocolVersion: "2025-06-18", instructions: expect.stringContaining("read-only"), serverUrl: "https://usagemax.com/mcp", transport: "streamable-http" });
     expect(body).toMatchObject(MCP_SERVER_BRANDING);
     expect(body.tools).toEqual(cardTools(USAGEMAX_TOOLS));
     expect(body.endpoints).toEqual([{ url: "https://usagemax.com/mcp", methods: ["POST"], tools: USAGEMAX_TOOLS.map(({ name }) => name) }]);
