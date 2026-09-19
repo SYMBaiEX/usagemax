@@ -91,6 +91,40 @@ See the [documentation](https://usagemax.com/docs) for setup, the
 [contact UsageMax](https://usagemax.com/contact) when the published guardrails
 do not fit your organization.
 
+## Operational guardrails
+
+| Boundary | Personal and Small teams | Enterprise |
+| --- | --- | --- |
+| Public reads | Bounded and cacheable | Bounded, with agreed capacity |
+| Collector writes | Installation-bound, content-free | Installation-bound, governed by contract |
+| Sandbox | Available without a token | Available for evaluation and integration tests |
+| Prompts and completions | Never accepted or published | Never accepted or published |
+| Credentials and source code | Never accepted or published | Never accepted or published |
+
+The sandbox validates event shape, size, and field boundaries without writing
+production totals. It is the recommended first request for an agent or SDK.
+The public API, MCP, A2A, WebMCP, and CLI all expose the same read-only and
+content-free boundaries; an interface does not bypass a plan guardrail.
+
+## Questions agents and finance teams ask
+
+**Is there a free plan?** Yes. Personal and Small teams are free, with no card
+and no trial clock.
+
+**Can I test before signing in?** Yes. The no-write sandbox accepts a bounded
+content-free event and returns writes: false.
+
+**Do token counts become an invoice?** No. Tracked cost is a reported or
+API-equivalent estimate and is labelled with its pricing basis.
+
+**Can a workspace be upgraded without approval?** No. Enterprise capacity is
+activated through a written custom agreement; free workspaces are not silently
+converted to paid plans.
+
+**What happens when a guardrail is reached?** The service returns a structured
+limit response and the workspace can contact UsageMax for a scoped review. It
+does not ingest unbounded data or silently drop an accounting boundary.
+
 ## Same privacy boundary on every plan
 
 UsageMax may process bounded aggregate usage context such as model, provider,
