@@ -25,6 +25,8 @@ describe("auth.md", () => {
   it("serves markdown for GET and HEAD", () => {
     expect(GET().headers.get("content-type")).toBe("text/markdown; charset=utf-8");
     expect(GET().headers.get("link")).toBe('<https://usagemax.com/auth.md>; rel="canonical"');
+    expect(GET().headers.get("vary")).toBe("Accept, User-Agent");
+    expect(GET().headers.get("x-content-type-options")).toBe("nosniff");
     expect(HEAD().headers.get("link")).toBe('<https://usagemax.com/auth.md>; rel="canonical"');
     expect(HEAD().status).toBe(200);
   });

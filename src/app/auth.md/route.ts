@@ -61,7 +61,8 @@ const headers = {
   "cache-control": "public, max-age=3600, stale-while-revalidate=86400",
   "content-type": "text/markdown; charset=utf-8",
   link: '<https://usagemax.com/auth.md>; rel="canonical"',
-  vary: "Accept",
+  "x-content-type-options": "nosniff",
+  vary: "Accept, User-Agent",
 };
 
 export function GET() {

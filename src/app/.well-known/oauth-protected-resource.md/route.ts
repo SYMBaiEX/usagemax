@@ -14,4 +14,14 @@ UsageMax accepts a proprietary, installation-bound, write-only collector token i
 - [Authentication guidance](https://usagemax.com/auth.md)
 `;
 
-export function GET() { return new Response(markdown, { headers: { "cache-control": "public, max-age=3600", "content-type": "text/markdown; charset=utf-8", vary: "Accept, User-Agent" } }); }
+const headers = {
+  "cache-control": "public, max-age=3600",
+  "content-type": "text/markdown; charset=utf-8",
+  link: '<https://usagemax.com/.well-known/oauth-protected-resource>; rel="canonical"',
+  "x-content-type-options": "nosniff",
+  vary: "Accept, User-Agent",
+};
+
+export function GET() { return new Response(markdown, { headers }); }
+
+export function HEAD() { return new Response(null, { headers }); }
