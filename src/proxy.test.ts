@@ -25,6 +25,10 @@ describe("public markdown negotiation", () => {
   it("uses the highest explicit markdown quality when repeated", () => {
     expect(requestsMarkdown(request({ accept: "text/markdown;q=0, text/markdown;q=0.4" }))).toBe(true);
   });
+
+  it("recognizes MCP surfaces as markdown-negotiated content pages", () => {
+    expect(requestsMarkdown(request({ "user-agent": "ClaudeBot/1.0", accept: "text/html" }))).toBe(true);
+  });
 });
 
 describe("agent homepage contract", () => {
