@@ -77,7 +77,7 @@ export function agentHomepage() {
         {
           order: 1,
           action: "sign_in",
-          url: "https://usagemax.com/auth/start",
+          url: "https://usagemax.com/sign-in",
           description: "Sign in with the hosted UsageMax browser flow when an account is required.",
           authentication: "WorkOS AuthKit session",
         },
@@ -110,7 +110,7 @@ export function agentHomepage() {
       publicReads: "none",
       collectorWrites: "installation-bound write-only bearer token",
       website: "WorkOS AuthKit session; not an API token",
-      browserSignIn: "https://usagemax.com/auth/start",
+      browserSignIn: "https://usagemax.com/sign-in",
       oauthDelegation: false,
     },
     responseFormats: {

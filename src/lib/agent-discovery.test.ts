@@ -20,7 +20,7 @@ describe("local MCP Registry metadata", () => {
 describe("agent authentication metadata", () => {
   it("states the real browser boundary without claiming OAuth delegation", () => {
     expect(agentHomepage().authentication).toMatchObject({
-      browserSignIn: "https://usagemax.com/auth/start",
+      browserSignIn: "https://usagemax.com/sign-in",
       oauthDelegation: false,
     });
   });
@@ -76,7 +76,7 @@ describe("agent resource links", () => {
         response: "{ok:true,accepted:number,writes:false}",
       },
       steps: [
-        expect.objectContaining({ order: 1, action: "sign_in", url: "https://usagemax.com/auth/start" }),
+        expect.objectContaining({ order: 1, action: "sign_in", url: "https://usagemax.com/sign-in" }),
         expect.objectContaining({ order: 2, action: "link_computer", command: "bunx usagemax" }),
         expect.objectContaining({ order: 3, action: "verify", readOnly: true }),
       ],
