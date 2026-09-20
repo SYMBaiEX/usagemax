@@ -383,15 +383,15 @@
 .body { gap: 18px; animation: workspace-enter .34s ease both; }
 .panel { position: relative; padding: 24px; border: 1px solid color-mix(in srgb, var(--line) 82%, transparent); border-radius: 18px; }
 .panel::before { content: ""; position: absolute; inset: 0 20% auto 20%; height: 1px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--orange) 34%, transparent), transparent); opacity: .7; }
-.panelTitle { min-width: 0; }
+.panelTitle { display: grid; gap: 2px; min-width: 0; }
 .panelEyebrow { display: block; margin-bottom: 5px; font-size: 9px; }
-.panel h2 { margin: 0; font-size: 19px; }
-.sectionHeader { align-items: flex-start; margin-bottom: 18px; }
+.panel h2 { margin: 0; font-size: 20px; line-height: 1.22; }
+.sectionHeader { align-items: flex-start; margin-bottom: 20px; }
 .sectionHeader > :last-child { flex: 0 0 auto; }
 .stats { gap: 0; padding: 0; border: 1px solid var(--line); background: var(--surface-card); box-shadow: var(--shadow-card); overflow: hidden; }
-.stats > * { padding: 18px 20px; border-right: 1px solid var(--line); }
+.stats > * { padding: 20px 22px; border-right: 1px solid var(--line); }
 .stats > *:last-child { border-right: 0; }
-.stats span { margin-bottom: 8px; font-size: 10px; letter-spacing: .03em; text-transform: uppercase; }
+.stats span { margin-bottom: 9px; font-size: 10px; line-height: 1.35; letter-spacing: .03em; text-transform: uppercase; }
 .stats strong { display: block; font-size: clamp(22px, 3.4cqi, 34px); line-height: 1.1; color: var(--ink); }
 .form { gap: 14px; }
 .form label { gap: 7px; font-size: 10px; letter-spacing: .02em; text-transform: uppercase; }
@@ -405,6 +405,17 @@
 .table td:first-child { border-radius: 9px 0 0 9px; }
 .table td:last-child { border-radius: 0 9px 9px 0; }
 .table small { margin-top: 3px; }
+.panel > .hint { max-width: 880px; margin-top: 16px; line-height: 1.75; }
+.panel > .stats + .hint { margin-top: 18px; }
+.panel > .toolbar { margin-top: 18px; row-gap: 10px; }
+.panel > .toolbar + .hint { margin-top: 15px; }
+.panel > .toolbar form { display: flex; margin: 0; }
+.panel > .form { margin-top: 18px; }
+.panel > .scroll { margin-top: 12px; }
+.panel > .list { margin-top: 16px; }
+.panel > .empty { margin-top: 16px; }
+.panel > .loadingState { margin-top: 4px; }
+.panel .hint a { color: var(--orange-dark); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--orange) 35%, transparent); text-underline-offset: 3px; }
 .empty { display: flex; align-items: flex-start; gap: 12px; margin-top: 10px; padding: 18px; border: 1px dashed var(--line-strong); border-radius: 12px; background: var(--surface-inset); }
 .empty p { color: var(--ink-soft); font-size: 12px; line-height: 1.55; }
 .emptyMark { color: var(--orange); font: 700 17px/1 var(--font-mono); }
