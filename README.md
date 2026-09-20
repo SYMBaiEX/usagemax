@@ -90,9 +90,10 @@ bunx usagemax status --remote            # check the saved credential safely
 
 ### CLI updates and progress
 
-The CLI checks npm's `latest` dist-tag at most twice per day and never replaces
-itself silently. Run `usagemax update sync` to hand a command to the current
-release without typing `@latest`, or set `USAGEMAX_AUTO_UPDATE=1` for an
+The CLI checks npm's `latest` dist-tag at most twice per day. Run
+`usagemax update` to update a global installation through Bun or npm; use
+`--check` for a read-only check. Run `usagemax update sync` to hand a command
+to the current release without typing `@latest`, or set `USAGEMAX_AUTO_UPDATE=1` for an
 explicit automatic handoff. Use `--no-update-check` or set
 `USAGEMAX_DISABLE_UPDATE_CHECK=1` in offline environments. Interactive
 terminals show a small stderr progress line; JSON,
@@ -177,7 +178,7 @@ printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
   | jq -r '[.httpStatus, (if .ingestAuthorized then 1 else 0 end)] | @tsv'
 ```
 
-`token status` is included in CLI `0.3.8`. If a fresh environment still has an
+`token status` is included in CLI `0.3.9`. If a fresh environment still has an
 older npm tag, run `usagemax update token status` or use
 `node packages/cli/src/cli.js token status` from this repository until the new
 package is published.

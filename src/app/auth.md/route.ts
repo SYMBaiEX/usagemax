@@ -52,7 +52,7 @@ New collector keys are active as soon as the authenticated account action create
 
     printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" | usagemax token status --device-id "$USAGEMAX_INSTALLATION_ID"
 
-The diagnostic endpoint is read-only. It reports \`active\`, \`revoked\`, \`workspace_disabled\`, \`membership_inactive\`, \`device_mismatch\`, or \`scope_missing\` when the bearer token is recognized, and explicitly reports whether \`telemetry:write\` is authorized. An unrecognized token returns a generic 401 and never reveals whether another key exists. A collector created by the advanced flow starts unbound and adopts the first valid installation UUID on its first write; a linked CLI key is already bound. The \`token status\` subcommand is included in CLI \`0.3.8\`. The CLI performs a cached npm release check and supports \`usagemax update sync\` or the explicit \`USAGEMAX_AUTO_UPDATE=1\` handoff.
+The diagnostic endpoint is read-only. It reports \`active\`, \`revoked\`, \`workspace_disabled\`, \`membership_inactive\`, \`device_mismatch\`, or \`scope_missing\` when the bearer token is recognized, and explicitly reports whether \`telemetry:write\` is authorized. An unrecognized token returns a generic 401 and never reveals whether another key exists. A collector created by the advanced flow starts unbound and adopts the first valid installation UUID on its first write; a linked CLI key is already bound. The \`token status\` subcommand is included in CLI \`0.3.9\`. The CLI can update a global installation with \`usagemax update\`, hand off a command with \`usagemax update sync\`, and supports the explicit \`USAGEMAX_AUTO_UPDATE=1\` handoff.
 
 ## Use a delegated access token
 

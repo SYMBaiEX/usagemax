@@ -9,7 +9,7 @@ describe("agent plugin manifest", () => {
     expect(body).toMatchObject({
       $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       name: "usagemax",
-      version: "0.3.8",
+      version: "0.3.9",
       homepage: "https://usagemax.com",
       repository: "https://github.com/SYMBaiEX/usagemax",
       license: "MIT",

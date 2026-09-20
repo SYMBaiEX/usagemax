@@ -40,10 +40,12 @@ bunx usagemax sync --dry-run --explain
 bunx usagemax sync
 ```
 
-The CLI checks npm's `latest` dist-tag at most twice per day and never replaces
-itself silently. Run `usagemax update sync` to hand a command to the current
-release without typing `@latest`, or set `USAGEMAX_AUTO_UPDATE=1` for an
-explicit automatic handoff. Use `--no-update-check` or set
+The CLI checks npm's `latest` dist-tag at most twice per day. Run
+`usagemax update` to update a global installation through the package manager
+that launched it (Bun or npm). Add `--check` for a read-only check, or
+`--json` for automation. A command suffix such as `usagemax update sync` hands
+that command to the newest release without typing `@latest`. Set
+`USAGEMAX_AUTO_UPDATE=1` for an explicit automatic handoff. Use `--no-update-check` or set
 `USAGEMAX_DISABLE_UPDATE_CHECK=1` in offline environments. Interactive
 terminals show a small stderr progress line; JSON,
 quiet, CI, and scheduled runs remain machine-readable and quiet.
@@ -81,6 +83,9 @@ usagemax token status            Diagnose a key piped on stdin
 usagemax service install        Opt into periodic OS checkpoints
 usagemax service status|run|uninstall
 usagemax unlink [--revoke]       Remove local credentials
+usagemax update                  Update the global CLI through Bun or npm
+usagemax update --check          Check without installing
+usagemax update sync             Run sync through the newest CLI release
 ```
 
 Useful options:
@@ -93,7 +98,8 @@ bunx usagemax status --remote --json      # remote check; secret is never printe
 bunx usagemax doctor --deep --json        # parse and audit retained history
 bunx usagemax link UMX-… --no-sync        # link without uploading yet
 bunx usagemax --version --json             # print CLI and ccusage versions
-bunx usagemax update --json                # machine-readable release check
+bunx usagemax update --json                # update and return machine-readable status
+bunx usagemax update --check --json        # check without installing
 bunx usagemax unlink --json                # safe automation result; no secret output
 ```
 
@@ -135,7 +141,7 @@ printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
       --json
 ```
 
-The `token status` command is included in CLI `0.3.8`. If a fresh environment
+The `token status` command is included in CLI `0.3.9`. If a fresh environment
 still has an older npm tag, run `usagemax update token status` or
 `node packages/cli/src/cli.js token status` from this repository until the new
 package is published.

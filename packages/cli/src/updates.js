@@ -83,6 +83,43 @@ function runner() {
   return { command: "bunx", prefix: ["--bun"] };
 }
 
+/**
+ * Pick the package manager that owns the current invocation. Bun's global and
+ * ephemeral package paths are explicit; npm remains the safe default for a
+ * normal Node installation. The override is useful for managed environments
+ * where the executable is wrapped by a fleet-specific package manager.
+ */
+export function packageManagerFor({ cliPath = process.argv[1], runtime = process.versions, env = process.env } = {}) {
+  const override = String(env.USAGEMAX_PACKAGE_MANAGER || "").trim().toLowerCase();
+  if (override === "bun" || override === "npm") return override;
+  const normalizedPath = String(cliPath || "").replaceAll("\\", "/");
+  if (normalizedPath.includes("/.bun/install/") || runtime?.bun) return "bun";
+  if (env.npm_execpath || String(env.npm_config_user_agent || "").startsWith("npm/")) return "npm";
+  return "npm";
+}
+
+/** Install the current public release into the user's global package scope. */
+export async function updateGlobal({ latest = "latest", manager = packageManagerFor(), spawnImpl = spawn, env = process.env, quiet = false, platform = process.platform } = {}) {
+  if (manager !== "bun" && manager !== "npm") throw new Error(`Unsupported package manager: ${manager}`);
+  if (!/^\d+\.\d+\.\d+$/.test(String(latest)) && latest !== "latest") throw new Error("Invalid UsageMax release version.");
+  const command = manager === "bun" ? (platform === "win32" ? "bun.exe" : "bun") : (platform === "win32" ? "npm.cmd" : "npm");
+  const args = manager === "bun"
+    ? ["add", "--global", `usagemax@${latest}`]
+    : ["install", "--global", `usagemax@${latest}`];
+  const child = spawnImpl(command, args, {
+    stdio: quiet ? ["ignore", "pipe", "pipe"] : "inherit",
+    env: { ...env, NPM_CONFIG_UPDATE_NOTIFIER: "false" },
+  });
+  return new Promise((resolve, reject) => {
+    child.once("error", reject);
+    child.once("exit", (status) => {
+      const code = status ?? 1;
+      if (code === 0) resolve({ manager, command, args });
+      else reject(Object.assign(new Error(`${command} ${args.join(" ")} exited with code ${code}.`), { code: "USAGEMAX_UPDATE_FAILED", exitCode: code }));
+    });
+  });
+}
+
 /** Re-run a command through the current npm dist-tag without requiring @latest. */
 export async function runLatest(args, { spawnImpl = spawn } = {}) {
   const selected = runner();

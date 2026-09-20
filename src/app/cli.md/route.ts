@@ -17,9 +17,10 @@ command, run <code>npm install --global usagemax</code> and then
 <code>usagemax --help</code>. The package is published on
 [npm](https://www.npmjs.com/package/usagemax); use the repository source when
 you need a release newer than the current public npm tag. The CLI checks npm's
-<code>latest</code> dist-tag at most twice per day and never replaces itself
-silently. Run <code>usagemax update sync</code> to hand a command to the current
-release without typing <code>@latest</code>, or set
+<code>latest</code> dist-tag at most twice per day. Run <code>usagemax update</code>
+to update a global installation through Bun or npm; use <code>--check</code> for
+a read-only check. Run <code>usagemax update sync</code> to hand a command to the
+current release without typing <code>@latest</code>, or set
 <code>USAGEMAX_AUTO_UPDATE=1</code> for an explicit automatic handoff. Set
 <code>--no-update-check</code> or <code>USAGEMAX_DISABLE_UPDATE_CHECK=1</code> in
 offline environments. Interactive
@@ -41,7 +42,7 @@ unchanged inventory avoids parsing and upload.
 
 The computer name selected in Account is retained. Use <code>--name "Work laptop"</code> only when you want the current CLI to explicitly override that account-side name.
 
-The link code and collector token are never included in documentation examples, URLs, telemetry fields, or logs. Use <code>usagemax status</code> to inspect local state without printing the token. Add <code>--remote</code> to verify the stored key against UsageMax without exposing it. The <code>token status</code> diagnostic is included in CLI <code>0.3.8</code>; if npm <code>latest</code> still points to an older release, run <code>usagemax update token status</code> or <code>node packages/cli/src/cli.js token status</code> from the repository until that release is published.
+The link code and collector token are never included in documentation examples, URLs, telemetry fields, or logs. Use <code>usagemax status</code> to inspect local state without printing the token. Add <code>--remote</code> to verify the stored key against UsageMax without exposing it. The <code>token status</code> diagnostic is included in CLI <code>0.3.9</code>; if npm <code>latest</code> still points to an older release, run <code>usagemax update token status</code> or <code>node packages/cli/src/cli.js token status</code> from the repository until that release is published.
 
 For an advanced key that is not stored by the CLI, pipe the token through stdin and optionally check an installation UUID:
 
