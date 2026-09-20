@@ -42,9 +42,11 @@ verified before a bounded, idempotent billing projection job is scheduled.
 The endpoint acknowledges the signed event quickly; the projection job records
 the Stripe event ID before applying it so retries are safe.
 
-Handled events include checkout completion, subscription creation/update,
-subscription cancellation, successful invoices, and failed invoice payments.
-Duplicate event IDs are ignored. Payment details never enter Convex.
+Register these event types for the endpoint: `checkout.session.completed`,
+`customer.subscription.created`, `customer.subscription.updated`,
+`customer.subscription.deleted`, `invoice.paid`, and
+`invoice.payment_failed`. Duplicate event IDs are ignored. Payment details
+never enter Convex.
 
 ## Customer experience
 
@@ -54,6 +56,10 @@ portal sessions are generated server-side only after a WorkOS-authenticated
 workspace access check. Customer linking also requires a short-lived server
 signature, so a caller cannot attach an arbitrary Stripe customer to its
 workspace.
+
+Configure the portal to allow payment-method updates, invoice history, and
+subscription cancellation or plan changes only after the corresponding
+customer-support policy is approved.
 
 ## Enterprise pilots
 
