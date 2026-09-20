@@ -108,6 +108,7 @@ function Button({
     <button
       className="button button-primary"
       {...props}
+      aria-busy={busy || undefined}
       disabled={busy || props.disabled}
     >
       {children}
@@ -158,23 +159,43 @@ function Panel({
   title,
   children,
   action,
+  eyebrow,
 }: {
   title: string;
   children: ReactNode;
   action?: ReactNode;
+  eyebrow?: string;
 }) {
   return (
     <section className={styles.panel}>
       <div className={styles.sectionHeader}>
-        <h2>{title}</h2>
+        <div className={styles.panelTitle}>
+          {eyebrow && <span className={styles.panelEyebrow}>{eyebrow}</span>}
+          <h2>{title}</h2>
+        </div>
         {action}
       </div>
       {children}
     </section>
   );
 }
+function LoadingState({ label }: { label: string }) {
+  return (
+    <div className={styles.loadingState} role="status">
+      <span className={styles.loadingStateMark} aria-hidden="true" />
+      <span>{label}</span>
+    </div>
+  );
+}
 function Empty({ children }: { children: ReactNode }) {
-  return <p className={styles.empty}>{children}</p>;
+  return (
+    <div className={styles.empty} role="status">
+      <span className={styles.emptyMark} aria-hidden="true">
+        —
+      </span>
+      <p>{children}</p>
+    </div>
+  );
 }
 function More({ status, load }: { status: string; load: (n: number) => void }) {
   return status === "CanLoadMore" ? (
@@ -182,7 +203,10 @@ function More({ status, load }: { status: string; load: (n: number) => void }) {
       Load more
     </button>
   ) : status === "LoadingMore" ? (
-    <p role="status">Loading…</p>
+    <p className={styles.loadingNote} role="status">
+      <span aria-hidden="true" />
+      Loading more…
+    </p>
   ) : null;
 }
 function Table({
@@ -219,7 +243,7 @@ export function WorkspaceView() {
   return (
     <div className={`shell ${styles.workspace}`}>
       <AuthLoading>
-        <p role="status">Opening your workspace…</p>
+        <LoadingState label="Opening your workspace…" />
       </AuthLoading>
       <Unauthenticated>
         <AuthNavigation href="/sign-in" className="button button-primary">
@@ -245,7 +269,14 @@ function WorkspaceGate() {
         {error} <Link href="/account">Account settings</Link>
       </div>
     );
-  if (!account) return <p role="status">Loading account…</p>;
+  if (!account)
+    return (
+      <div className={styles.loadingShell} role="status">
+        <span />
+        <span />
+        <span />
+      </div>
+    );
   if (!account.profile)
     return (
       <Panel title="Your private workspace">
@@ -290,8 +321,26 @@ export function Workspace() {
       setBusy(false);
     }
   };
-  if (!overview) return <p role="status">Loading workspace…</p>;
+  if (!overview)
+    return (
+      <div className={styles.loadingShell} role="status">
+        <span />
+        <span />
+        <span />
+      </div>
+    );
   const cap = overview.capabilities;
+  const tierLabel = overview.policy.enterprise
+    ? "Enterprise"
+    : overview.billing?.status === "active" || overview.billing?.status === "trialing"
+      ? "Team operations"
+      : "Free workspace";
+  const initials = overview.workspace.name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "U";
   const tabs = [
     cap["finance:read"] && "Usage",
     cap["finance:read"] && "Activity",
@@ -304,22 +353,46 @@ export function Workspace() {
     "Settings",
   ].filter(Boolean) as string[];
   const selected = tabs.includes(tab) ? tab : tabs[0];
+  const tabCopy: Record<string, string> = {
+    Usage: "Your complete usage record, with filters that stay private to this workspace.",
+    Activity: "Content-free agent and outcome signals from the last 30 days.",
+    Teams: "Organize people, projects, and cost centers without moving prompts or source code.",
+    Ledger: "Reconcile provider reports, invoices, credits, and adjustments in one place.",
+    Budgets: "Set guardrails and receive threshold alerts before a month runs away.",
+    Savings: "Turn optimization ideas into measured, evidence-backed outcomes.",
+    Connections: "Connect read-only provider sources with credentials kept server-side.",
+    Billing: "Manage workspace capacity and payment details through Stripe-hosted billing.",
+    Settings: "Control workspace identity, retention, notifications, and exports.",
+  };
   return (
     <Timezone.Provider value={preferences?.timezone ?? "UTC"}>
       <Operations.Provider value={{ run, busy }}>
         <header className={styles.header}>
-          <div>
-            <span className={styles.badge}>
-              {overview.policy.enterprise ? "Enterprise" : "Free workspace"}
-            </span>
-            <h1>{overview.workspace.name}</h1>
-            <p>
-              {overview.workspace.organizationId
-                ? "Company data stays private."
-                : "Your usage. Your history. No subscription required."}
-            </p>
+          <div className={styles.headerCopy}>
+            <div className={styles.headerKicker}>
+              <span className={styles.statusDot} aria-hidden="true" />
+              <span>Workspace</span>
+              <span className={styles.headerSlash}>/</span>
+              <span>{tierLabel}</span>
+            </div>
+            <div className={styles.titleLine}>
+              <span className={styles.workspaceAvatar} aria-hidden="true">{initials}</span>
+              <div>
+                <h1>{overview.workspace.name}</h1>
+                <p>
+                  {overview.workspace.organizationId
+                    ? "Private team operations, shared reporting, and governed access."
+                    : "Your usage, your history, and a privacy-first record of the work."}
+                </p>
+              </div>
+            </div>
+            <div className={styles.headerMeta}>
+              <span><i aria-hidden="true" /> Secure session</span>
+              <span>UTC accounting</span>
+              <span>{overview.workspace.retentionDays}d detailed retention</span>
+            </div>
           </div>
-          <div className={styles.toolbar}>
+          <div className={`${styles.toolbar} ${styles.headerActions}`}>
             {(workspaces?.filter((w) => w.organizationId).length ?? 0) > 0 && (
               <label>
                 <span className="sr-only">Switch workspace</span>
@@ -360,7 +433,7 @@ export function Workspace() {
                   if (!requestId) setRequestId(crypto.randomUUID());
                 }}
               >
-                New workspace
+                {creating ? "Close" : "New workspace"}
               </button>
             )}
           </div>
@@ -390,20 +463,33 @@ export function Workspace() {
             </Form>
           </Panel>
         )}
-        <nav className={styles.tabs} aria-label="Workspace sections">
-          {tabs.map((item) => (
-            <button
-              key={item}
-              onClick={() => {
-                setTab(item);
-                setMessage("");
-              }}
-              aria-current={selected === item ? "page" : undefined}
-            >
-              {item}
-            </button>
-          ))}
-        </nav>
+        <div className={styles.navigationBlock}>
+          <div className={styles.navigationLabel}>
+            <span>Workspace view</span>
+            <span className={styles.liveLabel}><i aria-hidden="true" /> Live data</span>
+          </div>
+          <nav className={styles.tabs} aria-label="Workspace sections">
+            {tabs.map((item) => (
+              <button
+                key={item}
+                onClick={() => {
+                  setTab(item);
+                  setMessage("");
+                }}
+                aria-current={selected === item ? "page" : undefined}
+              >
+                {item}
+              </button>
+            ))}
+          </nav>
+          <div className={styles.viewSummary}>
+            <div>
+              <span className={styles.viewEyebrow}>{selected} / overview</span>
+              <p>{tabCopy[selected]}</p>
+            </div>
+            <span className={styles.viewHint}>Private to this workspace</span>
+          </div>
+        </div>
         {message && (
           <p
             className={styles.notice}
@@ -443,7 +529,7 @@ function Billing({ overview }: { overview: Overview }) {
     ? new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(billing.currentPeriodEnd)
     : null;
   return (
-    <Panel title="Plan & billing">
+    <Panel title="Plan & billing" eyebrow="ACCOUNT">
       <div className={styles.stats}>
         <div>
           <span>Workspace plan</span>
@@ -493,7 +579,7 @@ function Billing({ overview }: { overview: Overview }) {
 
 function Usage() {
   const preferences = useQuery(api.personal.preferences, {});
-  if (!preferences) return <p role="status">Loading preferences…</p>;
+  if (!preferences) return <LoadingState label="Loading preferences…" />;
   return <UsageHistory defaultRange={preferences.defaultRange} />;
 }
 function UsageHistory({
@@ -556,6 +642,7 @@ function UsageHistory({
       </div>
       <Panel
         title="History"
+        eyebrow="REPORTING"
         action={
           <a href="/api/workspace/export?dataset=daily">Export all history ↗</a>
         }
@@ -620,7 +707,7 @@ function UsageHistory({
           ))}
         </Table>
         {rows.status === "LoadingFirstPage" ? (
-          <p role="status">Loading history…</p>
+          <LoadingState label="Loading history…" />
         ) : (
           !rows.results.length && (
             <Empty>
@@ -639,7 +726,7 @@ function UsageHistory({
           Provider invoices are separate.
         </p>
       </Panel>
-      <Panel title="Saved views">
+      <Panel title="Saved views" eyebrow="SHORTCUTS">
         <div className={styles.toolbar}>
           {views?.map((view) => (
             <span key={view._id}>
@@ -700,7 +787,7 @@ function Activity() {
   );
   return (
     <>
-      <Panel title="Agents">
+      <Panel title="Agents" eyebrow="TELEMETRY">
         <p className={styles.hint}>
           Observed metadata only. Parent links require a collector-supplied
           parent ID; these counts are not added to lifetime totals.
@@ -744,7 +831,7 @@ function Activity() {
         )}
         <More status={agents.status} load={agents.loadMore} />
       </Panel>
-      <Panel title="Outcomes · last 30 days">
+      <Panel title="Outcomes · last 30 days" eyebrow="SIGNALS">
         <Table headings={["Request", "Outcome", "Observed"]}>
           {outcomes.results.map((row) => (
             <tr key={row._id}>
@@ -788,7 +875,7 @@ export function Teams({ overview }: { overview: Overview }) {
   return (
     <>
       <div className={styles.split}>
-        <Panel title="Teams">
+        <Panel title="Teams" eyebrow="PEOPLE">
           <div className={styles.list}>
             {overview.teams
               .filter((t) => !t.archivedAt)
@@ -825,7 +912,7 @@ export function Teams({ overview }: { overview: Overview }) {
             </Form>
           )}
         </Panel>
-        <Panel title="Projects & cost centers">
+        <Panel title="Projects & cost centers" eyebrow="ALLOCATION">
           {overview.projects.map((p) => (
             <p className={styles.item} key={p._id}>
               {p.name}
@@ -1160,6 +1247,7 @@ export function Ledger({ overview }: { overview: Overview }) {
     <>
       <Panel
         title="Financial ledger"
+        eyebrow="RECONCILIATION"
         action={
           <a href="/api/workspace/export?dataset=ledger">Export ledger ↗</a>
         }
@@ -1265,9 +1353,9 @@ export function Ledger({ overview }: { overview: Overview }) {
         <More status={rows.status} load={rows.loadMore} />
       </Panel>
       <div className={styles.split}>
-        <Panel title="Reconciliation · USD">
+        <Panel title="Reconciliation · USD" eyebrow="CONTROL">
           <span className={styles.badge}>
-            {reconciliation?.status.replaceAll("_", " ")}
+            {reconciliation?.status?.replaceAll("_", " ") ?? "Pending"}
           </span>
           <p>
             Billed {money(reconciliation?.billedMicros)} · Reported{" "}
@@ -1277,7 +1365,7 @@ export function Ledger({ overview }: { overview: Overview }) {
           <p className={styles.hint}>{reconciliation?.note}</p>
         </Panel>
         {overview.capabilities["finance:manage"] && (
-          <Panel title="Record a charge or invoice">
+          <Panel title="Record a charge or invoice" eyebrow="MANUAL ENTRY">
             <Form
               submit={(data) =>
                 record({
@@ -1358,8 +1446,14 @@ export function Budgets({ editable }: { editable: boolean }) {
   const save = useMutation(api.budgets.save);
   const remove = useMutation(api.budgets.remove);
   const { run } = useContext(Operations);
+  if (!rows)
+    return (
+      <Panel title="Monthly budgets" eyebrow="GUARDRAILS">
+        <LoadingState label="Loading budgets…" />
+      </Panel>
+    );
   return (
-    <Panel title="Monthly budgets">
+    <Panel title="Monthly budgets" eyebrow="GUARDRAILS">
       <p className={styles.hint}>
         In-app alerts at your threshold, checked every 30 minutes. These do not
         block provider spending.
@@ -1483,7 +1577,7 @@ function Savings({ editable }: { editable: boolean }) {
   const save = useMutation(api.savings.save);
   const [editing, setEditing] = useState<Doc<"savingsActions"> | null>(null);
   return (
-    <Panel title="Savings register">
+    <Panel title="Savings register" eyebrow="OPTIMIZATION">
       <p className={styles.hint}>
         Propose a change, approve it, measure it, then record the result.
         Potential savings never masquerade as measured savings.
@@ -1642,52 +1736,56 @@ function Connections() {
   const { run } = useContext(Operations);
   return (
     <>
-      <Panel title="Provider connections">
+      <Panel title="Provider connections" eyebrow="SOURCES">
         <p className={styles.hint}>
           One server-side import per connection. Credentials are encrypted,
           never returned to the browser, and removed on disconnect. Imports are
           separate from collector token totals.
         </p>
-        <div className={styles.list}>
-          {rows?.map((row) => (
-            <div className={styles.item} key={row.id}>
-              <div className={styles.sectionHeader}>
-                <strong>
-                  {row.name} · {row.provider}
-                </strong>
-                <span className={styles.badge}>{row.state}</span>
-              </div>
-              <p>{row.coverageNote}</p>
-              <small>
-                Coverage {row.coverageStartDay ?? "pending"} →{" "}
-                {row.coverageEndDay ?? "pending"} · Last success{" "}
-                {dateTime(row.lastSuccessAt)}
-                {row.reportedSeats !== undefined &&
-                  ` · ${row.reportedSeats} reported seats`}
-              </small>
-              {row.lastError && (
-                <p role="alert">
-                  {row.lastError.replaceAll("_", " ")}. Reconnect to retry.
-                </p>
-              )}
-              <button
-                className={styles.textButton}
-                onClick={() => {
-                  if (
-                    confirm(
-                      `Disconnect ${row.name} and remove its stored credential?`,
+        {!rows ? (
+          <LoadingState label="Loading connections…" />
+        ) : (
+          <div className={styles.list}>
+            {rows.map((row) => (
+              <div className={styles.item} key={row.id}>
+                <div className={styles.sectionHeader}>
+                  <strong>
+                    {row.name} · {row.provider}
+                  </strong>
+                  <span className={styles.badge}>{row.state}</span>
+                </div>
+                <p>{row.coverageNote}</p>
+                <small>
+                  Coverage {row.coverageStartDay ?? "pending"} →{" "}
+                  {row.coverageEndDay ?? "pending"} · Last success{" "}
+                  {dateTime(row.lastSuccessAt)}
+                  {row.reportedSeats !== undefined &&
+                    ` · ${row.reportedSeats} reported seats`}
+                </small>
+                {row.lastError && (
+                  <p role="alert">
+                    {row.lastError.replaceAll("_", " ")}. Reconnect to retry.
+                  </p>
+                )}
+                <button
+                  className={styles.textButton}
+                  onClick={() => {
+                    if (
+                      confirm(
+                        `Disconnect ${row.name} and remove its stored credential?`,
+                      )
                     )
-                  )
-                    void run(() => disconnect({ id: row.id }));
-                }}
-              >
-                Disconnect
-              </button>
-            </div>
-          ))}
-        </div>
+                      void run(() => disconnect({ id: row.id }));
+                  }}
+                >
+                  Disconnect
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </Panel>
-      <Panel title="Connect or replace a credential">
+      <Panel title="Connect or replace a credential" eyebrow="ADD SOURCE">
         <Form
           submit={(data) =>
             connect({
@@ -1758,8 +1856,8 @@ function Settings({ overview }: { overview: Overview }) {
   return (
     <>
       <div className={styles.split}>
-        <Panel title="Preferences">
-          {preferences && (
+        <Panel title="Preferences" eyebrow="PERSONAL">
+          {preferences ? (
             <Form
               submit={(data) =>
                 savePreferences({
@@ -1803,13 +1901,15 @@ function Settings({ overview }: { overview: Overview }) {
               </Field>
               <Button>Save preferences</Button>
             </Form>
+          ) : (
+            <LoadingState label="Loading preferences…" />
           )}
           <p className={styles.hint}>
             Timestamps use your selected timezone. History and budgets retain
             UTC accounting boundaries so totals agree across devices.
           </p>
         </Panel>
-        <Panel title="Your data, without a paywall">
+        <Panel title="Your data, without a paywall" eyebrow="EXPORTS">
           <div className={styles.toolbar}>
             <a
               className="button button-outline"
@@ -1843,7 +1943,7 @@ function Settings({ overview }: { overview: Overview }) {
         </Panel>
       </div>
       {overview.capabilities["workspace:manage"] && (
-        <Panel title="Workspace settings">
+        <Panel title="Workspace settings" eyebrow="GOVERNANCE">
           <Form
             submit={(data) =>
               configure({
@@ -1903,7 +2003,7 @@ function Settings({ overview }: { overview: Overview }) {
           )}
         </Panel>
       )}
-      <Panel title="Notifications">
+      <Panel title="Notifications" eyebrow="INBOX">
         <div className={styles.list}>
           {notices.results.map((notice) => (
             <div className={styles.item} key={notice._id}>
