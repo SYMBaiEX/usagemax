@@ -8,10 +8,11 @@ counts are never used as a hidden billable meter.
 
 - **Free** — personal history and small-team collaboration with published
   guardrails.
-- **Team** — optional monthly Stripe subscription for customers who need paid
-  workspace operations. An active subscription unlocks 100 members, 50 teams,
-  200 projects, 250 devices, 50 budgets, and 90 days of detailed retention.
-  The recurring Price is configured with `STRIPE_TEAM_PRICE_ID`.
+- **Team** — **$49/month** flat workspace subscription for customers who need
+  paid workspace operations. An active subscription unlocks 100 members, 50
+  teams, 200 projects, 250 devices, 50 budgets, and 90 days of detailed
+  retention. There is no token-count or per-seat usage meter. The recurring
+  Price is configured with `STRIPE_TEAM_PRICE_ID`.
 - **Enterprise** — a written agreement with contract-specific capacity,
   identity, retention, export, residency, and support commitments.
 
@@ -33,6 +34,23 @@ Set these server-side values in Vercel and Convex:
 
 Create the Stripe recurring product and Price before enabling the checkout
 button. Keep the Price ID in deployment configuration, not in source code.
+
+## Pricing rationale
+
+The $49 monthly Team price is a deliberate flat-workspace position: Portkey's
+public Production plan is $49/month, LangSmith Plus is $39 per seat/month
+before usage, Helicone Pro is $79/month before usage, and Braintrust Pro is
+$249/month. UsageMax keeps token counts out of the invoice and includes team
+governance at a single workspace price, while Enterprise remains custom for
+identity, residency, retention, and contractual support requirements. Recheck
+the competitor pages before changing this rate; the links below are the
+official pricing references reviewed on 2026-09-19:
+
+- [Portkey pricing](https://portkey.ai/pricing)
+- [LangSmith pricing](https://www.langchain.com/pricing)
+- [Helicone pricing](https://www.helicone.ai/pricing)
+- [Braintrust pricing](https://www.braintrust.dev/pricing)
+- [Langfuse pricing](https://langfuse.com/pricing)
 
 ## Webhook contract
 

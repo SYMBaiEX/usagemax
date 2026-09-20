@@ -17,7 +17,7 @@ meter, trial expiration, or required payment method on the free plans.
 | --- | --- | --- | --- |
 | Personal | **$0/month** | Private history, one-shot syncs, supported local histories, optional public profile, bounded exports | Up to 25 linked computers, 5 budgets, 30-day detailed retention |
 | Small teams | **$0/month** | Private workspace, invitations, roles, teams, projects, shared provider/model reporting, cost-center context | Up to 10 members, 5 teams, 20 projects, 25 devices, 30-day detailed retention |
-| Team operations | **Stripe subscription** | Paid workspace operations, billing portal, capacity and governance controls | 100 members, 50 teams, 200 projects, 250 devices, 50 budgets, 90-day detailed retention |
+| Team operations | **$49/month** | Paid workspace operations, billing portal, capacity and governance controls | 100 members, 50 teams, 200 projects, 250 devices, 50 budgets, 90-day detailed retention |
 | Enterprise | **Custom agreement** | Higher capacity, SSO and directory setup, private attribution, retention/residency choices, governed exports, support commitments | Contract-specific limits, controls, and service levels |
 
 ## Plan tiers, prices, features, and limits
@@ -54,9 +54,9 @@ capacity: 10_members,5_teams,20_projects,25_devices,30_day_detailed_retention
 
 plan_id: team-operations
 name: Team operations
-price: stripe_configured
+price: 49 USD/month
 billing: stripe_subscription
-features: paid_workspace_operations,billing_portal,governance,support
+features: paid_workspace_operations,billing_portal,governance,support,no_token_count_billing
 capacity: 100_members,50_teams,200_projects,250_devices,50_budgets,90_day_detailed_retention
 
 plan_id: enterprise
@@ -79,10 +79,11 @@ record across their own computers.
 The Small teams plan is the default choice when more than one person needs a
 shared workspace, invitations, roles, projects, or cost-center context.
 
-Team operations is an optional paid Stripe subscription for organizations that
-want a commercial workspace commitment without an enterprise agreement. The
-Price, currency, and interval are deployment configuration; the included
-workspace capacity is enforced after the subscription becomes active.
+Team operations is an optional **$49/month** Stripe subscription for
+organizations that want a commercial workspace commitment without an
+enterprise agreement. It is a flat workspace price, not a token or seat meter;
+the included workspace capacity is enforced after the subscription becomes
+active.
 
 The Enterprise plan is the default choice when an organization needs a written
 capacity commitment, directory lifecycle, SSO, data residency, private
@@ -145,18 +146,18 @@ required before Enterprise capacity or a paid service commitment is activated.
 
 ## Capacity examples
 
-| Question | Personal answer | Small teams answer | Enterprise answer |
-| --- | --- | --- | --- |
-| How many people? | One owner | Up to 10 members | Contract-specific |
-| How many computers? | Up to 25 | Up to 25 | Contract-specific |
-| How many teams? | Not included | Up to 5 | Contract-specific |
-| How many projects? | Not included | Up to 20 | Contract-specific |
-| How long is detail retained? | 30-day reference | 30-day reference | Contract-specific |
-| Is SSO included? | No | No | Scoped by agreement |
-| Is directory provisioning included? | No | No | Scoped by agreement |
-| Is private attribution included? | Personal only | Included in workspace | Scoped by agreement |
-| Are governed exports included? | Bounded | Bounded | Scoped by agreement |
-| Is support contracted? | Community | Community | Contracted |
+| Question | Personal answer | Small teams answer | Team operations answer | Enterprise answer |
+| --- | --- | --- | --- | --- |
+| How many people? | One owner | Up to 10 members | Up to 100 members | Contract-specific |
+| How many computers? | Up to 25 | Up to 25 | Up to 250 | Contract-specific |
+| How many teams? | Not included | Up to 5 | Up to 50 | Contract-specific |
+| How many projects? | Not included | Up to 20 | Up to 200 | Contract-specific |
+| How long is detail retained? | 30-day reference | 30-day reference | 90-day reference | Contract-specific |
+| Is SSO included? | No | No | No | Scoped by agreement |
+| Is directory provisioning included? | No | No | No | Scoped by agreement |
+| Is private attribution included? | Personal only | Included in workspace | Included in workspace | Scoped by agreement |
+| Are governed exports included? | Bounded | Bounded | Bounded | Scoped by agreement |
+| Is support contracted? | Community | Community | Priority | Contracted |
 
 ## Feature and limit matrix
 
@@ -165,22 +166,22 @@ plan without interpreting prose. A check means the capability is included in
 the published boundary; **scoped** means it is enabled only when the written
 enterprise agreement names the control and its capacity.
 
-| Capability | Personal | Small teams | Enterprise |
-| --- | --- | --- | --- |
-| Monthly price | $0 | $0 | Custom agreement |
-| Private usage history | Included | Included | Included |
-| One-shot local sync | Included | Included | Included |
-| Public profile | Optional | Optional | Optional / governed |
-| Workspace members | 1 | Up to 10 | Scoped |
-| Linked computers | Up to 25 | Up to 25 | Scoped |
-| Teams and projects | — | Included | Included / scoped |
-| Invitations and roles | — | Included | Included / scoped |
-| SSO and directory provisioning | — | — | Scoped |
-| Private attribution and cost centers | — | Included | Included / scoped |
-| Data residency choices | — | — | Scoped |
-| Governed exports and SIEM delivery | Bounded | Bounded | Scoped |
-| Detailed retention | 30 days | 30 days | Scoped |
-| Support commitment | Community | Community | Contracted |
+| Capability | Personal | Small teams | Team operations | Enterprise |
+| --- | --- | --- | --- | --- |
+| Monthly price | $0 | $0 | $49 | Custom agreement |
+| Private usage history | Included | Included | Included | Included |
+| One-shot local sync | Included | Included | Included | Included |
+| Public profile | Optional | Optional | Optional | Optional / governed |
+| Workspace members | 1 | Up to 10 | Up to 100 | Scoped |
+| Linked computers | Up to 25 | Up to 25 | Up to 250 | Scoped |
+| Teams and projects | — | Included | Included | Included / scoped |
+| Invitations and roles | — | Included | Included | Included / scoped |
+| SSO and directory provisioning | — | — | — | Scoped |
+| Private attribution and cost centers | — | Included | Included | Included / scoped |
+| Data residency choices | — | — | — | Scoped |
+| Governed exports and SIEM delivery | Bounded | Bounded | Bounded | Scoped |
+| Detailed retention | 30 days | 30 days | 90 days | Scoped |
+| Support commitment | Community | Community | Priority | Contracted |
 
 An em dash means the capability is not part of that plan's published boundary;
 it is not a promise that the service will accept the data through an
@@ -238,16 +239,16 @@ linking a computer or issuing a collector credential.
 
 ## Capacity, retention, and privacy reference
 
-| Concern | Personal | Small teams | Enterprise |
-| --- | --- | --- | --- |
-| Identity boundary | One workspace owner | Invited workspace members | Customer-scoped identity and directory rules |
-| Device ownership | Owner-linked installations | Workspace-linked installations | Agreed inventory and ownership model |
-| Detailed reporting | 30-day reference | 30-day reference | Written retention schedule |
-| Aggregate reconciliation | Supported local histories | Shared workspace reporting | Contracted sources and controls |
-| Public visibility | Opt-in profile | Per-builder opt-in | Governed by workspace policy |
-| Prompt and completion handling | Never accepted | Never accepted | Never accepted |
-| Credential handling | Collector token only | Installation-bound collector tokens | Contract-governed rotation and revocation |
-| Export boundary | Bounded exports | Bounded workspace exports | Approved destinations and operators |
+| Concern | Personal | Small teams | Team operations | Enterprise |
+| --- | --- | --- | --- | --- |
+| Identity boundary | One workspace owner | Invited workspace members | Invited workspace members | Customer-scoped identity and directory rules |
+| Device ownership | Owner-linked installations | Workspace-linked installations | Workspace-linked installations | Agreed inventory and ownership model |
+| Detailed reporting | 30-day reference | 30-day reference | 90-day reference | Written retention schedule |
+| Aggregate reconciliation | Supported local histories | Shared workspace reporting | Shared workspace reporting | Contracted sources and controls |
+| Public visibility | Opt-in profile | Per-builder opt-in | Per-builder opt-in | Governed by workspace policy |
+| Prompt and completion handling | Never accepted | Never accepted | Never accepted | Never accepted |
+| Credential handling | Collector token only | Installation-bound collector tokens | Installation-bound collector tokens | Contract-governed rotation and revocation |
+| Export boundary | Bounded exports | Bounded workspace exports | Bounded workspace exports | Approved destinations and operators |
 
 UsageMax can process bounded aggregate context such as model, provider, event
 type, token counters, status, timing, and attribution fields when supplied.
@@ -303,8 +304,8 @@ UsageMax keeps these concepts separate:
   used to explain an estimate.
 - **Capacity:** operational objects such as members, devices, retained days,
   API volume, or export volume.
-- **Plan price:** the published monthly price for Personal or Small teams, or
-  a custom written agreement for Enterprise.
+- **Plan price:** the published monthly price for Personal, Small teams, or
+  Team operations, or a custom written agreement for Enterprise.
 
 These definitions prevent a usage chart from being mistaken for a bill. A
 missing price remains unknown rather than being treated as zero, and a token
@@ -327,6 +328,22 @@ counter never becomes a separate UsageMax charge.
   moving prompts or completions into the public projection.
 - The limits in the table are service-capacity guardrails, not a paid upgrade
   prompt. Contact the team when a real organization needs more.
+
+## Team operations — $49/month
+
+- Flat monthly USD subscription for one workspace; there is no token-count or
+  per-seat usage meter.
+- Stripe-hosted Checkout keeps payment details outside UsageMax, and the
+  customer portal handles invoices, payment methods, and cancellation.
+- Up to 100 workspace members, 50 teams, 200 projects, 250 linked devices,
+  and 50 budgets are included as operating guardrails.
+- Detailed reporting uses a 90-day reference window.
+- Governance, private attribution, cost centers, and bounded exports remain
+  content-free and workspace-scoped.
+- Priority support is included for the paid workspace; SSO, directory
+  provisioning, residency, and contractual SLAs remain Enterprise controls.
+- The plan can be cancelled at any time through the Stripe-hosted portal;
+  there is no automatic upgrade when a free guardrail is reached.
 
 ## Enterprise — custom agreement
 
@@ -355,6 +372,8 @@ collector boundary.
 - Team operations is billed by Stripe after an authenticated workspace admin
   starts Checkout; payment details remain in Stripe and the workspace stores
   only identifiers and subscription status.
+- Team operations is $49/month, billed monthly in USD. It can be cancelled or
+  managed through the Stripe-hosted customer portal.
 - Enterprise pricing is agreed before activation; UsageMax does not silently
   move a free workspace onto a paid plan.
 - An enterprise evaluation can use the no-write [sandbox](https://usagemax.com/sandbox)

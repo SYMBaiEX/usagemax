@@ -99,6 +99,7 @@ export const usageMaxStructuredData = {
         itemListElement: [
           { "@type": "Offer", name: "Personal", price: "0", priceCurrency: "USD", url: "https://usagemax.com/pricing", description: "Free personal usage observability with no card required." },
           { "@type": "Offer", name: "Small teams", price: "0", priceCurrency: "USD", url: "https://usagemax.com/pricing", description: "Free small-team usage observability with published capacity guardrails." },
+          { "@type": "Offer", name: "Team operations", price: "49", priceCurrency: "USD", url: "https://usagemax.com/pricing", description: "Flat monthly workspace operations with governance, billing, and 90-day detailed retention; no token-count billing." },
           { "@type": "Offer", name: "Enterprise", url: "https://usagemax.com/contact", description: "Enterprise capacity and controls by custom agreement." },
         ],
       },

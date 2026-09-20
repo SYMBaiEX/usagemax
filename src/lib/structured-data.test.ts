@@ -44,6 +44,7 @@ describe("UsageMax structured data", () => {
     expect(service).toMatchObject({ hasOfferCatalog: { url: "https://usagemax.com/pricing", itemListElement: expect.arrayContaining([
       expect.objectContaining({ "@type": "Offer", name: "Personal", price: "0", priceCurrency: "USD" }),
       expect.objectContaining({ "@type": "Offer", name: "Small teams", price: "0", priceCurrency: "USD" }),
+      expect.objectContaining({ "@type": "Offer", name: "Team operations", price: "49", priceCurrency: "USD" }),
     ]) } });
     expect(usageMaxStructuredData["@graph"]).toContainEqual(expect.objectContaining({
       "@type": "WebAPI",

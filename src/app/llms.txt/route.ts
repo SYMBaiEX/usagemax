@@ -23,7 +23,7 @@ source code, credentials, or private workspace data.
 - [Security](https://usagemax.com/security): public data boundaries and bounded reads
 - [Enterprise](https://usagemax.com/enterprise): team operating surface
 - [Integrations](https://usagemax.com/integrations): HTTP, MCP, WebMCP, collector, OpenTelemetry, and A2A connection paths
-- [Pricing](https://usagemax.com/pricing.md): machine-readable free personal and small-team plans, plus scoped enterprise capacity
+- [Pricing](https://usagemax.com/pricing.md): machine-readable free plans, $49/month Team operations, and scoped enterprise capacity
 - [Privacy](https://usagemax.com/privacy): telemetry and public profile handling
 - [Terms](https://usagemax.com/terms): public service terms
 - [About](https://usagemax.com/about): product and operating boundary

@@ -8,6 +8,7 @@ describe("pricing resource", () => {
     const body = await response.text();
     expect(body).toContain("Personal — $0/month");
     expect(body).toContain("Small teams — $0/month");
+    expect(body).toContain("Team operations — $49/month");
     expect(body).toContain("Enterprise — custom agreement");
     expect(body).toContain("Up to 10 members");
     expect(body).toContain("no trial clock");

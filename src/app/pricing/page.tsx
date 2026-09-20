@@ -6,7 +6,7 @@ import { PageIntro, TextLink } from "@/components/site-shell";
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description: "UsageMax is free for individual builders and small teams, with custom enterprise capacity by agreement.",
+  description: "UsageMax is free for individual builders, $49/month for Team operations, and custom for enterprise capacity.",
   alternates: { canonical: "https://usagemax.com/pricing" },
 };
 
@@ -31,9 +31,9 @@ const plans = [
   },
   {
     eyebrow: "03 / TEAM OPERATIONS",
-    title: "Paid when you need the operating layer",
-    description: "Keep the free workspace available, then add a Stripe-managed commitment for governance, billing, and team operations.",
-    items: ["Stripe Checkout and customer portal", "100 members / 250 devices", "200 projects / 50 budgets", "No token-count billing"],
+    title: "$49 / month for Team operations",
+    description: "A flat workspace subscription for governance, billing, and team operations. No token-count meter and no per-seat surprise.",
+    items: ["Stripe Checkout and customer portal", "100 members / 250 devices", "200 projects / 50 budgets", "90-day detailed retention"],
     action: "Open workspace billing",
     href: "/workspace",
     tone: "detail-card-orange",

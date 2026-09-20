@@ -52,9 +52,9 @@ export function agentHomepage() {
       {
         id: "team-operations",
         name: "Team operations",
-        price: { amount: null, currency: "USD", interval: "month", qualifier: "stripe_configured" },
+        price: { amount: 49, currency: "USD", interval: "month" },
         billing: "stripe_subscription",
-        features: ["paid_workspace_operations", "billing_portal", "governance", "support"],
+        features: ["paid_workspace_operations", "billing_portal", "governance", "support", "no_token_count_billing"],
         limits: { members: 100, teams: 50, projects: 200, devices: 250, budgets: 50, detailedRetentionDays: 90 },
       },
       {

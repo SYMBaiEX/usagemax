@@ -14,7 +14,7 @@ Use this section when you need to understand the product, privacy boundary, or i
 - [Security](/security): threat model and data boundaries
 - [Privacy](/privacy): retention and public-profile controls
 - [Authentication](/auth.md): actual website and collector credential flow
-- [Pricing](/pricing.md): machine-readable free plans and scoped enterprise capacity
+- [Pricing](/pricing.md): machine-readable free plans, $49/month Team operations, and scoped enterprise capacity
 - [Collector status](/api/v1/devices/status): read-only key and device-binding diagnostic
 - [OpenAPI](/openapi.json): typed HTTP contract
 - [CLI guide](/cli.md): install, link, sync, and scheduling

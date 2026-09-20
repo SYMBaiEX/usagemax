@@ -45,6 +45,7 @@ describe("agent pricing metadata", () => {
     expect(agentHomepage().pricingPlans).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "personal", price: { amount: 0, currency: "USD", interval: "month" } }),
       expect.objectContaining({ id: "small-teams", limits: expect.objectContaining({ members: 10 }) }),
+      expect.objectContaining({ id: "team-operations", price: { amount: 49, currency: "USD", interval: "month" } }),
       expect.objectContaining({ id: "enterprise", price: expect.objectContaining({ qualifier: "custom_agreement", amount: null }) }),
     ]));
   });
