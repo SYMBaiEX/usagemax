@@ -341,8 +341,7 @@
 .headerKicker { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
 .headerSlash { color: var(--line-strong); }
 .statusDot,
-.headerMeta i,
-.liveLabel i {
+.headerMeta i {
   display: inline-block;
   width: 6px;
   height: 6px;
@@ -373,8 +372,6 @@
 .headerActions select { min-height: 40px; }
 .navigationBlock { margin: 22px 0 26px; }
 .navigationLabel { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-inline: 2px; }
-.liveLabel { display: inline-flex; align-items: center; gap: 7px; color: var(--green); }
-.liveLabel i { width: 5px; height: 5px; box-shadow: none; }
 .tabs { width: 100%; margin: 0; padding: 4px; overflow-x: auto; flex-wrap: nowrap; border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-inset); scrollbar-width: thin; }
 .tabs button { flex: 0 0 auto; min-height: 38px; padding-inline: 13px; }
 .viewSummary { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 13px 2px 0; }

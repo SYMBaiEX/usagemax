@@ -466,7 +466,6 @@ export function Workspace() {
         <div className={styles.navigationBlock}>
           <div className={styles.navigationLabel}>
             <span>Workspace view</span>
-            <span className={styles.liveLabel}><i aria-hidden="true" /> Live data</span>
           </div>
           <nav className={styles.tabs} aria-label="Workspace sections">
             {tabs.map((item) => (
@@ -544,11 +543,6 @@ function Billing({ overview }: { overview: Overview }) {
           <strong>{period ?? "—"}</strong>
         </div>
       </div>
-      <p className={styles.hint}>
-        UsageMax never bills token counts. Paid plans cover workspace capacity,
-        governance, support, and contracted controls; your usage data remains
-        content-free and exportable.
-      </p>
       <div className={styles.toolbar}>
         {!active && (
           <form method="post" action="/api/billing/checkout?plan=team">
@@ -568,11 +562,6 @@ function Billing({ overview }: { overview: Overview }) {
           Enterprise controls
         </Link>
       </div>
-      <p className={styles.hint}>
-        Stripe-hosted checkout and billing portal keep payment details outside
-        UsageMax. If checkout is not configured in this environment, contact
-        <a href="mailto:hello@usagemax.com"> hello@usagemax.com</a> for a pilot.
-      </p>
     </Panel>
   );
 }
