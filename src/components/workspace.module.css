@@ -330,8 +330,6 @@
 .headerCopy { min-width: 0; }
 .headerKicker,
 .navigationLabel,
-.headerMeta,
-.viewEyebrow,
 .panelEyebrow {
   color: var(--ink-faint);
   font: 600 10px/1.4 var(--font-mono);
@@ -340,8 +338,7 @@
 }
 .headerKicker { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
 .headerSlash { color: var(--line-strong); }
-.statusDot,
-.headerMeta i {
+.statusDot {
   display: inline-block;
   width: 6px;
   height: 6px;
@@ -364,9 +361,6 @@
   box-shadow: var(--shadow-control);
 }
 .header h1 { font-size: clamp(28px, 3vw, 38px); letter-spacing: -.04em; }
-.header p { max-width: 620px; margin-top: 5px; }
-.headerMeta { display: flex; flex-wrap: wrap; gap: 14px 18px; margin: 14px 0 0 60px; font-size: 9px; letter-spacing: .05em; }
-.headerMeta span { display: inline-flex; align-items: center; gap: 7px; }
 .headerActions { justify-content: flex-end; padding-top: 24px; }
 .headerActions > label { min-width: 190px; }
 .headerActions select { min-height: 40px; }
@@ -374,9 +368,6 @@
 .navigationLabel { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-inline: 2px; }
 .tabs { width: 100%; margin: 0; padding: 4px; overflow-x: auto; flex-wrap: nowrap; border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-inset); scrollbar-width: thin; }
 .tabs button { flex: 0 0 auto; min-height: 38px; padding-inline: 13px; }
-.viewSummary { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 13px 2px 0; }
-.viewSummary p { margin-top: 4px; color: var(--ink-soft); font-size: 12px; line-height: 1.5; }
-.viewHint { flex: 0 0 auto; color: var(--ink-faint); font-size: 11px; }
 .body { gap: 18px; animation: workspace-enter .34s ease both; }
 .panel { position: relative; padding: 24px; border: 1px solid color-mix(in srgb, var(--line) 82%, transparent); border-radius: 18px; }
 .panel::before { content: ""; position: absolute; inset: 0 20% auto 20%; height: 1px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--orange) 34%, transparent), transparent); opacity: .7; }
@@ -432,8 +423,6 @@
 @keyframes workspace-shimmer { from { background-position: 200% 0; } to { background-position: -20% 0; } }
 @media (max-width: 850px) {
   .headerActions { justify-content: flex-start; padding-top: 0; }
-  .headerMeta { margin-left: 0; }
-  .viewSummary { align-items: flex-start; flex-direction: column; gap: 8px; }
   .stats > * { padding: 15px; }
   .panel { padding: 18px; }
 }

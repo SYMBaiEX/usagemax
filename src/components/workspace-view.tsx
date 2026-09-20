@@ -353,17 +353,6 @@ export function Workspace() {
     "Settings",
   ].filter(Boolean) as string[];
   const selected = tabs.includes(tab) ? tab : tabs[0];
-  const tabCopy: Record<string, string> = {
-    Usage: "Your complete usage record, with filters that stay private to this workspace.",
-    Activity: "Content-free agent and outcome signals from the last 30 days.",
-    Teams: "Organize people, projects, and cost centers without moving prompts or source code.",
-    Ledger: "Reconcile provider reports, invoices, credits, and adjustments in one place.",
-    Budgets: "Set guardrails and receive threshold alerts before a month runs away.",
-    Savings: "Turn optimization ideas into measured, evidence-backed outcomes.",
-    Connections: "Connect read-only provider sources with credentials kept server-side.",
-    Billing: "Manage workspace capacity and payment details through Stripe-hosted billing.",
-    Settings: "Control workspace identity, retention, notifications, and exports.",
-  };
   return (
     <Timezone.Provider value={preferences?.timezone ?? "UTC"}>
       <Operations.Provider value={{ run, busy }}>
@@ -379,17 +368,7 @@ export function Workspace() {
               <span className={styles.workspaceAvatar} aria-hidden="true">{initials}</span>
               <div>
                 <h1>{overview.workspace.name}</h1>
-                <p>
-                  {overview.workspace.organizationId
-                    ? "Private team operations, shared reporting, and governed access."
-                    : "Your usage, your history, and a privacy-first record of the work."}
-                </p>
               </div>
-            </div>
-            <div className={styles.headerMeta}>
-              <span><i aria-hidden="true" /> Secure session</span>
-              <span>UTC accounting</span>
-              <span>{overview.workspace.retentionDays}d detailed retention</span>
             </div>
           </div>
           <div className={`${styles.toolbar} ${styles.headerActions}`}>
@@ -481,13 +460,6 @@ export function Workspace() {
               </button>
             ))}
           </nav>
-          <div className={styles.viewSummary}>
-            <div>
-              <span className={styles.viewEyebrow}>{selected} / overview</span>
-              <p>{tabCopy[selected]}</p>
-            </div>
-            <span className={styles.viewHint}>Private to this workspace</span>
-          </div>
         </div>
         {message && (
           <p
