@@ -38,7 +38,9 @@ button. Keep the Price ID in deployment configuration, not in source code.
 
 Stripe sends events to `/api/webhooks/stripe`. The Vercel route forwards the
 raw request body and `stripe-signature` header to Convex, where the signature is
-verified before a bounded, idempotent billing projection is updated.
+verified before a bounded, idempotent billing projection job is scheduled.
+The endpoint acknowledges the signed event quickly; the projection job records
+the Stripe event ID before applying it so retries are safe.
 
 Handled events include checkout completion, subscription creation/update,
 subscription cancellation, successful invoices, and failed invoice payments.

@@ -848,7 +848,7 @@ const stripeWebhook = httpAction(async (ctx, request) => {
         : eventType === "customer.subscription.deleted"
           ? "canceled"
           : undefined);
-  const result = await ctx.runMutation(internal.billing.applyStripeEvent, {
+  await ctx.scheduler.runAfter(0, internal.billing.applyStripeEvent, {
     eventId,
     eventType,
     customerId,
@@ -865,7 +865,7 @@ const stripeWebhook = httpAction(async (ctx, request) => {
       ? optionalText(eventObject.id, 100)
       : undefined,
   });
-  return jsonResponse({ ok: true, replay: result.replay, ignored: result.ignored });
+  return jsonResponse({ ok: true, accepted: true });
 });
 
 const http = httpRouter();
