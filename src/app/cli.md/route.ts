@@ -35,7 +35,7 @@ remain machine-readable and quiet.
 
 The computer name selected in Account is retained. Use <code>--name "Work laptop"</code> only when you want the current CLI to explicitly override that account-side name.
 
-The link code and collector token are never included in documentation examples, URLs, telemetry fields, or logs. Use <code>usagemax status</code> to inspect local state without printing the token. Add <code>--remote</code> to verify the stored key against UsageMax without exposing it. The <code>token status</code> diagnostic is included in CLI <code>0.3.7</code>; if npm <code>latest</code> still points to an older release, run <code>usagemax update token status</code> or <code>node packages/cli/src/cli.js token status</code> from the repository until that release is published.
+The link code and collector token are never included in documentation examples, URLs, telemetry fields, or logs. Use <code>usagemax status</code> to inspect local state without printing the token. Add <code>--remote</code> to verify the stored key against UsageMax without exposing it. The <code>token status</code> diagnostic is included in CLI <code>0.3.8</code>; if npm <code>latest</code> still points to an older release, run <code>usagemax update token status</code> or <code>node packages/cli/src/cli.js token status</code> from the repository until that release is published.
 
 For an advanced key that is not stored by the CLI, pipe the token through stdin and optionally check an installation UUID:
 

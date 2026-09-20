@@ -1,6 +1,6 @@
 {
   "name": "usagemax",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "description": "Link local coding-agent usage to your UsageMax profile",
   "keywords": [
     "usagemax",
@@ -57,6 +57,6 @@
     "prepublishOnly": "npm test"
   },
   "dependencies": {
-    "ccusage": "20.0.20"
+    "ccusage": "20.0.23"
   }
 }

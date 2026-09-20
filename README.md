@@ -100,7 +100,7 @@ quiet, CI, and scheduled runs remain machine-readable and quiet.
 
 ## Coverage and correctness
 
-UsageMax pins [ccusage v20.0.20](https://github.com/ccusage/ccusage/releases/tag/v20.0.20)
+UsageMax pins [ccusage v20.0.23](https://github.com/ccusage/ccusage/releases/tag/v20.0.23)
 and uses its 16 adapters: Amp, Claude Code, Codebuff, Codex, GitHub Copilot
 CLI, Factory Droid, Gemini CLI, Goose, Grok Build, Hermes, Kilo Code, Kimi CLI,
 OpenClaw, OpenCode, Pi, and Qwen Code. Named Pi-format stores are discovered as
@@ -175,7 +175,7 @@ printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
   | jq -r '[.httpStatus, (if .ingestAuthorized then 1 else 0 end)] | @tsv'
 ```
 
-`token status` is included in CLI `0.3.7`. If a fresh environment still has an
+`token status` is included in CLI `0.3.8`. If a fresh environment still has an
 older npm tag, run `usagemax update token status` or use
 `node packages/cli/src/cli.js token status` from this repository until the new
 package is published.

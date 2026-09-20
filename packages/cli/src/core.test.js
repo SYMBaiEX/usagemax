@@ -29,7 +29,7 @@ test("validates one-use link code and secure endpoints", () => {
 });
 
 test("creates additive, idempotent usage deltas without content fields", () => {
-  const first = buildDeltaPlan(report, {}, "device-1", "ccusage@20.0.20");
+  const first = buildDeltaPlan(report, {}, "device-1", "ccusage@20.0.23");
   assert.equal(first.plan.length, 1);
   assert.deepEqual(first.plan[0].event, {
     eventKey: first.plan[0].event.eventKey,
@@ -47,7 +47,7 @@ test("creates additive, idempotent usage deltas without content fields", () => {
     costMicros: 750000,
     costBasis: "estimated",
     pricingSource: "ccusage / LiteLLM",
-    pricingVersion: "ccusage@20.0.20",
+    pricingVersion: "ccusage@20.0.23",
     status: "ok",
     state: "synced",
     occurredAt: "2026-09-14T00:00:00.000Z",

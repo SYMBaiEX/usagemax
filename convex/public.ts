@@ -11,7 +11,7 @@ export const collectorCapabilities = query({
     snapshotProtocol: 2,
     snapshotChunks: true,
     maxChunkRows: 100,
-    recommendedCliVersion: "0.3.7",
+    recommendedCliVersion: "0.3.8",
   }),
 });
 
