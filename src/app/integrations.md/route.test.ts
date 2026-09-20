@@ -11,7 +11,7 @@ describe("integrations markdown route", () => {
     expect(body).toContain("[HTTP API](/openapi.json)");
     expect(body).toContain("[MCP](/mcp)");
     expect(body).toContain("[Local collector](/cli.md)");
-    expect(body).toContain("does not provide a general OAuth token exchange");
+    expect(body).toContain("Delegated clients use WorkOS Connect");
   });
 
   it("supports a bodyless HEAD response", async () => {

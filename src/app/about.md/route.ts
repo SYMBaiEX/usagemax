@@ -11,7 +11,7 @@ UsageMax is an open-source usage observability platform for people and teams bui
 
 The public side makes aggregate work comparable; the private side gives a workspace owner controls for cost, cadence, models, projects, and connected computers. Counts, model names, status, timing, and carefully selected attribution fields can explain usage. Prompts, completions, source code, credentials, and private workspace data do not belong in the public projection.
 
-The website and API are separate from the optional screen/HUD project. A local collector performs a short-lived, one-shot reconciliation and sends idempotent aggregates or content-free telemetry over HTTPS. Convex provides the realtime projection layer. WorkOS AuthKit handles website sign-in and organization membership; it is not a general API OAuth token.
+The website and API are separate from the optional screen/HUD project. A local collector performs a short-lived, one-shot reconciliation and sends idempotent aggregates or content-free telemetry over HTTPS. Convex provides the realtime projection layer. WorkOS AuthKit handles website sign-in and organization membership, while WorkOS Connect handles delegated OAuth for external agents and applications.
 
 Public reads are bounded, collector credentials are installation-bound and write-only, and private workspaces are tenant-scoped. Capacity, retention, residency, and support commitments for enterprise customers are agreed explicitly rather than implied by the public product.
 

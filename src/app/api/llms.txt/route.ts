@@ -7,12 +7,12 @@ last-updated: 2026-09-19
 
 # UsageMax API
 
-The UsageMax HTTP API has public read operations and authenticated, content-free collector write operations.
+The UsageMax HTTP API has public read operations, WorkOS Connect delegated OAuth, and authenticated, content-free collector write operations.
 
 - [OpenAPI contract](/openapi.json): canonical typed request and response schema
 - [API versioning](/api-versioning.md): compatibility and deprecation policy
 - [CLI guide](/cli.md): install, link, sync, and scheduling
-- [Protected-resource metadata](/.well-known/oauth-protected-resource): collector credential metadata
+- [Protected-resource metadata](/.well-known/oauth-protected-resource): WorkOS delegated OAuth and collector credential metadata
 - [Authentication](/auth.md): credential, header, revocation, and error guidance
 - [Pricing](/pricing.md): machine-readable personal, small-team, and enterprise plan boundaries
 - [Collector status](/api/v1/devices/status): read-only key and device-binding diagnostic
@@ -33,7 +33,7 @@ The UsageMax HTTP API has public read operations and authenticated, content-free
 - [UsageMax repository](https://github.com/SYMBaiEX/usagemax)
 - [OpenAPI contract](https://usagemax.com/openapi.json)
 
-Public reads require no credential. Collector writes use a one-time link flow, a write-only installation-bound Bearer token, x-usagemax-device-id, JSON, and idempotency keys. The API rejects or ignores private content by policy. It is not a general OAuth delegation API.
+Public reads require no credential. Delegated OAuth clients use WorkOS Connect and the scopes in protected-resource metadata. Collector writes use a one-time link flow, a write-only installation-bound Bearer token, x-usagemax-device-id, JSON, and idempotency keys. The API rejects or ignores private content by policy.
 `;
 
 const headers = {

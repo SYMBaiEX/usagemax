@@ -2,7 +2,7 @@
 
 ## Service boundaries
 
-- WorkOS owns user authentication, session rotation, OAuth, SSO, and organization identity.
+- WorkOS owns user authentication, session rotation, delegated OAuth, SSO, agent registration, and organization identity.
 - Convex owns authorization, hashed collector credentials, authoritative usage snapshots, recent telemetry, projections, and realtime subscriptions.
 - Vercel serves the Next.js product and the stable `usagemax.com/api` facade. Public clients never depend on a deployment-provider hostname.
 - The npm collector is one-shot. Optional `usagemax service install` schedules these one-shot jobs (15-minute default), not a resident daemon. A complete unchanged inventory skips parsing and upload; incomplete inventories cannot safely take that shortcut. Use `service status` for scheduler reachability and last-run health, and `service uninstall` to stop future jobs without deleting checkpoints.
@@ -23,6 +23,25 @@ Convex before any state change. Event IDs are deduplicated for 90 days and each
 membership keeps the latest authorization-change timestamp, so retries and
 out-of-order delivery cannot restore stale access. Privileged operations reject
 JWTs issued before a membership authorization change and require session refresh.
+
+## WorkOS Connect delegated OAuth
+
+Set the public WorkOS AuthKit environment domain as `WORKOS_AUTHKIT_DOMAIN` on
+Convex and `NEXT_PUBLIC_WORKOS_AUTHKIT_DOMAIN` on Vercel. Set
+`WORKOS_CONNECT_CLIENT_ID` when the delegated Connect application is separate
+from the website AuthKit client; otherwise the verifier falls back to
+`WORKOS_CLIENT_ID`. The web app mirrors WorkOS authorization-server metadata at
+`/.well-known/oauth-authorization-server`, and the protected-resource document
+points agents to that WorkOS issuer. Access tokens are verified against the
+WorkOS JWKS with issuer, audience, expiry, and scope checks; UsageMax never
+stores a client secret.
+
+Enable Agent Registration in WorkOS under Authentication → Agents before
+advertising the hosted `agent_auth` skill. Configure `usage:read` for trusted
+registrations and keep anonymous/untrusted registrations limited to the minimum
+read-only scope. Standard authorization-code clients can use
+`GET /api/v1/agent/workspace` with the `usage:read` scope; the endpoint passes
+the verified bearer to Convex so tenant membership remains authoritative.
 
 ## Public organization metadata
 

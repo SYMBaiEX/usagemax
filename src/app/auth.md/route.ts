@@ -1,56 +1,78 @@
 const markdown = `# UsageMax authentication
 
-<!-- title: UsageMax authentication; description: The credentials and supported authentication boundaries for UsageMax.; canonical: https://usagemax.com/auth.md; last-updated: 2026-09-19 -->
+<!-- title: UsageMax authentication; description: WorkOS delegated OAuth, agent registration, and installation-bound collector credentials.; canonical: https://usagemax.com/auth.md; last-updated: 2026-09-19 -->
 
-UsageMax separates public read access, website sign-in, and local collector uploads. This document describes the credentials that actually exist today; UsageMax does not expose a general OAuth token exchange for API delegation.
+UsageMax separates public reads, WorkOS delegated OAuth, and local collector uploads. WorkOS Connect is the authorization server: it owns consent, authorization codes, refresh, revocation, and signed access-token issuance. UsageMax never handles a WorkOS client secret or asks an agent to copy a website session cookie.
 
 ## Discover
 
-Read the [OpenAPI contract](https://usagemax.com/openapi.json), the [protected-resource metadata](https://usagemax.com/.well-known/oauth-protected-resource), the [authentication metadata](https://usagemax.com/.well-known/oauth-authorization-server), and the [documentation](https://usagemax.com/docs) before integrating. Public profiles, network statistics, leaderboard data, and bounded documentation reads do not require credentials. The authentication metadata records the browser sign-in entry point but does not claim an OAuth authorization endpoint or API token exchange.
+Read the [OpenAPI contract](https://usagemax.com/openapi.json), the [protected-resource metadata](https://usagemax.com/.well-known/oauth-protected-resource), the [WorkOS authorization-server metadata](https://wholesome-car-48.authkit.app/.well-known/oauth-authorization-server), and the [documentation](https://usagemax.com/docs) before integrating. Public profiles, network statistics, leaderboard data, and bounded documentation reads do not require credentials.
 
 ## Pick a method
 
-Use public HTTPS reads for public aggregate data. Use the UsageMax CLI for a person's own local history. Use a write-only collector token only when uploading content-free telemetry or usage snapshots from a linked installation. Website sign-in uses WorkOS AuthKit for the UsageMax account UI; that browser session is not an API bearer token and must not be sent to ingestion endpoints.
+Use public HTTPS reads for public aggregate data. Use WorkOS delegated OAuth when an external agent or application needs a user-authorized UsageMax access token. Use the UsageMax CLI and a write-only collector token only when uploading content-free telemetry or usage snapshots from a linked installation. Website sign-in uses WorkOS AuthKit for the UsageMax account UI; that browser session is not an API bearer token and must not be sent to ingestion endpoints.
 
-## Register
+## Delegated OAuth through WorkOS Connect
+
+The authorization server is the WorkOS AuthKit environment at \`https://wholesome-car-48.authkit.app\`. Discover its current endpoints from its [OAuth authorization-server metadata](https://wholesome-car-48.authkit.app/.well-known/oauth-authorization-server). The stable endpoints are:
+
+- Authorization: \`https://wholesome-car-48.authkit.app/oauth2/authorize\`
+- Token exchange and refresh: \`https://wholesome-car-48.authkit.app/oauth2/token\`
+- JWKS for access-token verification: \`https://wholesome-car-48.authkit.app/oauth2/jwks\`
+- Device authorization (for clients without a callback): \`https://wholesome-car-48.authkit.app/oauth2/device_authorization\`
+
+Register a WorkOS Connect application and use its own client ID, secret handling, and pre-registered redirect URI. A confidential server exchanges the authorization code; a public/native client uses PKCE S256 and never embeds a client secret. Request only the permissions your WorkOS environment has enabled. UsageMax resource permissions are \`usage:read\`, \`data:export\`, \`telemetry:write\`, and \`outcomes:write\`; the standard identity scopes are \`openid profile email offline_access\`.
+
+Authorization-code request (the external client owns \`state\`, \`nonce\`, and the PKCE verifier):
+
+    https://wholesome-car-48.authkit.app/oauth2/authorize?client_id=<connect-client-id>&redirect_uri=<registered-redirect-uri>&response_type=code&scope=openid%20profile%20usage%3Aread&state=<opaque-state>&code_challenge=<s256-challenge>&code_challenge_method=S256
+
+Exchange the one-use code server-to-server at the token endpoint with \`grant_type=authorization_code\`, the same \`redirect_uri\`, and the PKCE \`code_verifier\`. Store refresh tokens encrypted, rotate them, and keep access tokens in memory where possible. Validate access-token signature, issuer, audience, expiry, and required scope before using a private UsageMax operation.
+
+### Agent Registration
+
+For an AI agent that needs a claim ceremony, use the WorkOS Agent Registration guide at [the hosted agent auth skill](https://wholesome-car-48.authkit.app/agent/auth.md). The flow is WorkOS-owned and is not a UsageMax imitation:
+
+1. \`POST https://wholesome-car-48.authkit.app/agent/identity\` with \`{"type":"service_auth"}\` (or \`{"type":"anonymous"}\` when no user is known).
+2. Complete the returned claim verification URI with the user.
+3. Exchange the signed identity assertion at \`/oauth2/token\` using \`grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer\`.
+4. Send the resulting short-lived bearer to UsageMax; the API validates the WorkOS issuer and JWKS and enforces the granted scope.
+
+Agent Registration must be enabled in WorkOS under Authentication → Agents, with UsageMax permissions assigned to the trusted/untrusted levels. If that WorkOS setting is not enabled yet, the standard authorization-code flow remains available and the discovery document will not invent an \`agent_auth\` block.
+
+## Register a local collector
 
 Open [UsageMax sign-in](https://usagemax.com/sign-in), complete the WorkOS browser sign-in, then open [Account](https://usagemax.com/account) and use the computer/collector connection control to create a one-use link code for the computer or CI installation. The code is short-lived and is consumed once. Do not put the code or a collector token in a URL, source repository, prompt, completion, or log.
 
-## Claim
-
 Run \`bunx usagemax@latest link <one-use-code>\` on the installation. The CLI sends the code to [POST /api/v1/devices/link](https://usagemax.com/api/v1/devices/link) over HTTPS and stores the returned write-only token in a private local configuration file. The token is returned once and is bound to that installation. Use \`bunx usagemax@latest status\` to inspect local link state without printing the secret.
 
-## Diagnose
+## Diagnose a collector
 
 New collector keys are active as soon as the authenticated account action creates them; there is no separate activation or propagation step. To check the stored credential, installation binding, scopes, profile, account-side computer name, and last accepted write without printing the token, run \`bunx usagemax@latest status --remote\`. For a key created in **Advanced · custom telemetry collector**, pipe the secret through stdin instead of putting it in shell history or process arguments:
 
     printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" | bunx usagemax@latest token status --device-id "$USAGEMAX_INSTALLATION_ID"
 
-The diagnostic endpoint is read-only. It reports \`active\`, \`revoked\`, \`workspace_disabled\`, \`membership_inactive\`, \`device_mismatch\`, or \`scope_missing\` when the bearer token is recognized, and explicitly reports whether \`telemetry:write\` is authorized. An unrecognized token returns a generic 401 and never reveals whether another key exists. A collector created by the advanced flow starts unbound and adopts the first valid installation UUID on its first write; a linked CLI key is already bound. The \`token status\` subcommand is included in CLI \`0.3.6\`; if npm \`latest\` still points to an older release, run \`node packages/cli/src/cli.js token status\` from the repository until that release is published.
+The diagnostic endpoint is read-only. It reports \`active\`, \`revoked\`, \`workspace_disabled\`, \`membership_inactive\`, \`device_mismatch\`, or \`scope_missing\` when the bearer token is recognized, and explicitly reports whether \`telemetry:write\` is authorized. An unrecognized token returns a generic 401 and never reveals whether another key exists. A collector created by the advanced flow starts unbound and adopts the first valid installation UUID on its first write; a linked CLI key is already bound. The \`token status\` subcommand is included in CLI \`0.3.6\`.
 
-## Exchange
+## Use a delegated access token
 
-The UsageMax API does not expose an OAuth authorization or token exchange. The authentication metadata records the real browser sign-in entry point for discovery; that session is not an API bearer token. There is no \`authorization_endpoint\`, \`token_endpoint\`, \`identity_endpoint\`, \`claim_endpoint\`, \`events_endpoint\`, or agent \`service_auth\` flow. Do not mint or infer an OAuth access token from the website session. The one-use link-code exchange above is the only supported way to create a collector credential.
+Send a WorkOS Connect access token only to the UsageMax operation it was granted for. Do not put a token in a URL, request body, prompt, source repository, completion, or log. A valid delegated token is a JWT issued by the WorkOS authorization server; an installation collector token begins with \`umx_\` and is a different credential class.
 
-## Use the access token
+## Use a collector token
 
-For collector writes, send the token in an HTTPS header and include the stable installation identifier. The token is usable only with the linked installation and the documented write endpoints:
+For collector writes, send the token in an HTTPS header and include the stable installation identifier:
 
     Authorization: Bearer umx_<64 lowercase hexadecimal characters>
     x-usagemax-device-id: <installation UUID>
     Idempotency-Key: <unique operation key>
 
-Use [native telemetry](https://usagemax.com/api/v1/telemetry/llm), [traces](https://usagemax.com/api/v1/traces), or [usage snapshots](https://usagemax.com/api/v2/usage/snapshots) as documented by OpenAPI. Validate a batch first with the [no-write sandbox descriptor](https://usagemax.com/api/v1/sandbox). The device-link, status, and revoke URLs are returned by the link response; no token-exchange URL is returned.
+Use [native telemetry](https://usagemax.com/api/v1/telemetry/llm), [traces](https://usagemax.com/api/v1/traces), or [usage snapshots](https://usagemax.com/api/v2/usage/snapshots) as documented by OpenAPI. Validate a batch first with the [no-write sandbox descriptor](https://usagemax.com/api/v1/sandbox). Send only aggregate or content-free telemetry. Prompts, completions, source code, file paths, tool arguments, credentials, and secrets are rejected by policy and must never be sent.
 
-Send only aggregate or content-free telemetry. Prompts, completions, source code, file paths, tool arguments, credentials, and secrets are rejected by policy and must never be sent. The token is accepted only on the documented collector endpoints and is not accepted in a request body or query string.
+## Errors and revocation
 
-## Errors
+Errors are JSON objects with stable \`error\`, human-readable \`message\`, and recovery \`hint\` fields. A missing or malformed credential returns HTTP 401 with a \`WWW-Authenticate\` pointer to the protected-resource metadata. A request that exceeds its documented limit returns 413; unsupported content types return 415; idempotency or device conflicts return 409; rate limits return 429.
 
-Errors are JSON objects with stable \`error\`, human-readable \`message\`, and recovery \`hint\` fields. A missing or malformed collector credential returns HTTP 401 with a \`WWW-Authenticate\` pointer to the protected-resource metadata. A request that exceeds its documented limit returns 413; unsupported content types return 415; idempotency or device conflicts return 409; rate limits return 429.
-
-## Revocation
-
-Revoke a linked installation from the authenticated UsageMax account, or send the collector credential to \`POST /api/v1/devices/revoke\` with the same installation UUID. Remove the local config only after revocation if you want to prevent future uploads. Re-linking creates a new installation credential; old tokens remain invalid.
+Revoke a linked installation from the authenticated UsageMax account, or send the collector credential to \`POST /api/v1/devices/revoke\` with the same installation UUID. WorkOS delegated grants are revoked in WorkOS; UsageMax validates issuer, expiry, audience, and scope on every request. Re-linking creates a new installation credential; old collector tokens remain invalid.
 
 ## Privacy boundary
 

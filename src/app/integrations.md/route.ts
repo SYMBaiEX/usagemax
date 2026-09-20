@@ -30,8 +30,9 @@ private workspace data outside the public projection.
 4. Send only metadata intended for processing, with idempotency keys on writes.
 
 Collector writes require an installation-bound, write-only bearer token and the
-\`x-usagemax-device-id\` header. Public reads do not require a credential. UsageMax
-does not provide a general OAuth token exchange for API delegation.
+\`x-usagemax-device-id\` header. Public reads do not require a credential.
+Delegated clients use WorkOS Connect; discover the authorization server and
+request only the UsageMax scopes granted to the client or agent registration.
 
 ## Discovery
 

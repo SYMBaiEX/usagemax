@@ -18,10 +18,11 @@ describe("local MCP Registry metadata", () => {
 });
 
 describe("agent authentication metadata", () => {
-  it("states the real browser boundary without claiming OAuth delegation", () => {
+  it("states the real browser boundary and WorkOS delegated OAuth issuer", () => {
     expect(agentHomepage().authentication).toMatchObject({
       browserSignIn: "https://usagemax.com/sign-in",
-      oauthDelegation: false,
+      oauthDelegation: "workos_connect",
+      authorizationServer: expect.stringContaining("authkit.app"),
     });
   });
 });

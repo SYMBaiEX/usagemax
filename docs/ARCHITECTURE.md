@@ -49,7 +49,10 @@ The local collector is a one-shot process. Optional OS scheduling runs that
 process periodically; it is not a resident daemon or file watcher. The public
 screen endpoint is retired because the local HUD is a separate project.
 
-The repository does not claim OAuth delegation, brokerage distribution, live
+The repository does not claim to mint or broker WorkOS credentials itself;
+delegated OAuth is provided by the configured WorkOS Connect authorization
+server. UsageMax validates its signed resource tokens and does not expose
+client secrets. The repository does not claim live
 provider coverage that is unavailable in local history, or production capacity
 from unit tests alone.
 

@@ -33,7 +33,7 @@ export default function AboutPage() {
           </section>
           <section className="legal-section">
             <h2>How the system is split</h2>
-            <p>The UsageMax website and API are separate from the optional screen/HUD project. A local collector performs a short-lived, one-shot reconciliation and sends idempotent aggregates or content-free telemetry over HTTPS. Convex provides the realtime projection layer. WorkOS AuthKit handles website sign-in and organization membership; it is not presented as a general API OAuth token.</p>
+            <p>The UsageMax website and API are separate from the optional screen/HUD project. A local collector performs a short-lived, one-shot reconciliation and sends idempotent aggregates or content-free telemetry over HTTPS. Convex provides the realtime projection layer. WorkOS AuthKit handles website sign-in and organization membership, while WorkOS Connect handles delegated OAuth for external agents and applications.</p>
             <p>UsageMax is built to start small and remain useful at enterprise scale: public reads are bounded, collector credentials are installation-bound and write-only, private workspaces are tenant-scoped, and sensitive actions are designed to be auditable. Capacity, retention, residency, and support commitments for enterprise customers are agreed explicitly rather than implied by the public product.</p>
           </section>
           <div className="content-callout content-callout-acid"><ShieldCheck size={18} /><span>Read the <TextLink href="/security">security model</TextLink> and <TextLink href="/methodology">counting rules</TextLink> before connecting a source.</span></div>

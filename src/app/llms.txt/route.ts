@@ -48,8 +48,8 @@ source code, credentials, or private workspace data.
 - [AI Catalog compatibility](https://usagemax.com/.well-known/ai-catalog.json): equivalent legacy discovery catalog
 - [Agent skills index](https://usagemax.com/.well-known/agent-skills/index.json): published skill inventory
 - [RFC 9727 API catalog](https://usagemax.com/.well-known/api-catalog): API linkset
-- [Protected-resource metadata](https://usagemax.com/.well-known/oauth-protected-resource): collector authentication metadata
-- [Authorization-server metadata](https://usagemax.com/.well-known/oauth-authorization-server): browser-session authorization entry point; no API token exchange
+- [Protected-resource metadata](https://usagemax.com/.well-known/oauth-protected-resource): WorkOS delegated OAuth and collector authentication metadata
+- [Authorization-server metadata](https://usagemax.com/.well-known/oauth-authorization-server): WorkOS Connect OAuth discovery, token, JWKS, and agent-registration metadata
 - [HTTP Message Signatures directory](https://usagemax.com/.well-known/http-message-signatures-directory): public Web Bot Auth key discovery; signatures are not required by UsageMax today
 - [CLI package](https://www.npmjs.com/package/usagemax): installable local collector
 - [CLI guide](https://usagemax.com/cli.md): install, link, sync, and low-priority scheduling
@@ -88,7 +88,7 @@ release are versioned independently.
 Request \`GET https://usagemax.com/?mode=agent\` for the public JSON capability
 index. It describes the currently advertised read-only endpoints, resources,
 protocols, limits, authentication boundaries, and excluded private data. It does
-not require authentication and does not mint OAuth tokens. Use the linked
+not require authentication and does not mint UsageMax tokens. Use the linked
 OpenAPI and resource documents for request and response schemas.
 
 UsageMax also exposes four bounded, read-only WebMCP tools in the page when the
@@ -120,12 +120,15 @@ Telemetry can be sent to the native endpoint at /api/v1/telemetry/llm or the Ope
 ## Authentication and limits
 
 Public reads do not require authentication and return bounded Convex projections.
+Delegated clients use WorkOS Connect and request only the UsageMax scopes granted
+to their client or agent registration.
 Collector writes require a one-time link followed by a write-only per-installation
 bearer token and the x-usagemax-device-id header; the token is never accepted in a URL or
 request body. The CLI sends bounded idempotent batches. API consumers should read
-the OpenAPI contract for current request sizes and error codes. UsageMax does not
-currently offer a general-purpose OAuth token exchange for API delegation; do not
-invent one. Sign-in uses WorkOS AuthKit for the website account session.
+the OpenAPI contract for current request sizes and error codes. Sign-in uses
+WorkOS AuthKit for the website account session; that cookie is never an API
+credential. WorkOS Connect owns delegated authorization-code, refresh, device,
+and agent-registration exchanges.
 
 ## Freshness and privacy
 

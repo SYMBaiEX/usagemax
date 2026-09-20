@@ -1,26 +1,29 @@
 const markdown = `---
 title: UsageMax authorization-server metadata
-description: Markdown twin for the UsageMax browser-session authorization metadata.
+description: Markdown twin for the WorkOS Connect authorization metadata.
 canonical: https://usagemax.com/.well-known/oauth-authorization-server
 last-updated: 2026-09-16
 ---
 
 # UsageMax authorization-server metadata
 
-UsageMax publishes an RFC 8414-shaped discovery document for its website
-browser sign-in entry point. It starts a WorkOS AuthKit browser session; it does
-not mint a general-purpose API access token or provide OAuth delegation.
+UsageMax delegates OAuth authorization, consent, refresh, and revocation to its
+WorkOS Connect authorization server. The website browser session remains a
+separate AuthKit session and is never an API bearer token.
 
-- Issuer: https://usagemax.com
+- Issuer: https://wholesome-car-48.authkit.app
+- Authorization: https://wholesome-car-48.authkit.app/oauth2/authorize
+- Token exchange: https://wholesome-car-48.authkit.app/oauth2/token
+- JWKS: https://wholesome-car-48.authkit.app/oauth2/jwks
+- Agent registration guide: https://wholesome-car-48.authkit.app/agent/auth.md
 - Browser sign-in entry point: https://usagemax.com/auth/start
-- Website session: WorkOS AuthKit browser session
-- Website scope: website_session
-- OAuth token exchange: not provided
-- OAuth delegation: false
+- OAuth delegation: WorkOS Connect
 
 Collector uploads use a separate installation-bound, write-only umx_ bearer
 credential created by the one-use computer link flow. Do not treat a website
-session cookie as a collector credential.
+session cookie as a collector credential. Agent Registration is enabled from
+the WorkOS Authentication → Agents configuration; UsageMax does not invent an
+agent_auth block when WorkOS has not enabled that setting.
 
 - [JSON authorization-server metadata](https://usagemax.com/.well-known/oauth-authorization-server)
 - [Protected-resource metadata](https://usagemax.com/.well-known/oauth-protected-resource)

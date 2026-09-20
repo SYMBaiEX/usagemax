@@ -28,7 +28,8 @@ describe("/llms.txt", () => {
     expect(body).toContain("The public directory");
     expect(body).toContain("https://www.skills.sh/symbaiex/usagemax/usage-observability");
     expect(body).toContain("public JSON capability");
-    expect(body).toContain("does not mint OAuth tokens");
+    expect(body).toContain("does not mint UsageMax tokens");
+    expect(body).toContain("WorkOS Connect");
     expect(body).toContain("Personal and small-team plans are free");
     expect(body).toContain("no card is required");
     expect(body).toContain("bunx usagemax@latest link");

@@ -2,16 +2,16 @@ import { describe, expect, it } from "vitest";
 import { GET, HEAD } from "./route";
 
 describe("authorization server metadata", () => {
-  it("is reachable and describes the bounded website-session entry point", async () => {
-    const response = GET();
+  it("is reachable and delegates OAuth to the configured WorkOS Connect issuer", async () => {
+    const response = await GET();
     const metadata = await response.json();
     expect(response.status).toBe(200);
-    expect(metadata.issuer).toBe("https://usagemax.com");
+    expect(metadata.issuer).toContain("authkit.app");
+    expect(metadata.authorization_endpoint).toContain("/oauth2/authorize");
+    expect(metadata.token_endpoint).toContain("/oauth2/token");
+    expect(metadata.jwks_uri).toContain("/oauth2/jwks");
     expect(metadata.x_usagemax_authentication.browser_sign_in_endpoint).toBe("https://usagemax.com/sign-in");
-    expect(metadata).not.toHaveProperty("authorization_endpoint");
-    expect(metadata).not.toHaveProperty("token_endpoint");
-    expect(metadata).not.toHaveProperty("response_types_supported");
-    expect(metadata.x_usagemax_authentication.oauth_delegation).toBe(false);
+    expect(metadata.x_usagemax_authentication.oauth_delegation).toBe("workos_connect");
   });
 
   it("supports metadata HEAD requests", () => {

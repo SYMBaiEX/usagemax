@@ -1,3 +1,5 @@
+import { workosAgentAuthGuideUrl, workosAuthorizationEndpoint, workosAuthorizationServerMetadataUrl, workosAuthkitDomain, workosJwksUrl, workosTokenEndpoint } from "@/lib/workos-connect";
+
 export function agentHomepage() {
   return {
     schemaVersion: "1.0",
@@ -79,6 +81,7 @@ export function agentHomepage() {
       { name: "A2A", url: "https://usagemax.com/a2a", mode: "read-only" },
       { name: "CLI", url: "https://usagemax.com/cli.md", mode: "local-content-free-sync" },
       { name: "SDK", url: "https://www.npmjs.com/package/usagemax", mode: "official-npm-package" },
+      { name: "WorkOS Connect", url: "https://wholesome-car-48.authkit.app/.well-known/oauth-authorization-server", mode: "delegated-oauth" },
       { name: "WorkOS webhook", url: "https://usagemax.com/api/webhooks/workos", mode: "server-to-server-authentication" },
     ],
     onboarding: {
@@ -132,7 +135,14 @@ export function agentHomepage() {
       collectorWrites: "installation-bound write-only bearer token",
       website: "WorkOS AuthKit session; not an API token",
       browserSignIn: "https://usagemax.com/sign-in",
-      oauthDelegation: false,
+      oauthDelegation: "workos_connect",
+      authorizationServer: workosAuthkitDomain(),
+      authorizationServerMetadata: workosAuthorizationServerMetadataUrl(),
+      authorizationEndpoint: workosAuthorizationEndpoint(),
+      tokenEndpoint: workosTokenEndpoint(),
+      jwksUri: workosJwksUrl(),
+      agentRegistrationSkill: workosAgentAuthGuideUrl(),
+      delegatedScopes: ["usage:read", "data:export", "telemetry:write", "outcomes:write"],
     },
     responseFormats: {
       publicReads: ["application/json", "text/markdown"],
@@ -149,6 +159,8 @@ export function agentHomepage() {
       { name: "v1Namespace", method: "GET", path: "/api/v1", authentication: "collector bearer hint", readOnly: true, writes: false },
       { name: "mcp", method: "POST", path: "/mcp", authentication: "none", readOnly: true },
       { name: "sandbox", method: "POST", path: "/api/v1/sandbox/validate", authentication: "none", writes: false },
+      { name: "delegatedIdentity", method: "GET", path: "/api/v1/agent/identity", authentication: "WorkOS Connect bearer", readOnly: true, returnsSecret: false },
+      { name: "delegatedWorkspace", method: "GET", path: "/api/v1/agent/workspace", authentication: "WorkOS Connect bearer + usage:read", readOnly: true, returnsSecret: false },
     ],
     api: {
       baseUrl: "https://usagemax.com/api",
@@ -168,6 +180,8 @@ export function agentHomepage() {
       { name: "collectorTraces", url: "https://usagemax.com/api/v1/traces", method: "POST", authentication: "collector bearer", contentFree: true },
       { name: "usageSnapshots", url: "https://usagemax.com/api/v2/usage/snapshots", method: "POST", authentication: "collector bearer", contentFree: true },
       { name: "sandboxValidate", url: "https://usagemax.com/api/v1/sandbox/validate", method: "POST", authentication: "none", writes: false },
+      { name: "delegatedIdentity", url: "https://usagemax.com/api/v1/agent/identity", method: "GET", authentication: "WorkOS Connect bearer", readOnly: true },
+      { name: "delegatedWorkspace", url: "https://usagemax.com/api/v1/agent/workspace", method: "GET", authentication: "WorkOS Connect bearer + usage:read", readOnly: true },
     ],
     tools: [
       { name: "public_profile", protocol: "MCP", readOnly: true },

@@ -144,7 +144,7 @@ export const usageMaxStructuredData = {
         {
           "@type": "Question",
           name: "Does UsageMax provide an OAuth token exchange?",
-          acceptedAnswer: { "@type": "Answer", text: "No. UsageMax currently uses an installation-bound, write-only collector credential and does not provide a general OAuth authorization-server exchange." },
+          acceptedAnswer: { "@type": "Answer", text: "Yes. UsageMax delegates OAuth authorization, consent, token exchange, refresh, and revocation to its WorkOS Connect authorization server. Local collector uploads remain a separate installation-bound, write-only credential flow." },
         },
       ],
     },
