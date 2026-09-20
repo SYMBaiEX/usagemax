@@ -123,12 +123,13 @@ function help() {
   process.stdout.write("           [--quiet|--no-progress] [--check-updates|--no-update-check]  Control progress and the cached release check\n");
   process.stdout.write("  usagemax status                  Show local link status\n");
   process.stdout.write("           --remote [--json]        Verify the stored collector credential without printing it\n");
+  process.stdout.write("           [--quiet|--no-progress]  Disable interactive progress output\n");
   process.stdout.write("  usagemax token status [--device-id <uuid>] [--json]\n");
   process.stdout.write("                                  Diagnose a key piped on stdin; never pass it as an argument\n");
   process.stdout.write("  usagemax service install [--every 15]\n");
   process.stdout.write("                                  Opt into lightweight OS-scheduled sync\n");
   process.stdout.write("  usagemax service status|run|uninstall\n");
-  process.stdout.write("  usagemax doctor [--deep] [--json]\n");
+  process.stdout.write("  usagemax doctor [--deep] [--json] [--quiet|--no-progress]\n");
   process.stdout.write("                                  Check source coverage; --deep parses full history\n");
   process.stdout.write("  usagemax update [command args]  Check npm and optionally run the latest CLI\n");
   process.stdout.write("  usagemax report [...args]        Run a local ccusage report\n");
@@ -427,6 +428,7 @@ async function status(args = []) {
   const config = await readConfig();
   const remote = args.includes("--remote");
   const json = args.includes("--json");
+  const progress = createProgress({ json, quiet: args.includes("--quiet"), noProgress: args.includes("--no-progress") });
   if (!config) {
     if (json) {
       process.stdout.write(`${JSON.stringify({ linked: false, remote: remote ? { status: "not_linked" } : undefined })}\n`);
@@ -452,10 +454,13 @@ async function status(args = []) {
   };
   let remoteView;
   if (remote) {
+    progress.start("Checking the stored collector credential…");
     try {
       const result = await requestCollectorStatus(collectorStatusEndpoint(config), config);
       remoteView = collectorStatusView(result.httpStatus, result.body, config.token);
+      progress.succeed("Remote credential checked.");
     } catch (error) {
+      progress.stop();
       remoteView = { tokenFormat: "valid", status: "unavailable", reason: error instanceof Error ? error.message : "Collector status unavailable." };
     }
     if (json) {
@@ -493,58 +498,84 @@ async function readTokenFromStdin() {
 async function tokenStatus(args = []) {
   const requestedDeviceId = option(args, "--device-id");
   if (requestedDeviceId && !DEVICE_PATTERN.test(requestedDeviceId)) throw new Error("--device-id must be a UUID.");
-  const token = await readTokenFromStdin();
+  const json = args.includes("--json");
+  const progress = createProgress({ json, quiet: args.includes("--quiet"), noProgress: args.includes("--no-progress") });
+  progress.start("Checking the collector credential…");
+  let token;
+  try {
+    token = await readTokenFromStdin();
+  } catch (error) {
+    progress.stop();
+    throw error;
+  }
   const configuredEndpoint = process.env.USAGEMAX_STATUS_ENDPOINT || DEFAULT_STATUS_ENDPOINT;
   const endpoint = validHttpsUrl(configuredEndpoint, { allowLocalhost: true });
-  if (!endpoint) throw new Error("USAGEMAX_STATUS_ENDPOINT must use HTTPS, except for localhost development.");
-  const result = await requestCollectorStatus(endpoint, { token, deviceId: requestedDeviceId });
-  const view = collectorStatusView(result.httpStatus, result.body, token);
-  if (args.includes("--json")) process.stdout.write(`${JSON.stringify(view)}\n`);
-  else {
-    process.stdout.write("Credential format: valid (umx_ + 64 lowercase hexadecimal characters)\n");
-    printRemoteStatus(view);
+  try {
+    if (!endpoint) throw new Error("USAGEMAX_STATUS_ENDPOINT must use HTTPS, except for localhost development.");
+    const result = await requestCollectorStatus(endpoint, { token, deviceId: requestedDeviceId });
+    const view = collectorStatusView(result.httpStatus, result.body, token);
+    progress.succeed("Collector credential checked.");
+    if (json) process.stdout.write(`${JSON.stringify(view)}\n`);
+    else {
+      process.stdout.write("Credential format: valid (umx_ + 64 lowercase hexadecimal characters)\n");
+      printRemoteStatus(view);
+    }
+  } catch (error) {
+    progress.stop();
+    throw error;
   }
 }
 
 async function doctor(args = []) {
-  const config = await readConfig();
-  const env = await ccusageEnvironment();
-  const inventory = await sourceInventory({ env, home: ccusageHome(env) });
-  const archives = await discoverProviderArchives({ env, home: ccusageHome(env) });
-  const homes = String(env.USAGEMAX_DISCOVERED_HOMES || ccusageHome(env)).split(",").filter(Boolean);
-  const result = {
-    linked: Boolean(config),
-    homes,
-    detectedSources: inventory.sources,
-    files: inventory.files,
-    inventoryComplete: inventory.complete,
-    inventoryErrors: inventory.errors,
-    inventoryTruncated: inventory.truncated,
-    supportedSources: SUPPORTED_SOURCES,
-    archives: archives.length,
-    environment: platform() === "linux" && process.env.WSL_DISTRO_NAME ? `WSL ${process.env.WSL_DISTRO_NAME}` : platform(),
-    mode: args.includes("--deep") ? "deep" : "metadata-only",
-  };
-  if (args.includes("--deep")) {
-    const report = await ccusageJson(config, { env, full: true });
-    result.parsedSources = sourceSummary(report);
-    result.sessions = buildSessionPlan(report, config?.deviceId || "unlinked").length;
+  const json = args.includes("--json");
+  const progress = createProgress({ json, quiet: args.includes("--quiet"), noProgress: args.includes("--no-progress") });
+  progress.start(args.includes("--deep") ? "Auditing retained source history…" : "Inspecting local source coverage…");
+  try {
+    const config = await readConfig();
+    const env = await ccusageEnvironment();
+    const inventory = await sourceInventory({ env, home: ccusageHome(env) });
+    progress.update(`Found ${inventory.sources.length} source${inventory.sources.length === 1 ? "" : "s"} and ${inventory.files}${inventory.truncated ? "+" : ""} local data file${inventory.files === 1 ? "" : "s"}.`);
+    const archives = await discoverProviderArchives({ env, home: ccusageHome(env) });
+    const homes = String(env.USAGEMAX_DISCOVERED_HOMES || ccusageHome(env)).split(",").filter(Boolean);
+    const result = {
+      linked: Boolean(config),
+      homes,
+      detectedSources: inventory.sources,
+      files: inventory.files,
+      inventoryComplete: inventory.complete,
+      inventoryErrors: inventory.errors,
+      inventoryTruncated: inventory.truncated,
+      supportedSources: SUPPORTED_SOURCES,
+      archives: archives.length,
+      environment: platform() === "linux" && process.env.WSL_DISTRO_NAME ? `WSL ${process.env.WSL_DISTRO_NAME}` : platform(),
+      mode: args.includes("--deep") ? "deep" : "metadata-only",
+    };
+    if (args.includes("--deep")) {
+      progress.update("Parsing retained history with ccusage…");
+      const report = await ccusageJson(config, { env, full: true });
+      result.parsedSources = sourceSummary(report);
+      result.sessions = buildSessionPlan(report, config?.deviceId || "unlinked").length;
+    }
+    progress.succeed("Coverage check complete.");
+    if (json) {
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      return;
+    }
+    process.stdout.write(`Collector: ${config ? "linked" : "not linked"}\n`);
+    process.stdout.write(`Discovered homes: ${homes.length} (${homes.join(", ")})\n`);
+    process.stdout.write(`Detected sources: ${inventory.sources.join(", ") || "none"} (${inventory.files}${inventory.truncated ? "+" : ""} data files)\n`);
+    process.stdout.write(`Supported sources: ${SUPPORTED_SOURCES.join(", ")} (+ named pi-format stores)\n`);
+    if (platform() === "linux" && process.env.WSL_DISTRO_NAME) {
+      process.stdout.write(`Environment: WSL ${process.env.WSL_DISTRO_NAME}; readable Windows provider homes are included automatically\n`);
+    }
+    if (archives.length) process.stdout.write(`Recovery: ${archives.length} compressed provider archive(s) detected; run \`bunx usagemax sync --archives\` once to reconcile them\n`);
+    if (!inventory.complete) process.stdout.write(`Inventory: incomplete (${inventory.errors} read error(s)${inventory.truncated ? ", file limit reached" : ""}); no-change shortcut disabled\n`);
+    if (result.parsedSources) process.stdout.write(`Parsed sources: ${result.parsedSources.join(", ") || "none"}; ${result.sessions} private session identifiers\n`);
+    process.stdout.write(`Mode: one-shot, metadata no-op check, ${args.includes("--deep") ? "deep local parse" : "no log parsing"}\n`);
+  } catch (error) {
+    progress.stop();
+    throw error;
   }
-  if (args.includes("--json")) {
-    process.stdout.write(`${JSON.stringify(result)}\n`);
-    return;
-  }
-  process.stdout.write(`Collector: ${config ? "linked" : "not linked"}\n`);
-  process.stdout.write(`Discovered homes: ${homes.length} (${homes.join(", ")})\n`);
-  process.stdout.write(`Detected sources: ${inventory.sources.join(", ") || "none"} (${inventory.files}${inventory.truncated ? "+" : ""} data files)\n`);
-  process.stdout.write(`Supported sources: ${SUPPORTED_SOURCES.join(", ")} (+ named pi-format stores)\n`);
-  if (platform() === "linux" && process.env.WSL_DISTRO_NAME) {
-    process.stdout.write(`Environment: WSL ${process.env.WSL_DISTRO_NAME}; readable Windows provider homes are included automatically\n`);
-  }
-  if (archives.length) process.stdout.write(`Recovery: ${archives.length} compressed provider archive(s) detected; run \`bunx usagemax sync --archives\` once to reconcile them\n`);
-  if (!inventory.complete) process.stdout.write(`Inventory: incomplete (${inventory.errors} read error(s)${inventory.truncated ? ", file limit reached" : ""}); no-change shortcut disabled\n`);
-  if (result.parsedSources) process.stdout.write(`Parsed sources: ${result.parsedSources.join(", ") || "none"}; ${result.sessions} private session identifiers\n`);
-  process.stdout.write(`Mode: one-shot, metadata no-op check, ${args.includes("--deep") ? "deep local parse" : "no log parsing"}\n`);
 }
 
 async function report(args) {
