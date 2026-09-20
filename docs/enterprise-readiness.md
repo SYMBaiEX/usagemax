@@ -34,6 +34,9 @@ onboarding and operational evidence. “Implemented” does not mean certified.
   protection, payload bounds, and layered rate limits.
 - Signed, idempotent WorkOS organization and membership lifecycle webhook
   processing with replay and out-of-order event protection.
+- Directory Sync webhook projection for directory activation/deletion, user
+  create/update/delete and group lifecycle events, with membership
+  deactivation and device offboarding on directory removal.
 - Authoritative source/day/model snapshots with correction receipts and resumable,
   bounded account deletion.
 - Bounded public projections and indexed date-range reads rather than per-day query
@@ -63,8 +66,12 @@ enterprise contract can claim them:
 ## Remaining engineering gates
 
 - Immutable audit export to customer-owned object storage or SIEM.
+- Stripe billing projection and customer portal are implemented, but production
+  Price IDs, webhook secrets, tax settings, invoice policy, and failed-payment
+  handling remain deployment/customer configuration gates.
 - Projects, cost centers, budgets, notifications and a separated financial ledger
-  are implemented in PR #8. Statistical anomaly policies, invoice
+  are implemented in PR #8. Stripe-active Team workspaces receive enforced
+  paid capacity limits. Statistical anomaly policies, invoice
   line matching, accounting close and verified source identity remain open.
 - Live provider contract tests with authorized customer credentials, broader
   provider coverage and independently verified-versus-self-reported trust tiers.

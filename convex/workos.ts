@@ -150,3 +150,174 @@ export const applyLifecycleEvent = internalMutation({
     return { replay: false, outcome };
   },
 });
+
+export const applyDirectoryEvent = internalMutation({
+  args: {
+    eventId: v.string(),
+    eventName: v.string(),
+    organizationId: v.string(),
+    directoryId: v.optional(v.string()),
+    directoryName: v.optional(v.string()),
+    directoryType: v.optional(v.string()),
+    directoryUserId: v.optional(v.string()),
+    email: v.optional(v.string()),
+    name: v.optional(v.string()),
+    state: v.optional(v.string()),
+    roleSlugs: v.array(v.string()),
+    occurredAt: v.number(),
+    now: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const receipt = await ctx.db
+      .query("workosEventReceipts")
+      .withIndex("by_eventId", (q) => q.eq("eventId", args.eventId))
+      .unique();
+    if (receipt) return { replay: true, outcome: receipt.outcome };
+    const workspace = await ctx.db
+      .query("workspaces")
+      .withIndex("by_workosOrganizationId", (q) =>
+        q.eq("workosOrganizationId", args.organizationId),
+      )
+      .unique();
+    let outcome = "ignored_unprovisioned_organization";
+    if (workspace && args.eventName === "dsync.activated" && args.directoryId) {
+      const existingDirectory = await ctx.db
+        .query("directories")
+        .withIndex("by_workspaceId_and_directoryId", (q) =>
+          q.eq("workspaceId", workspace._id).eq("directoryId", args.directoryId!),
+        )
+        .unique();
+      const values = {
+        workspaceId: workspace._id,
+        organizationId: args.organizationId,
+        directoryId: args.directoryId,
+        name: args.directoryName,
+        type: args.directoryType,
+        state: "active" as const,
+        updatedAt: args.now,
+      };
+      if (existingDirectory) await ctx.db.patch(existingDirectory._id, { ...values, deletedAt: undefined });
+      else await ctx.db.insert("directories", { ...values, createdAt: args.now });
+      outcome = "directory_activated";
+    } else if (workspace && args.eventName === "dsync.deleted" && args.directoryId) {
+      const directory = await ctx.db
+        .query("directories")
+        .withIndex("by_workspaceId_and_directoryId", (q) =>
+          q.eq("workspaceId", workspace._id).eq("directoryId", args.directoryId!),
+        )
+        .unique();
+      if (directory)
+        await ctx.db.patch(directory._id, {
+          state: "deleted",
+          updatedAt: args.now,
+          deletedAt: args.now,
+        });
+      const directoryUsers = await ctx.db
+        .query("directoryUsers")
+        .withIndex("by_directoryId", (q) => q.eq("directoryId", args.directoryId!))
+        .take(5_001);
+      for (const directoryUser of directoryUsers.filter(
+        (row) => row.workspaceId === workspace._id,
+      )) {
+        await ctx.db.patch(directoryUser._id, {
+          state: "deleted",
+          lastSyncedAt: args.now,
+          updatedAt: args.now,
+        });
+      }
+      const memberships = await ctx.db
+        .query("workspaceMemberships")
+        .withIndex("by_workspaceId_and_directoryId", (q) =>
+          q.eq("workspaceId", workspace._id).eq("directoryId", args.directoryId!),
+        )
+        .take(5_001);
+      for (const membership of memberships) {
+        if (membership.source !== "directory" || membership.status !== "active")
+          continue;
+        await ctx.db.patch(membership._id, {
+          status: "deactivated",
+          authorizationChangedAt: args.occurredAt,
+          lastSyncedAt: args.now,
+          updatedAt: args.now,
+        });
+        await ctx.scheduler.runAfter(0, internal.workspaces.offboardDevices, {
+          workspaceId: workspace._id,
+          userId: membership.userId,
+        });
+      }
+      outcome = "directory_deactivated";
+    } else if (
+      workspace &&
+      args.directoryId &&
+      args.directoryUserId &&
+      args.email &&
+      args.eventName.startsWith("dsync.user.")
+    ) {
+      const email = args.email.trim().toLowerCase();
+      const state = args.state === "inactive" || args.eventName === "dsync.user.deleted"
+        ? args.eventName === "dsync.user.deleted" ? "deleted" : "inactive"
+        : "active";
+      const roles = args.roleSlugs.length ? args.roleSlugs : ["member"];
+      const existing = await ctx.db
+        .query("directoryUsers")
+        .withIndex("by_workspaceId_and_directoryUserId", (q) =>
+          q.eq("workspaceId", workspace._id).eq("directoryUserId", args.directoryUserId!),
+        )
+        .unique();
+      const values = {
+        workspaceId: workspace._id,
+        directoryId: args.directoryId,
+        directoryUserId: args.directoryUserId,
+        email,
+        name: args.name,
+        state: state as "active" | "inactive" | "deleted",
+        roles,
+        lastSyncedAt: args.now,
+        updatedAt: args.now,
+      };
+      if (existing) await ctx.db.patch(existing._id, values);
+      else await ctx.db.insert("directoryUsers", values);
+      const user = await ctx.db
+        .query("users")
+        .withIndex("by_email", (q) => q.eq("email", email))
+        .take(10);
+      const localUser = user[0];
+      if (localUser) {
+        const membership = await ctx.db
+          .query("workspaceMemberships")
+          .withIndex("by_workspaceId_and_userId", (q) =>
+            q.eq("workspaceId", workspace._id).eq("userId", localUser._id),
+          )
+          .unique();
+        const nextStatus = state === "active" ? "active" : "deactivated";
+        if (membership) {
+          await ctx.db.patch(membership._id, {
+            directoryId: args.directoryId,
+            source: "directory",
+            role: roles[0],
+            roles,
+            status: nextStatus,
+            lastSyncedAt: args.now,
+            authorizationChangedAt: args.occurredAt,
+            updatedAt: args.now,
+          });
+          if (nextStatus !== "active")
+            await ctx.scheduler.runAfter(0, internal.workspaces.offboardDevices, {
+              workspaceId: workspace._id,
+              userId: localUser._id,
+            });
+        }
+      }
+      outcome = localUser
+        ? state === "active" ? "directory_user_active" : "directory_user_deactivated"
+        : "directory_user_pending_sign_in";
+    }
+    await ctx.db.insert("workosEventReceipts", {
+      eventId: args.eventId,
+      eventName: args.eventName,
+      outcome,
+      createdAt: args.now,
+    });
+    return { replay: false, outcome };
+  },
+});

@@ -192,6 +192,14 @@ export const overview = query({
             )
             .take(201)
         : [];
+    const billing = hasWorkspacePermission(access, reference, "billing:read")
+      ? (
+          await ctx.db
+            .query("workspaceBilling")
+            .withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspace._id))
+            .take(1)
+        )[0]
+      : undefined;
     return {
       workspace: {
         id: workspace._id,
@@ -209,6 +217,16 @@ export const overview = query({
       ),
       teams: teamRows.slice(0, 500),
       projects: projects.slice(0, 200),
+      billing: billing
+        ? {
+            tier: billing.tier,
+            status: billing.status,
+            seatQuantity: billing.seatQuantity ?? null,
+            currentPeriodEnd: billing.currentPeriodEnd ?? null,
+            cancelAtPeriodEnd: billing.cancelAtPeriodEnd ?? false,
+            stripeCustomerId: billing.stripeCustomerId,
+          }
+        : null,
       moreTeams: teamRows.length > 500,
       moreProjects: projects.length > 200,
     };

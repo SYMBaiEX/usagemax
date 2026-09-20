@@ -3,6 +3,40 @@ import { v } from "convex/values";
 import { memberRole } from "./productPolicy";
 
 export const productTables = {
+  workspaceBilling: defineTable({
+    workspaceId: v.id("workspaces"),
+    stripeCustomerId: v.string(),
+    stripeSubscriptionId: v.optional(v.string()),
+    stripePriceId: v.optional(v.string()),
+    tier: v.union(v.literal("team"), v.literal("enterprise")),
+    status: v.union(
+      v.literal("inactive"),
+      v.literal("trialing"),
+      v.literal("active"),
+      v.literal("past_due"),
+      v.literal("canceled"),
+      v.literal("incomplete"),
+      v.literal("unpaid"),
+      v.literal("paused"),
+    ),
+    seatQuantity: v.optional(v.number()),
+    currentPeriodEnd: v.optional(v.number()),
+    cancelAtPeriodEnd: v.optional(v.boolean()),
+    lastInvoiceId: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_stripeCustomerId", ["stripeCustomerId"])
+    .index("by_stripeSubscriptionId", ["stripeSubscriptionId"]),
+  billingEvents: defineTable({
+    eventId: v.string(),
+    type: v.string(),
+    workspaceId: v.optional(v.id("workspaces")),
+    createdAt: v.number(),
+  })
+    .index("by_eventId", ["eventId"])
+    .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"]),
   teams: defineTable({
     workspaceId: v.id("workspaces"),
     name: v.string(),

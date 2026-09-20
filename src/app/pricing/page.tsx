@@ -30,7 +30,16 @@ const plans = [
     tone: "detail-card-cyan",
   },
   {
-    eyebrow: "03 / ENTERPRISE",
+    eyebrow: "03 / TEAM OPERATIONS",
+    title: "Paid when you need the operating layer",
+    description: "Keep the free workspace available, then add a Stripe-managed commitment for governance, billing, and team operations.",
+    items: ["Stripe Checkout and customer portal", "100 members / 250 devices", "200 projects / 50 budgets", "No token-count billing"],
+    action: "Open workspace billing",
+    href: "/workspace",
+    tone: "detail-card-orange",
+  },
+  {
+    eyebrow: "04 / ENTERPRISE",
     title: "Capacity by agreement",
     description: "Shape the operating model around your identity, data, retention, residency, and support requirements.",
     items: ["Higher member, device, and telemetry capacity", "SSO and directory integration", "Private attribution and longer retention", "Scoped security and service commitments"],

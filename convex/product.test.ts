@@ -50,7 +50,13 @@ describe("free personal and enterprise controls", () => {
       exports: true,
     });
     expect(productPolicy("enterprise").enterprise).toBe(true);
-    expect(productPolicy("pro").enterprise).toBe(false);
+    expect(productPolicy("pro")).toMatchObject({
+      enterprise: false,
+      tier: "team",
+      members: 100,
+      devices: 250,
+      budgets: 50,
+    });
   });
   test("requires authentication for private surfaces", async () => {
     await expect(t.query(api.workspaces.overview, {})).rejects.toThrow(

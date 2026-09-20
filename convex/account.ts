@@ -43,6 +43,8 @@ export const WORKSPACE_PERMISSIONS = [
   "teams:manage",
   "finance:read",
   "finance:manage",
+  "billing:read",
+  "billing:manage",
   "integrations:manage",
 ] as const;
 export type WorkspacePermission = (typeof WORKSPACE_PERMISSIONS)[number];
@@ -50,7 +52,7 @@ export type WorkspacePermission = (typeof WORKSPACE_PERMISSIONS)[number];
 export const ROLE_PERMISSIONS: Record<string, ReadonlySet<WorkspacePermission>> = {
   owner: new Set(WORKSPACE_PERMISSIONS),
   admin: new Set(WORKSPACE_PERMISSIONS.filter((permission) => permission !== "workspace:delete")),
-  finance: new Set(["finance:read", "finance:manage", "data:export"]),
+  finance: new Set(["finance:read", "finance:manage", "billing:read", "billing:manage", "data:export"]),
   manager: new Set(["teams:manage", "collectors:self"]),
   auditor: new Set(["audit:read", "finance:read", "data:export"]),
   member: new Set(["collectors:self"]),

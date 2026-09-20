@@ -42,6 +42,7 @@ export default defineSchema({
     workspaceId: v.id("workspaces"),
     userId: v.id("users"),
     workosOrganizationId: v.optional(v.string()),
+    directoryId: v.optional(v.string()),
     role: v.string(),
     roles: v.optional(v.array(v.string())),
     permissions: v.optional(v.array(v.string())),
@@ -54,8 +55,38 @@ export default defineSchema({
   })
     .index("by_workspaceId_and_userId", ["workspaceId", "userId"])
     .index("by_workspaceId_and_status", ["workspaceId", "status"])
+    .index("by_workspaceId_and_directoryId", ["workspaceId", "directoryId"])
     .index("by_userId_and_workspaceId", ["userId", "workspaceId"])
     .index("by_workosOrganizationId", ["workosOrganizationId"]),
+
+  directoryUsers: defineTable({
+    workspaceId: v.id("workspaces"),
+    directoryId: v.string(),
+    directoryUserId: v.string(),
+    email: v.string(),
+    name: v.optional(v.string()),
+    state: v.union(v.literal("active"), v.literal("inactive"), v.literal("deleted")),
+    roles: v.array(v.string()),
+    lastSyncedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_workspaceId_and_directoryUserId", ["workspaceId", "directoryUserId"])
+    .index("by_workspaceId_and_email", ["workspaceId", "email"])
+    .index("by_directoryId", ["directoryId"]),
+
+  directories: defineTable({
+    workspaceId: v.id("workspaces"),
+    organizationId: v.string(),
+    directoryId: v.string(),
+    name: v.optional(v.string()),
+    type: v.optional(v.string()),
+    state: v.union(v.literal("active"), v.literal("deleted")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    deletedAt: v.optional(v.number()),
+  })
+    .index("by_workspaceId_and_directoryId", ["workspaceId", "directoryId"])
+    .index("by_directoryId", ["directoryId"]),
 
   profiles: defineTable({
     ownerId: v.optional(v.id("users")),

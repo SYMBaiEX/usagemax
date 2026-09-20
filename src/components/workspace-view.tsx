@@ -300,6 +300,7 @@ export function Workspace() {
     cap["finance:read"] && "Budgets",
     cap["finance:read"] && "Savings",
     overview.policy.enterprise && cap["integrations:manage"] && "Connections",
+    cap["billing:read"] && "Billing",
     "Settings",
   ].filter(Boolean) as string[];
   const selected = tabs.includes(tab) ? tab : tabs[0];
@@ -427,10 +428,66 @@ export function Workspace() {
             <Savings editable={cap["finance:manage"]} />
           )}
           {selected === "Connections" && <Connections />}
+          {selected === "Billing" && <Billing overview={overview} />}
           {selected === "Settings" && <Settings overview={overview} />}
         </div>
       </Operations.Provider>
     </Timezone.Provider>
+  );
+}
+
+function Billing({ overview }: { overview: Overview }) {
+  const billing = overview.billing;
+  const active = billing?.status === "active" || billing?.status === "trialing";
+  const period = billing?.currentPeriodEnd
+    ? new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(billing.currentPeriodEnd)
+    : null;
+  return (
+    <Panel title="Plan & billing">
+      <div className={styles.stats}>
+        <div>
+          <span>Workspace plan</span>
+          <strong>{active ? "Team" : "Free"}</strong>
+        </div>
+        <div>
+          <span>Billing status</span>
+          <strong>{billing?.status ?? "Not started"}</strong>
+        </div>
+        <div>
+          <span>Renewal</span>
+          <strong>{period ?? "—"}</strong>
+        </div>
+      </div>
+      <p className={styles.hint}>
+        UsageMax never bills token counts. Paid plans cover workspace capacity,
+        governance, support, and contracted controls; your usage data remains
+        content-free and exportable.
+      </p>
+      <div className={styles.toolbar}>
+        {!active && (
+          <form method="post" action="/api/billing/checkout?plan=team">
+            <button className="button button-primary" type="submit">
+              Start Team plan
+            </button>
+          </form>
+        )}
+        {billing?.stripeCustomerId && (
+          <form method="post" action="/api/billing/portal">
+            <button className="button button-outline" type="submit">
+              Manage billing
+            </button>
+          </form>
+        )}
+        <Link className="button button-outline" href="/enterprise">
+          Enterprise controls
+        </Link>
+      </div>
+      <p className={styles.hint}>
+        Stripe-hosted checkout and billing portal keep payment details outside
+        UsageMax. If checkout is not configured in this environment, contact
+        <a href="mailto:hello@usagemax.com"> hello@usagemax.com</a> for a pilot.
+      </p>
+    </Panel>
   );
 }
 

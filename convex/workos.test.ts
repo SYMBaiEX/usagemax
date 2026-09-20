@@ -135,6 +135,101 @@ describe("WorkOS lifecycle events", () => {
     });
   });
 
+  test("projects Directory Sync users and deactivates them on lifecycle changes", async () => {
+    const admin = t.withIdentity({
+      subject: "user_01DIRECTORYADMIN",
+      issuer: "https://api.workos.com/",
+      tokenIdentifier: "https://api.workos.com/|user_01DIRECTORYADMIN",
+      org_id: "org_01DIRECTORY",
+      role: "admin",
+    });
+    await admin.mutation(api.account.ensureProfile, { handle: "directory-org" });
+    const member = t.withIdentity({
+      subject: "user_01DIRECTORYMEMBER",
+      issuer: "https://api.workos.com/",
+      tokenIdentifier: "https://api.workos.com/|user_01DIRECTORYMEMBER",
+      org_id: "org_01DIRECTORY",
+      role: "member",
+      email: "member@example.com",
+    });
+    await member.mutation(api.account.ensureProfile, { handle: "ignored" });
+
+    await expect(t.mutation(internal.workos.applyDirectoryEvent, {
+      eventId: "directory_activated",
+      eventName: "dsync.activated",
+      organizationId: "org_01DIRECTORY",
+      directoryId: "directory_01DIRECTORY",
+      directoryName: "Example directory",
+      directoryType: "generic scim v2.0",
+      roleSlugs: [],
+      occurredAt: 1_800_000_000_000,
+      now: 1_800_000_000_000,
+    })).resolves.toEqual({ replay: false, outcome: "directory_activated" });
+
+    await expect(t.mutation(internal.workos.applyDirectoryEvent, {
+      eventId: "directory_user_active",
+      eventName: "dsync.user.created",
+      organizationId: "org_01DIRECTORY",
+      directoryId: "directory_01DIRECTORY",
+      directoryUserId: "directory_user_01",
+      email: "member@example.com",
+      name: "Directory Member",
+      state: "active",
+      roleSlugs: ["member"],
+      occurredAt: 1_800_000_000_000,
+      now: 1_800_000_000_000,
+    })).resolves.toEqual({ replay: false, outcome: "directory_user_active" });
+
+    const active = await t.run(async (ctx) => {
+      const user = await ctx.db.query("users").filter((q) => q.eq(q.field("email"), "member@example.com")).unique();
+      const workspace = await ctx.db.query("workspaces").filter((q) => q.eq(q.field("workosOrganizationId"), "org_01DIRECTORY")).unique();
+      const membership = user
+        ? await ctx.db.query("workspaceMemberships").filter((q) => q.eq(q.field("userId"), user._id)).unique()
+        : null;
+      const directoryUser = workspace
+        ? await ctx.db.query("directoryUsers").filter((q) => q.and(q.eq(q.field("workspaceId"), workspace._id), q.eq(q.field("directoryUserId"), "directory_user_01"))).unique()
+        : null;
+      return { membership, directoryUser };
+    });
+    expect(active.membership).toMatchObject({ source: "directory", directoryId: "directory_01DIRECTORY", status: "active" });
+    expect(active.directoryUser).toMatchObject({ email: "member@example.com", state: "active" });
+
+    await expect(t.mutation(internal.workos.applyDirectoryEvent, {
+      eventId: "directory_user_inactive",
+      eventName: "dsync.user.updated",
+      organizationId: "org_01DIRECTORY",
+      directoryId: "directory_01DIRECTORY",
+      directoryUserId: "directory_user_01",
+      email: "member@example.com",
+      state: "inactive",
+      roleSlugs: ["member"],
+      occurredAt: 1_800_000_000_001,
+      now: 1_800_000_000_001,
+    })).resolves.toEqual({ replay: false, outcome: "directory_user_deactivated" });
+    await expect(t.mutation(internal.workos.applyDirectoryEvent, {
+      eventId: "directory_user_inactive",
+      eventName: "dsync.user.updated",
+      organizationId: "org_01DIRECTORY",
+      directoryId: "directory_01DIRECTORY",
+      directoryUserId: "directory_user_01",
+      email: "member@example.com",
+      state: "inactive",
+      roleSlugs: ["member"],
+      occurredAt: 1_800_000_000_001,
+      now: 1_800_000_000_002,
+    })).resolves.toEqual({ replay: true, outcome: "directory_user_deactivated" });
+
+    await expect(t.mutation(internal.workos.applyDirectoryEvent, {
+      eventId: "directory_deleted",
+      eventName: "dsync.deleted",
+      organizationId: "org_01DIRECTORY",
+      directoryId: "directory_01DIRECTORY",
+      roleSlugs: [],
+      occurredAt: 1_800_000_000_002,
+      now: 1_800_000_000_002,
+    })).resolves.toEqual({ replay: false, outcome: "directory_deactivated" });
+  });
+
   test("rejects unsigned lifecycle HTTP requests and accepts a valid WorkOS signature", async () => {
     const secret = "whsec_test_usagemax_lifecycle";
     process.env.WORKOS_CLIENT_ID = "client_test_usagemax";

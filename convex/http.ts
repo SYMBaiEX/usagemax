@@ -5,6 +5,7 @@ import { internal } from "./_generated/api";
 import { MIN_EVENT_TIME, clampNonNegative, cleanText, jsonResponse, sha256 } from "./lib";
 import { isAutomaticDeviceName } from "./device_name";
 import type { telemetryEventValidator } from "./telemetry";
+import { verifyStripeSignature } from "./billing";
 
 type NormalizedEvent = typeof telemetryEventValidator.type;
 type JsonObject = Record<string, unknown>;
@@ -36,6 +37,25 @@ function array(value: unknown): unknown[] {
 
 function optionalText(value: unknown, max = 160) {
   return typeof value === "string" && value.trim() ? cleanText(value, "", max) : undefined;
+}
+
+function billingTier(value: unknown): "team" | "enterprise" | undefined {
+  return value === "team" || value === "enterprise" ? value : undefined;
+}
+
+function billingStatus(value: unknown):
+  | "inactive"
+  | "trialing"
+  | "active"
+  | "past_due"
+  | "canceled"
+  | "incomplete"
+  | "unpaid"
+  | "paused"
+  | undefined {
+  return value === "inactive" || value === "trialing" || value === "active"
+    || value === "past_due" || value === "canceled" || value === "incomplete"
+    || value === "unpaid" || value === "paused" ? value : undefined;
 }
 
 function deviceId(value: unknown) {
@@ -670,8 +690,65 @@ const workosLifecycle = httpAction(async (ctx, request) => {
       || eventName === "organization.deleted"
       || eventName === "organization_membership.created"
       || eventName === "organization_membership.updated"
-      || eventName === "organization_membership.deleted";
+      || eventName === "organization_membership.deleted"
+      || eventName === "dsync.activated"
+      || eventName === "dsync.deleted"
+      || eventName === "dsync.user.created"
+      || eventName === "dsync.user.updated"
+      || eventName === "dsync.user.deleted"
+      || eventName === "dsync.group.created"
+      || eventName === "dsync.group.updated"
+      || eventName === "dsync.group.deleted"
+      || eventName === "dsync.group.user_added"
+      || eventName === "dsync.group.user_removed";
     if (!supported) return jsonResponse({ ok: true, ignored: true });
+
+    if (eventName.startsWith("dsync.")) {
+      const directory = object(data.directory) ?? (data.object === "directory" ? data : null);
+      const directoryUser = object(data.user) ?? (directory ? null : data);
+      const userEvent = eventName.startsWith("dsync.user.") || eventName.startsWith("dsync.group.user_");
+      const role = object(directoryUser?.role);
+      const roleSlugs = array(directoryUser?.roles)
+        .map((entry) => optionalText(object(entry)?.slug, 80))
+        .filter((entry): entry is string => Boolean(entry));
+      const singleRole = optionalText(role?.slug, 80);
+      if (singleRole && !roleSlugs.includes(singleRole)) roleSlugs.unshift(singleRole);
+      const organizationId = optionalText(
+        data.organizationId ?? data.organization_id
+          ?? directory?.organizationId ?? directory?.organization_id
+          ?? directoryUser?.organizationId ?? directoryUser?.organization_id,
+        120,
+      );
+      if (!organizationId) return jsonResponse({ error: "organization_id_required" }, 400);
+      const directoryId = optionalText(
+        data.directoryId ?? data.directory_id ?? directory?.id
+          ?? directoryUser?.directoryId ?? directoryUser?.directory_id,
+        120,
+      );
+      const userId = userEvent ? optionalText(directoryUser?.id, 120) : undefined;
+      const sourceTimestamp = typeof (directoryUser ?? directory)?.updatedAt === "string"
+        ? (directoryUser ?? directory)?.updatedAt
+        : typeof (directoryUser ?? directory)?.updated_at === "string"
+          ? (directoryUser ?? directory)?.updated_at
+          : envelope.createdAt ?? envelope.created_at;
+      const parsedOccurredAt = typeof sourceTimestamp === "string" ? Date.parse(sourceTimestamp) : NaN;
+      const result = await ctx.runMutation(internal.workos.applyDirectoryEvent, {
+        eventId,
+        eventName,
+        organizationId,
+        directoryId,
+        directoryName: optionalText(directory?.name, 160),
+        directoryType: optionalText(directory?.type, 120),
+        directoryUserId: userId,
+        email: optionalText(directoryUser?.email, 254),
+        name: optionalText(directoryUser?.name, 120),
+        state: optionalText(directoryUser?.state, 30),
+        roleSlugs,
+        occurredAt: Number.isFinite(parsedOccurredAt) ? Math.round(parsedOccurredAt) : Date.now(),
+        now: Date.now(),
+      });
+      return jsonResponse({ ok: true, replay: result.replay, outcome: result.outcome });
+    }
 
     const organizationId = optionalText(
       eventName.startsWith("organization_membership.") ? data.organizationId ?? data.organization_id : data.id,
@@ -716,6 +793,81 @@ const workosLifecycle = httpAction(async (ctx, request) => {
   }
 });
 
+const stripeWebhook = httpAction(async (ctx, request) => {
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!secret) return jsonResponse({ error: "webhook_not_configured" }, 503);
+  const payload = await request.text();
+  if (payload.length > 262_144)
+    return jsonResponse({ error: "payload_too_large" }, 413);
+  const signature = request.headers.get("stripe-signature");
+  if (!signature || !(await verifyStripeSignature(payload, signature, secret)))
+    return jsonResponse({ error: "invalid_signature" }, 401);
+  let envelope: JsonObject;
+  try {
+    const parsed = JSON.parse(payload);
+    const value = object(parsed);
+    if (!value) throw new Error("invalid_event");
+    envelope = value;
+  } catch {
+    return jsonResponse({ error: "invalid_event" }, 400);
+  }
+  const eventId = optionalText(envelope.id, 120);
+  const eventType = optionalText(envelope.type, 120);
+  const data = object(envelope.data);
+  const eventObject = object(data?.object);
+  if (!eventId || !eventType || !eventObject)
+    return jsonResponse({ error: "invalid_event" }, 400);
+
+  const metadata = object(eventObject.metadata);
+  const customerId = optionalText(
+    eventObject.customer ?? eventObject.customer_id,
+    100,
+  );
+  const subscriptionValue = eventObject.subscription;
+  const subscriptionId = optionalText(
+    typeof subscriptionValue === "string"
+      ? subscriptionValue
+      : eventType.startsWith("customer.subscription.")
+        ? eventObject.id
+        : undefined,
+    100,
+  );
+  const items = object(eventObject.items);
+  const itemList = Array.isArray(items?.data) ? items.data : [];
+  const firstItem = object(itemList[0]);
+  const price = object(firstItem?.price);
+  const quantity = typeof firstItem?.quantity === "number" ? firstItem.quantity : undefined;
+  const periodEnd = typeof eventObject.current_period_end === "number"
+    ? Math.round(eventObject.current_period_end * 1000)
+    : undefined;
+  const status = billingStatus(eventObject.status)
+    ?? (eventType === "checkout.session.completed" || eventType === "invoice.paid"
+      ? "active"
+      : eventType === "invoice.payment_failed"
+        ? "past_due"
+        : eventType === "customer.subscription.deleted"
+          ? "canceled"
+          : undefined);
+  const result = await ctx.runMutation(internal.billing.applyStripeEvent, {
+    eventId,
+    eventType,
+    customerId,
+    subscriptionId,
+    priceId: optionalText(price?.id, 100),
+    tier: billingTier(metadata?.tier),
+    status,
+    seatQuantity: quantity,
+    currentPeriodEnd: periodEnd,
+    cancelAtPeriodEnd: typeof eventObject.cancel_at_period_end === "boolean"
+      ? eventObject.cancel_at_period_end
+      : undefined,
+    invoiceId: eventType.startsWith("invoice.")
+      ? optionalText(eventObject.id, 100)
+      : undefined,
+  });
+  return jsonResponse({ ok: true, replay: result.replay, ignored: result.ignored });
+});
+
 const http = httpRouter();
 const cors = httpAction(async (_ctx, request) => {
   const origin = request.headers.get("origin");
@@ -737,6 +889,7 @@ http.route({ path: "/health", method: "GET", handler: httpAction(async () => jso
 http.route({ path: "/v1/devices/link", method: "POST", handler: linkDevice });
 http.route({ path: "/v1/devices/status", method: "GET", handler: collectorStatus });
 http.route({ path: "/v1/devices/revoke", method: "POST", handler: revokeDevice });
+http.route({ path: "/v1/billing/stripe-webhook", method: "POST", handler: stripeWebhook });
 http.route({ pathPrefix: "/v2/usage/snapshots/", method: "GET", handler: snapshotStatus });
 http.route({ pathPrefix: "/v2/usage/snapshots/", method: "OPTIONS", handler: cors });
 http.route({ path: "/v2/usage/snapshots", method: "POST", handler: snapshots });

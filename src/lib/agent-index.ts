@@ -50,6 +50,14 @@ export function agentHomepage() {
         limits: { members: 10, teams: 5, projects: 20, devices: 25, detailedRetentionDays: 30 },
       },
       {
+        id: "team-operations",
+        name: "Team operations",
+        price: { amount: null, currency: "USD", interval: "month", qualifier: "stripe_configured" },
+        billing: "stripe_subscription",
+        features: ["paid_workspace_operations", "billing_portal", "governance", "support"],
+        limits: { members: 100, teams: 50, projects: 200, devices: 250, budgets: 50, detailedRetentionDays: 90 },
+      },
+      {
         id: "enterprise",
         name: "Enterprise",
         price: { amount: null, currency: "USD", interval: "month", qualifier: "custom_agreement" },

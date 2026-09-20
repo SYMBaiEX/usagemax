@@ -23,6 +23,8 @@ contribute to UsageMax.
 - [Architecture](ARCHITECTURE.md) — runtime shape, data flow, and trust
   boundaries.
 - [Automatic sync](automatic-sync.md) — optional scheduling behavior.
+- [Billing](billing.md) — Stripe checkout, customer portal, webhook handling,
+  and enterprise commercial boundaries.
 - [Visual system](visual-system.md) — interface tokens and motion guidance.
 - [Agent skills](../skills/README.md) — installable agent-facing skills.
 - [SDK and integration surface](sdk-ecosystem.md) — published package scope,

@@ -17,11 +17,13 @@ meter, trial expiration, or required payment method on the free plans.
 | --- | --- | --- | --- |
 | Personal | **$0/month** | Private history, one-shot syncs, supported local histories, optional public profile, bounded exports | Up to 25 linked computers, 5 budgets, 30-day detailed retention |
 | Small teams | **$0/month** | Private workspace, invitations, roles, teams, projects, shared provider/model reporting, cost-center context | Up to 10 members, 5 teams, 20 projects, 25 devices, 30-day detailed retention |
+| Team operations | **Stripe subscription** | Paid workspace operations, billing portal, capacity and governance controls | 100 members, 50 teams, 200 projects, 250 devices, 50 budgets, 90-day detailed retention |
 | Enterprise | **Custom agreement** | Higher capacity, SSO and directory setup, private attribution, retention/residency choices, governed exports, support commitments | Contract-specific limits, controls, and service levels |
 
 ## Plan tiers, prices, features, and limits
 
-This page publishes three plan tiers: Personal, Small teams, and Enterprise.
+This page publishes Personal and Small teams free tiers, an optional Team
+operations subscription, and Enterprise.
 Each tier states its price, included features, and operating limits above and
 below. Personal and Small teams are free at **$0/month**; Enterprise is a
 custom agreement with no undisclosed public rate. The tables are the source of
@@ -50,6 +52,13 @@ billing: no_card_no_trial
 features: private_workspace,invitations,roles,teams,projects,shared_reporting
 capacity: 10_members,5_teams,20_projects,25_devices,30_day_detailed_retention
 
+plan_id: team-operations
+name: Team operations
+price: stripe_configured
+billing: stripe_subscription
+features: paid_workspace_operations,billing_portal,governance,support
+capacity: 100_members,50_teams,200_projects,250_devices,50_budgets,90_day_detailed_retention
+
 plan_id: enterprise
 name: Enterprise
 price: custom_agreement
@@ -69,6 +78,11 @@ record across their own computers.
 
 The Small teams plan is the default choice when more than one person needs a
 shared workspace, invitations, roles, projects, or cost-center context.
+
+Team operations is an optional paid Stripe subscription for organizations that
+want a commercial workspace commitment without an enterprise agreement. The
+Price, currency, and interval are deployment configuration; the included
+workspace capacity is enforced after the subscription becomes active.
 
 The Enterprise plan is the default choice when an organization needs a written
 capacity commitment, directory lifecycle, SSO, data residency, private
@@ -338,6 +352,9 @@ collector boundary.
 ## Billing and plan changes
 
 - Personal and Small teams are **$0/month** and do not require a card.
+- Team operations is billed by Stripe after an authenticated workspace admin
+  starts Checkout; payment details remain in Stripe and the workspace stores
+  only identifiers and subscription status.
 - Enterprise pricing is agreed before activation; UsageMax does not silently
   move a free workspace onto a paid plan.
 - An enterprise evaluation can use the no-write [sandbox](https://usagemax.com/sandbox)
@@ -361,6 +378,7 @@ OpenTelemetry integrations.
 | --- | --- |
 | Personal history across a few computers | Personal |
 | A small private workspace with invitations and projects | Small teams |
+| A paid workspace with billing and governance operations | Team operations |
 | SSO, directory setup, private attribution, residency, governed exports, or contracted support | Enterprise |
 
 See the [documentation](https://usagemax.com/docs) for setup, the

@@ -5,6 +5,11 @@
 - WorkOS owns user authentication, session rotation, delegated OAuth, SSO, agent registration, and organization identity.
 - Convex owns authorization, hashed collector credentials, authoritative usage snapshots, recent telemetry, projections, and realtime subscriptions.
 - Vercel serves the Next.js product and the stable `usagemax.com/api` facade. Public clients never depend on a deployment-provider hostname.
+- Stripe owns payment details, Checkout, invoices, and the customer portal.
+  UsageMax stores only customer/subscription identifiers and a bounded billing
+  status projection. The Stripe webhook enters through
+  `/api/webhooks/stripe`, is signature-verified in Convex, and is idempotent by
+  Stripe event ID.
 - The npm collector is one-shot. Optional `usagemax service install` schedules these one-shot jobs (15-minute default), not a resident daemon. A complete unchanged inventory skips parsing and upload; incomplete inventories cannot safely take that shortcut. Use `service status` for scheduler reachability and last-run health, and `service uninstall` to stop future jobs without deleting checkpoints.
 
 ## WorkOS organization lifecycle
@@ -16,6 +21,16 @@ Configure a WorkOS webhook at `https://usagemax.com/api/webhooks/workos` for:
 - `organization_membership.created`
 - `organization_membership.updated`
 - `organization_membership.deleted`
+- `dsync.activated`
+- `dsync.deleted`
+- `dsync.user.created`
+- `dsync.user.updated`
+- `dsync.user.deleted`
+- `dsync.group.created`
+- `dsync.group.updated`
+- `dsync.group.deleted`
+- `dsync.group.user_added`
+- `dsync.group.user_removed`
 
 Set `WORKOS_CLIENT_ID` and the endpoint-specific `WORKOS_WEBHOOK_SECRET` on the
 production Convex deployment. Requests are signature- and timestamp-verified in
@@ -23,6 +38,8 @@ Convex before any state change. Event IDs are deduplicated for 90 days and each
 membership keeps the latest authorization-change timestamp, so retries and
 out-of-order delivery cannot restore stale access. Privileged operations reject
 JWTs issued before a membership authorization change and require session refresh.
+Directory events are projected separately so provider lifecycle state and
+workspace membership state can be audited without storing directory payloads.
 
 ## WorkOS Connect delegated OAuth
 
@@ -83,6 +100,8 @@ and UsageMax audit rows as deployment evidence; never retain payload bodies.
 5. Verify `/health`, `/api/health`, sign-in/callback, a private account, a public profile, and one new collector reconciliation.
 6. Verify the WorkOS webhook endpoint with a signed test event when lifecycle configuration changed.
 7. Publish the CLI only through npm trusted publishing with provenance.
+8. If billing changed, verify Stripe Checkout, portal, one successful invoice,
+   one failed-payment transition, and a replayed webhook in a test customer.
 
 ## Alerts
 
