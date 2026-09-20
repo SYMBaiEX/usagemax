@@ -153,6 +153,7 @@ export default defineSchema({
     revokedAt: v.optional(v.number()),
   })
     .index("by_workspaceId_and_ownerUserId", ["workspaceId", "ownerUserId"])
+    .index("by_workspaceId_and_ownerUserId_and_revokedAt", ["workspaceId", "ownerUserId", "revokedAt"])
     .index("by_keyHash", ["keyHash"])
     .index("by_workspaceId", ["workspaceId"])
     .index("by_workspaceId_and_revokedAt", ["workspaceId", "revokedAt"])
@@ -172,6 +173,7 @@ export default defineSchema({
   })
     .index("by_codeHash", ["codeHash"])
     .index("by_workspaceId", ["workspaceId"])
+    .index("by_workspaceId_and_userId_and_usedAt_and_expiresAt", ["workspaceId", "userId", "usedAt", "expiresAt"])
     .index("by_expiresAt", ["expiresAt"]),
 
   profileStats: defineTable({
@@ -236,6 +238,9 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_profileId_and_day", ["profileId", "day"])
+    .index("by_profileId_and_model_and_day", ["profileId", "model", "day"])
+    .index("by_profileId_and_source_and_day", ["profileId", "source", "day"])
+    .index("by_profileId_and_source_and_model_and_day", ["profileId", "source", "model", "day"])
     .index("by_profileId_and_day_and_source_and_model", ["profileId", "day", "source", "model"])
     .index("by_profileId_and_day_and_source_and_provider_and_model", ["profileId", "day", "source", "provider", "model"])
     .index("by_profileId_and_source_and_updatedAt", ["profileId", "source", "updatedAt"]),

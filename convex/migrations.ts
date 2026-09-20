@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 
 import { internalMutation } from "./_generated/server";
 
@@ -21,7 +21,8 @@ export const backfillProfileDailyTotals = internalMutation({
       const rows = await ctx.db
         .query("dailyUsage")
         .withIndex("by_profileId_and_day", (q) => q.eq("profileId", profileId).eq("day", day))
-        .collect();
+        .take(5001);
+      if (rows.length > 5000) throw new ConvexError("DAILY_USAGE_MIGRATION_GROUP_TOO_LARGE");
       if (rows.length === 0) continue;
       const existing = await ctx.db
         .query("profileDailyTotals")

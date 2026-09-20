@@ -81,7 +81,44 @@ export const usage = query({
       !/^\d{4}-\d{2}-\d{2}$/.test(args.endDay)
     )
       throw new ConvexError("INVALID_RANGE");
-    let rows = ctx.db
+    if (args.model && args.source)
+      return await ctx.db
+        .query("dailyUsage")
+        .withIndex("by_profileId_and_source_and_model_and_day", (q) =>
+          q
+            .eq("profileId", profile._id)
+            .eq("source", args.source!)
+            .eq("model", args.model!)
+            .gte("day", args.startDay)
+            .lte("day", args.endDay),
+        )
+        .order("desc")
+        .paginate(args.paginationOpts);
+    if (args.model)
+      return await ctx.db
+        .query("dailyUsage")
+        .withIndex("by_profileId_and_model_and_day", (q) =>
+          q
+            .eq("profileId", profile._id)
+            .eq("model", args.model!)
+            .gte("day", args.startDay)
+            .lte("day", args.endDay),
+        )
+        .order("desc")
+        .paginate(args.paginationOpts);
+    if (args.source)
+      return await ctx.db
+        .query("dailyUsage")
+        .withIndex("by_profileId_and_source_and_day", (q) =>
+          q
+            .eq("profileId", profile._id)
+            .eq("source", args.source!)
+            .gte("day", args.startDay)
+            .lte("day", args.endDay),
+        )
+        .order("desc")
+        .paginate(args.paginationOpts);
+    return await ctx.db
       .query("dailyUsage")
       .withIndex("by_profileId_and_day", (q) =>
         q
@@ -89,12 +126,8 @@ export const usage = query({
           .gte("day", args.startDay)
           .lte("day", args.endDay),
       )
-      .order("desc");
-    if (args.model)
-      rows = rows.filter((q) => q.eq(q.field("model"), args.model));
-    if (args.source)
-      rows = rows.filter((q) => q.eq(q.field("source"), args.source));
-    return await rows.paginate(args.paginationOpts);
+      .order("desc")
+      .paginate(args.paginationOpts);
   },
 });
 

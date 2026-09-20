@@ -18,7 +18,6 @@ export function SiteHeader() {
             Usage<span>Max</span>
           </span>
         </Link>
-          <span className="brand-context">PUBLIC LEDGER</span>
         </div>
 
         <SiteNavigation />

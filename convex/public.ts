@@ -427,7 +427,9 @@ export const network = query({
   handler: async (ctx) => {
     // networkStats is a retired aggregate-import baseline. First-party account
     // and telemetry counters live exclusively in bounded shards.
-    const shards = await ctx.db.query("networkCounterShards").collect();
+    // The network counter is a fixed 128-shard ring (collector id hash % 128).
+    // Keep the read bounded even if a corrupted deployment contains extra rows.
+    const shards = await ctx.db.query("networkCounterShards").withIndex("by_shard").take(128);
     const today = new Date().toISOString().slice(0, 10);
     return {
       totalTokens: shards.reduce((sum, shard) => sum + shard.totalTokens, 0),

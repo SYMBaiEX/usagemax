@@ -922,7 +922,7 @@ export const setProfileVisibility = mutation({
     const entries = await ctx.db
       .query("leaderboardEntries")
       .withIndex("by_profileId_and_period_and_metric", (q) => q.eq("profileId", profile._id))
-      .collect();
+      .take(10);
     for (const entry of entries) await ctx.db.patch(entry._id, { isPublic: args.isPublic });
     await audit(ctx, profile.workspaceId, user._id, "profile.visibility_changed", "profile", String(profile._id), args.isPublic ? "Made profile public" : "Made profile private");
     return { handle: profile.handle, isPublic: args.isPublic };
@@ -962,7 +962,7 @@ export const updateProfile = mutation({
     if (!displayName) throw new ConvexError("DISPLAY_NAME_REQUIRED");
     const now = Date.now();
     await ctx.db.patch(profile._id, { displayName, bio, updatedAt: now });
-    const entries = await ctx.db.query("leaderboardEntries").withIndex("by_profileId_and_period_and_metric", (q) => q.eq("profileId", profile._id)).collect();
+    const entries = await ctx.db.query("leaderboardEntries").withIndex("by_profileId_and_period_and_metric", (q) => q.eq("profileId", profile._id)).take(10);
     for (const entry of entries) await ctx.db.patch(entry._id, { displayName, updatedAt: now });
     await audit(ctx, profile.workspaceId, user._id, "profile.updated", "profile", String(profile._id), "Updated profile details");
     return { displayName, bio };
@@ -986,11 +986,12 @@ async function buildAccountExport(ctx: QueryCtx, user: Doc<"users">, profile: Do
   const [workspace, stats, collectors, daily, models, auditLog] = await Promise.all([
     ctx.db.get(profile.workspaceId),
     ctx.db.query("profileStats").withIndex("by_profileId", (q) => q.eq("profileId", profile._id)).unique(),
-    ctx.db.query("collectors").withIndex("by_workspaceId", (q) => q.eq("workspaceId", profile.workspaceId)).collect(),
+    ctx.db.query("collectors").withIndex("by_workspaceId", (q) => q.eq("workspaceId", profile.workspaceId)).take(5001),
     ctx.db.query("profileDailyTotals").withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id)).order("desc").take(730),
     ctx.db.query("modelTotals").withIndex("by_profileId_and_totalTokens", (q) => q.eq("profileId", profile._id)).order("desc").take(500),
     ctx.db.query("auditEvents").withIndex("by_workspaceId_and_createdAt", (q) => q.eq("workspaceId", profile.workspaceId)).order("desc").take(500),
   ]);
+  if (collectors.length > 5000) throw new ConvexError("ACCOUNT_EXPORT_TOO_LARGE");
   return {
     exportedAt: Date.now(),
     formatVersion: 1,
@@ -1089,7 +1090,8 @@ export const requestAccountDeletion = mutation({
       stage: "privacy",
       processedRows: 0,
     });
-    const collectors = await ctx.db.query("collectors").withIndex("by_workspaceId", (q) => q.eq("workspaceId", profile.workspaceId)).collect();
+    const collectors = await ctx.db.query("collectors").withIndex("by_workspaceId", (q) => q.eq("workspaceId", profile.workspaceId)).take(5001);
+    if (collectors.length > 5000) throw new ConvexError("COLLECTOR_LIMIT_EXCEEDED");
     for (const collector of collectors) if (!collector.revokedAt) await ctx.db.patch(collector._id, { revokedAt: now });
     await audit(ctx, profile.workspaceId, user._id, "account.deletion_requested", "workspace", String(profile.workspaceId), "Requested account deletion with seven-day recovery window");
     await ctx.scheduler.runAt(scheduledFor, internal.account.processAccountDeletion, { requestId });
@@ -1106,7 +1108,8 @@ export const cancelAccountDeletion = mutation({
     if (!request || request.cancelledAt || request.completedAt) return { cancelled: false };
     const now = Date.now();
     await ctx.db.patch(request._id, { cancelledAt: now });
-    const collectors = await ctx.db.query("collectors").withIndex("by_workspaceId", (q) => q.eq("workspaceId", request.workspaceId)).collect();
+    const collectors = await ctx.db.query("collectors").withIndex("by_workspaceId", (q) => q.eq("workspaceId", request.workspaceId)).take(5001);
+    if (collectors.length > 5000) throw new ConvexError("COLLECTOR_LIMIT_EXCEEDED");
     for (const collector of collectors) {
       if (collector.revokedAt === request.requestedAt) await ctx.db.patch(collector._id, { revokedAt: undefined });
     }
@@ -1167,7 +1170,11 @@ export const processAccountDeletion = internalMutation({
       else await advanceDeletion(ctx, requestId, stage, processed);
       return { processed: true, stage, rows: rows.length };
     };
-    const collectors = () => ctx.db.query("collectors").withIndex("by_workspaceId", (q) => q.eq("workspaceId", request.workspaceId)).collect();
+    const collectors = async () => {
+      const rows = await ctx.db.query("collectors").withIndex("by_workspaceId", (q) => q.eq("workspaceId", request.workspaceId)).take(5001);
+      if (rows.length > 5000) throw new ConvexError("COLLECTOR_LIMIT_EXCEEDED");
+      return rows;
+    };
 
     if (stage === "privacy") {
       const profile = profileId ? await ctx.db.get(profileId) : null;

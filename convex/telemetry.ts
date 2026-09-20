@@ -136,6 +136,12 @@ export const commitBatch = internalMutation({
     events: v.array(telemetryEventValidator),
   },
   handler: async (ctx, args) => {
+    // The HTTP boundary currently caps native/OTLP batches at 100 events, but
+    // this internal mutation is also callable from trusted jobs and tests.
+    // Enforce the same bound here so a future caller cannot exceed Convex's
+    // read/write budget by bypassing the router.
+    if (args.events.length < 1 || args.events.length > 100)
+      throw new ConvexError("TELEMETRY_BATCH_LIMIT_100");
     const collector = await ctx.db.query("collectors").withIndex("by_keyHash", (q) => q.eq("keyHash", args.keyHash)).unique();
     if (!collector || collector.revokedAt || !collector.scopes.includes("telemetry:write")) throw new ConvexError("INVALID_COLLECTOR");
     await assertCollectorMembership(ctx, collector);
@@ -525,7 +531,7 @@ export const commitBatch = internalMutation({
       const recentDays = await ctx.db
         .query("profileDailyTotals")
         .withIndex("by_profileId_and_day", (q) => q.eq("profileId", collector.profileId).gte("day", thirtyCutoff))
-        .collect();
+        .take(31);
       const periodScores = [
         { period: "all" as const, tokens: nextStats.totalTokens, spend: nextStats.totalCostMicros },
         {

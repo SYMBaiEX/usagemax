@@ -1,7 +1,6 @@
 /* Navigation and quiet, editorial footer. */
 .site-footer { --focus-ring: var(--focus-ring-inverse); }
-.site-header { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--paper) 88%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent); box-shadow: 0 12px 28px -26px var(--ink); backdrop-filter: blur(18px); }
-.site-header::before { content: ""; position: absolute; inset: 0 0 auto; height: 1px; background: linear-gradient(90deg, transparent 6%, color-mix(in srgb, var(--orange) 62%, transparent) 32%, color-mix(in srgb, var(--orange) 16%, transparent) 68%, transparent 94%); opacity: .8; pointer-events: none; }
+.site-header { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--paper) 88%, transparent); box-shadow: 0 12px 28px -26px var(--ink); backdrop-filter: blur(18px); }
 .header-inner { display: flex; align-items: center; gap: 24px; min-height: 72px; }
 .header-brand-group { display: inline-flex; align-items: center; gap: 12px; flex-shrink: 0; }
 .brand { display: inline-flex; align-items: center; gap: 9px; flex-shrink: 0; padding: 4px 10px 4px 4px; border-radius: 13px; transition: background .16s, transform .16s; }
@@ -10,7 +9,6 @@
 .brand-mark svg { width: 23px; height: 23px; }
 .brand-wordmark { font-size: 20px; font-weight: 700; letter-spacing: -.065em; }
 .brand-wordmark > span { color: inherit; }
-.brand-context { padding-left: 12px; border-left: 1px solid var(--line); color: var(--ink-faint); font: 600 9px/1 var(--font-mono); letter-spacing: .09em; white-space: nowrap; }
 .desktop-nav { flex: 1; display: flex; justify-content: center; align-self: center; align-items: center; gap: 2px; }
 .desktop-nav a { position: relative; display: flex; align-items: center; min-height: 38px; padding: 8px 13px; border: 1px solid transparent; border-radius: var(--radius-control); font-size: 12px; color: var(--ink-soft); transition: background .16s, border-color .16s, color .16s, transform .16s; }
 .desktop-nav a:hover { color: var(--ink); background: var(--surface-inset); transform: translateY(-1px); }

@@ -97,13 +97,14 @@ async function collectorEvents(ctx: MutationCtx, collector: {
   profileId: Id<"profiles">;
   createdAt: number;
   lastSeenAt?: number;
-}) {
+}, maxRows = 10_000) {
   const receipts = (await ctx.db
     .query("ingestReceipts")
     .withIndex("by_createdAt", (q) =>
       q.gte("createdAt", collector.createdAt).lte("createdAt", (collector.lastSeenAt ?? collector.createdAt) + 10_000),
     )
-    .collect()).filter((receipt) => receipt.collectorId === collector._id);
+    .take(maxRows + 1)).filter((receipt) => receipt.collectorId === collector._id);
+  if (receipts.length > maxRows) throw new ConvexError("DUPLICATE_REPAIR_TOO_LARGE");
   if (!receipts.length) throw new ConvexError("DUPLICATE_REPAIR_NO_RECEIPTS");
   const rawIds = new Set(receipts.map((receipt) => /^cli:([^:]+):/.exec(receipt.batchId)?.[1]).filter(Boolean));
   if (rawIds.size !== 1) throw new ConvexError("DUPLICATE_REPAIR_AMBIGUOUS_IDENTITY");
@@ -114,11 +115,12 @@ async function collectorEvents(ctx: MutationCtx, collector: {
   const events = (await ctx.db
     .query("telemetryEvents")
     .withIndex("by_receivedAt", (q) => q.gte("receivedAt", first).lte("receivedAt", last))
-    .collect()).filter((event) =>
+    .take(maxRows + 1)).filter((event) =>
       event.profileId === collector.profileId
       && receivedAt.has(event.receivedAt)
       && event.eventKey.startsWith(`ccusage-v1:${rawId}:`),
     );
+  if (events.length > maxRows) throw new ConvexError("DUPLICATE_REPAIR_TOO_LARGE");
   return { receipts, rawId, events };
 }
 
@@ -280,7 +282,8 @@ export const repairDuplicateCollector = internalMutation({
     const deviceRows = await ctx.db
       .query("dailyDimensions")
       .withIndex("by_profileId_and_origin_and_updatedAt", (q) => q.eq("profileId", duplicate.profileId).eq("origin", duplicateOrigin))
-      .collect();
+      .take(5001);
+    if (deviceRows.length > 5000) throw new ConvexError("DUPLICATE_REPAIR_TOO_LARGE");
     if (deviceRows.reduce((sum, row) => sum + row.totalTokens, 0) !== total.totalTokens) {
       throw new ConvexError("DUPLICATE_REPAIR_DEVICE_TOTAL_MISMATCH");
     }
@@ -297,12 +300,14 @@ export const repairDuplicateCollector = internalMutation({
     const rateBuckets = await ctx.db
       .query("ingestRateBuckets")
       .withIndex("by_collectorId_and_bucketStart", (q) => q.eq("collectorId", duplicate._id))
-      .collect();
+      .take(5001);
+    if (rateBuckets.length > 5000) throw new ConvexError("DUPLICATE_REPAIR_TOO_LARGE");
     for (const bucket of rateBuckets) await ctx.db.delete(bucket._id);
     const liveAgents = await ctx.db
       .query("agentLiveStats")
       .withIndex("by_profileId_and_updatedAt", (q) => q.eq("profileId", duplicate.profileId))
-      .collect();
+      .take(5001);
+    if (liveAgents.length > 5000) throw new ConvexError("DUPLICATE_REPAIR_TOO_LARGE");
     for (const agent of liveAgents) {
       if (agent.externalId.startsWith(`${duplicateData.rawId}:`)) await ctx.db.delete(agent._id);
     }
@@ -318,11 +323,13 @@ export const repairDuplicateCollector = internalMutation({
     const activityRows = await ctx.db
       .query("profileDailyTotals")
       .withIndex("by_profileId_and_day", (q) => q.eq("profileId", duplicate.profileId))
-      .collect();
+      .take(5001);
+    if (activityRows.length > 5000) throw new ConvexError("DUPLICATE_REPAIR_TOO_LARGE");
     const activeRows = activityRows.filter((row) => row.totalTokens > 0 || row.costMicros > 0);
     const streak = streaks(activeRows.map((row) => row.day));
     const peak = [...activeRows].sort((left, right) => right.costMicros - left.costMicros)[0];
-    const devices = await ctx.db.query("profileDevices").withIndex("by_profileId", (q) => q.eq("profileId", duplicate.profileId)).collect();
+    const devices = await ctx.db.query("profileDevices").withIndex("by_profileId", (q) => q.eq("profileId", duplicate.profileId)).take(5001);
+    if (devices.length > 5000) throw new ConvexError("DUPLICATE_REPAIR_TOO_LARGE");
     const leadingByCost = await ctx.db
       .query("modelTotals")
       .withIndex("by_profileId_and_costMicros", (q) => q.eq("profileId", duplicate.profileId))

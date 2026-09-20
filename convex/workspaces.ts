@@ -904,22 +904,23 @@ export const offboardDevices = internalMutation({
   handler: async (ctx, args) => {
     const rows = await ctx.db
       .query("collectors")
-      .withIndex("by_workspaceId_and_ownerUserId", (q) =>
-        q.eq("workspaceId", args.workspaceId).eq("ownerUserId", args.userId),
+      .withIndex("by_workspaceId_and_ownerUserId_and_revokedAt", (q) =>
+        q
+          .eq("workspaceId", args.workspaceId)
+          .eq("ownerUserId", args.userId)
+          .eq("revokedAt", undefined),
       )
-      .filter((q) => q.eq(q.field("revokedAt"), undefined))
       .take(100);
     for (const row of rows)
       await ctx.db.patch(row._id, { revokedAt: Date.now() });
     const links = await ctx.db
       .query("deviceLinkCodes")
-      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
-      .filter((q) =>
-        q.and(
-          q.eq(q.field("userId"), args.userId),
-          q.eq(q.field("usedAt"), undefined),
-          q.gt(q.field("expiresAt"), 0),
-        ),
+      .withIndex("by_workspaceId_and_userId_and_usedAt_and_expiresAt", (q) =>
+        q
+          .eq("workspaceId", args.workspaceId)
+          .eq("userId", args.userId)
+          .eq("usedAt", undefined)
+          .gt("expiresAt", 0),
       )
       .take(100);
     for (const link of links) await ctx.db.patch(link._id, { expiresAt: 0 });

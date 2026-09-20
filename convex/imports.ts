@@ -418,7 +418,8 @@ export const finish = internalMutation({
     const existingModels = await ctx.db
       .query("modelTotals")
       .withIndex("by_profileId_and_totalTokens", (q) => q.eq("profileId", args.profileId))
-      .collect();
+      .take(5001);
+    if (existingModels.length > 5000) throw new ConvexError("IMPORT_MODEL_LIMIT_EXCEEDED");
     for (const model of existingModels) await ctx.db.delete(model._id);
     for (const model of args.models) {
       const value = {
