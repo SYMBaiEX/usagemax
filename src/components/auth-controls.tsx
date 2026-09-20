@@ -18,9 +18,15 @@ export function HeaderAuthControls() {
   const { user, loading } = useAuth();
   if (loading) return <span aria-hidden="true" className="header-auth-loading" />;
   if (user) {
+    const label = user.firstName || user.email || "Account";
+    const initials = `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`.toUpperCase() || label[0]?.toUpperCase() || "U";
     return (
       <Link className="header-login" href="/workspace">
-        {user.firstName || user.email || "Account"}
+        <span className="header-account-avatar" aria-hidden="true">{initials}</span>
+        <span className="header-login-copy">
+          <small>Workspace</small>
+          <strong>{label}</strong>
+        </span>
       </Link>
     );
   }

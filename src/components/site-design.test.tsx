@@ -7,10 +7,10 @@ import { PageIntro, SiteHeader } from "./site-shell";
 import { AccountView } from "./account-view";
 import NotFound from "../app/not-found";
 
-const state = vi.hoisted(() => ({ path: "/docs", account: undefined as unknown, authenticated: true }));
+const state = vi.hoisted(() => ({ path: "/docs", account: undefined as unknown, authenticated: true, user: null as { firstName?: string; lastName?: string; email?: string } | null }));
 vi.mock("next/link", () => ({ default: (props: AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props} /> }));
 vi.mock("next/navigation", () => ({ usePathname: () => state.path }));
-vi.mock("@workos-inc/authkit-nextjs/components", () => ({ useAuth: () => ({ user: null, loading: false, signOut: vi.fn() }) }));
+vi.mock("@workos-inc/authkit-nextjs/components", () => ({ useAuth: () => ({ user: state.user, loading: false, signOut: vi.fn() }) }));
 vi.mock("convex/react", () => ({
   useQuery: (_query: unknown, args: unknown) => args === "skip" ? undefined : state.account,
   useMutation: () => vi.fn(), useAction: () => vi.fn(),
@@ -31,7 +31,7 @@ function accountFixture(capabilities: Record<string, boolean>, hasProfile = true
 }
 
 describe("site design and behavior boundaries", () => {
-  beforeEach(() => { state.path = "/docs"; state.authenticated = true; state.account = undefined; });
+  beforeEach(() => { state.path = "/docs"; state.authenticated = true; state.account = undefined; state.user = null; });
 
   test.each([DocsView, EnterpriseView, MethodologyView, PrivacyView, SecurityView, TermsView])("content view has one heading and no placeholder controls (%#)", (View) => {
     const html = renderToStaticMarkup(<View />);
@@ -45,6 +45,15 @@ describe("site design and behavior boundaries", () => {
     expect(html).toContain('aria-current="page" href="/docs"');
     expect(html).toContain('href="/sign-in"');
     expect(html).toContain('aria-label="Mobile navigation"');
+  });
+
+  test("signed-in header gives the workspace a clear account affordance", () => {
+    state.user = { firstName: "Ada", lastName: "Lovelace", email: "ada@example.test" };
+    const html = renderToStaticMarkup(<SiteHeader />);
+    expect(html).toContain('href="/workspace"');
+    expect(html).toContain("Workspace");
+    expect(html).toContain(">AL</span>");
+    expect(html).not.toContain('href="/sign-in"');
   });
 
   test("documentation has real copy controls and valid section anchors", () => {

@@ -10,25 +10,29 @@ import { BrandIcon } from "./brand-icon";
 export function SiteHeader() {
   return (
     <header className="site-header">
-        <div className="shell header-inner">
+      <div className="shell header-inner">
+        <div className="header-brand-group">
         <Link aria-label="UsageMax home" className="brand" href="/">
           <BrandIcon />
           <span className="brand-wordmark">
             Usage<span>Max</span>
           </span>
         </Link>
+          <span className="brand-context">PUBLIC LEDGER</span>
+        </div>
 
         <SiteNavigation />
-        <ThemeControls />
 
-        <div className="header-actions">
-          <HeaderAuthControls />
-          <Link className="header-cta" href="/docs">
-            Connect data <ArrowUpRight size={15} />
-          </Link>
+        <div className="header-tools">
+          <ThemeControls />
+          <div className="header-actions">
+            <HeaderAuthControls />
+            <Link className="header-cta" href="/docs">
+              Connect data <ArrowUpRight size={15} />
+            </Link>
+          </div>
         </div>
-
-        </div>
+      </div>
     </header>
   );
 }
