@@ -19,7 +19,7 @@ describe("auth.md", () => {
     expect(body).toContain("/oauth2/token");
     expect(body).toContain("Agent Registration");
     expect(body).toContain("https://usagemax.com/.well-known/oauth-protected-resource");
-    expect(body).toContain("CLI `0.3.6`");
+    expect(body).toContain("CLI `0.3.7`");
   });
 
   it("serves markdown for GET and HEAD", () => {

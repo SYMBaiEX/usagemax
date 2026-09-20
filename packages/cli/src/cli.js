@@ -13,10 +13,12 @@ import { fileURLToPath } from "node:url";
 import { prepareArchiveRecovery } from "./archives.js";
 import { buildSessionPlan, buildSnapshotPlan, normalizeLinkCode, reportDateArgs, scanPolicy, sourceSummary, validHttpsUrl } from "./core.js";
 import { stableInstallationId } from "./installation.js";
+import { createProgress } from "./progress.js";
 import { intervalMinutes, manageService, runScheduledSync } from "./service.js";
 import { collectorStatusView, requestCollectorStatus, requestSnapshot } from "./transport.js";
 import { resumeUpload, restartExpiredUpload, withConfigLock } from "./resume.js";
 import { CCUSAGE_VERSION, ccusageEnvironment, ccusageHome, discoverProviderArchives, SOURCE_INVENTORY_VERSION, sourceInventory, SUPPORTED_SOURCES } from "./sources.js";
+import { checkForUpdate, runLatest } from "./updates.js";
 
 // Make the short-lived collector recognizable in Activity Monitor and `ps`.
 // Windows may still display the underlying node.exe image name in Task Manager.
@@ -24,7 +26,7 @@ process.title = "UsageMax";
 
 const require = createRequire(import.meta.url);
 const executeFile = promisify(execFile);
-const VERSION = "0.3.6";
+const VERSION = "0.3.7";
 const PUBLIC_API_ORIGIN = "https://usagemax.com/api";
 const DEFAULT_LINK_ENDPOINT = `${PUBLIC_API_ORIGIN}/v1/devices/link`;
 const DEFAULT_STATUS_ENDPOINT = `${PUBLIC_API_ORIGIN}/v1/devices/status`;
@@ -118,6 +120,7 @@ function help() {
   process.stdout.write("           [--no-sync] [--name <name>]\n");
   process.stdout.write("  usagemax sync [--full] [--archives] [--restart] [--dry-run] [--explain] [--json]\n");
   process.stdout.write("                                  Reconcile once; --archives performs one-time recovery\n");
+  process.stdout.write("           [--quiet|--no-progress] [--check-updates|--no-update-check]  Control progress and the cached release check\n");
   process.stdout.write("  usagemax status                  Show local link status\n");
   process.stdout.write("           --remote [--json]        Verify the stored collector credential without printing it\n");
   process.stdout.write("  usagemax token status [--device-id <uuid>] [--json]\n");
@@ -127,6 +130,7 @@ function help() {
   process.stdout.write("  usagemax service status|run|uninstall\n");
   process.stdout.write("  usagemax doctor [--deep] [--json]\n");
   process.stdout.write("                                  Check source coverage; --deep parses full history\n");
+  process.stdout.write("  usagemax update [command args]  Check npm and optionally run the latest CLI\n");
   process.stdout.write("  usagemax report [...args]        Run a local ccusage report\n");
   process.stdout.write("  usagemax unlink [--revoke]       Remove locally; --revoke also disables uploads\n");
 }
@@ -170,7 +174,7 @@ function newerVersion(recommended) {
 
 function warnVersion(body) {
   if (newerVersion(body?.recommendedCliVersion)) {
-    process.stderr.write(`UsageMax ${body.recommendedCliVersion} is available. Run \`bunx usagemax@latest\` for current coverage fixes.\n`);
+    process.stderr.write(`UsageMax ${body.recommendedCliVersion} is available. Run \`usagemax update sync\` or set USAGEMAX_AUTO_UPDATE=1.\n`);
   }
 }
 
@@ -228,18 +232,27 @@ async function link(args) {
 }
 
 async function sync(args, suppliedConfig) {
-  const baseEnv = await ccusageEnvironment();
-  const recovery = args.includes("--archives")
-    ? await prepareArchiveRecovery(baseEnv)
-    : { archives: 0, cleanup: async () => undefined, env: baseEnv, unsupported: 0 };
+  const progress = createProgress({ json: args.includes("--json"), quiet: args.includes("--quiet"), noProgress: args.includes("--no-progress") });
+  progress.start("Preparing local usage sync…");
+  let recovery;
   try {
-    return await syncPrepared(args, suppliedConfig, recovery);
+    const baseEnv = await ccusageEnvironment();
+    recovery = args.includes("--archives")
+      ? await prepareArchiveRecovery(baseEnv)
+      : { archives: 0, cleanup: async () => undefined, env: baseEnv, unsupported: 0 };
+    return await syncPrepared(args, suppliedConfig, recovery, progress);
+  } catch (error) {
+    // Clear the transient line; the shared top-level handler prints one
+    // stable error message so failures are not duplicated.
+    progress.stop();
+    throw error;
   } finally {
-    await recovery.cleanup();
+    await recovery?.cleanup();
+    progress.stop();
   }
 }
 
-async function syncPrepared(args, suppliedConfig, recovery) {
+async function syncPrepared(args, suppliedConfig, recovery, progress = createProgress({ noProgress: true })) {
   const config = suppliedConfig || await readConfig();
   if (!config) throw new Error("This computer is not linked. Open https://usagemax.com/account and create a link code.");
   config.deviceId = await stableInstallationId(configDirectory(), config.deviceId);
@@ -253,16 +266,25 @@ async function syncPrepared(args, suppliedConfig, recovery) {
     await writeConfig(config);
   }
   if (config.pendingSync) {
+    progress.update("Resuming the saved upload checkpoint…");
     if (dryRun) {
       const result = { ...config.pendingSync.result, dryRun: true, pendingRunId: config.pendingSync.runId };
       process.stdout.write(json ? `${JSON.stringify(result)}\n` : `Dry run: saved run ${config.pendingSync.runId} awaits resume; no upload.\n`);
+      progress.succeed("Dry run complete; saved upload remains untouched.");
       return result;
     }
-    const result = await resumeUpload(config, { save: writeConfig, request: snapshotRequest, warn: warnVersion });
+    const result = await resumeUpload(config, {
+      save: writeConfig,
+      request: snapshotRequest,
+      warn: warnVersion,
+      onProgress: ({ index, total, operation, acknowledged }) => progress.update(`${acknowledged ? "Uploaded" : "Uploading"} ${index}/${total} · ${operation}`),
+    });
+    progress.succeed("Resumed and completed the saved sync.");
     process.stdout.write(json ? `${JSON.stringify(result)}\n` : "Resumed and completed the saved sync. Run sync again to scan newer local changes.\n");
     return result;
   }
   const inventory = await sourceInventory({ env: recovery.env, home: ccusageHome(recovery.env) });
+  progress.update(`Found ${inventory.sources.length} source${inventory.sources.length === 1 ? "" : "s"} and ${inventory.files}${inventory.truncated ? "+" : ""} local data file${inventory.files === 1 ? "" : "s"}.`);
   const today = new Date().toISOString().slice(0, 10);
   const knownSources = Array.isArray(config.knownSources) ? config.knownSources : [];
   const { bootstrap, full, skip, inventoryStable } = scanPolicy(config, inventory, {
@@ -272,8 +294,10 @@ async function syncPrepared(args, suppliedConfig, recovery) {
     const result = { accepted: 0, changedRows: 0, sessions: 0, sources: inventory.sources, corrections: 0, scanned: false, full: false, coverage: config.lastCoverage || "partial" };
     if (json) process.stdout.write(`${JSON.stringify(result)}\n`);
     else process.stdout.write("Already up to date. Local usage files have not changed; no logs were parsed or uploaded.\n");
+    progress.succeed("No local changes; upload skipped.");
     return;
   }
+  progress.update(`Parsing ${full ? "retained history" : "changed history"} with ccusage…`);
   const report = await ccusageJson(config, { env: recovery.env, full });
   // ccusage v20 exposes aggregates, not proof that every discovered file was
   // parsed. Inventory success alone cannot authorize destructive corrections.
@@ -310,6 +334,7 @@ async function syncPrepared(args, suppliedConfig, recovery) {
     coverageReason: "Parser does not certify complete source/day coverage; decreases and deletions are protected.",
     range: { from: days[0], to: days.at(-1) },
   };
+  progress.update(`Prepared ${partitions.length} usage chunk${partitions.length === 1 ? "" : "s"} and ${sessions.length} session identifier${sessions.length === 1 ? "" : "s"}.`);
   if (requestedArchives) {
     result.archives = recovery.archives;
     result.unsupportedArchives = recovery.unsupported;
@@ -320,6 +345,7 @@ async function syncPrepared(args, suppliedConfig, recovery) {
       process.stdout.write(`Dry run: ${partitions.length} partition(s), ${result.changedRows} changed row(s), ${sessions.length} private session identifiers, no upload.\n`);
       if (explain) process.stdout.write(`Coverage ${result.coverage}; ${sources.length} source(s); ${days[0] || "unknown"} to ${days.at(-1) || "unknown"}; ${regressions.length} protected regression(s). ${result.coverageReason}\n`);
     }
+    progress.succeed("Dry run complete; nothing uploaded.");
     return result;
   }
   const requests = [{ operation: "begin", payload: {
@@ -356,7 +382,13 @@ async function syncPrepared(args, suppliedConfig, recovery) {
   };
   config.lastSyncComplete = false;
   await writeConfig(config);
-  await resumeUpload(config, { save: writeConfig, request: snapshotRequest, warn: warnVersion });
+  await resumeUpload(config, {
+    save: writeConfig,
+    request: snapshotRequest,
+    warn: warnVersion,
+    onProgress: ({ index, total, operation, acknowledged }) => progress.update(`${acknowledged ? "Uploaded" : "Uploading"} ${index}/${total} · ${operation}`),
+  });
+  progress.succeed(`Sync complete · ${partitions.length} chunk${partitions.length === 1 ? "" : "s"}, ${sessions.length} session identifier${sessions.length === 1 ? "" : "s"}.`);
   if (json) process.stdout.write(`${JSON.stringify(result)}\n`);
   else {
     process.stdout.write(partitions.length || sessions.length
@@ -528,6 +560,41 @@ async function report(args) {
   if (code !== 0) process.exitCode = code;
 }
 
+async function update(args = []) {
+  const check = await checkForUpdate(configDirectory(), VERSION, { force: true });
+  if (!check.latest) {
+    process.stdout.write(`UsageMax CLI ${VERSION} · update check unavailable.\n`);
+    return;
+  }
+  if (!check.newer) {
+    process.stdout.write(`UsageMax CLI ${VERSION} is current.\n`);
+    return;
+  }
+  process.stdout.write(`UsageMax CLI ${check.latest} is available (current ${VERSION}).\n`);
+  const commandArgs = args.filter((arg) => arg !== "--check");
+  if (!commandArgs.length || args.includes("--check")) {
+    process.stdout.write("Run `usagemax update sync` to hand off the next command to the latest npm release.\n");
+    return;
+  }
+  process.stdout.write(`Launching UsageMax ${check.latest}…\n`);
+  return runLatest(commandArgs);
+}
+
+async function maybeUpdate(command, args) {
+  if (process.env.USAGEMAX_UPDATE_HANDOFF === "1" || process.env.USAGEMAX_DISABLE_UPDATE_CHECK === "1" || args.includes("--no-update-check")) return false;
+  if (!["sync", "link", "doctor"].includes(command)) return false;
+  const explicitCheck = args.includes("--check-updates");
+  if (!explicitCheck && args.includes("--json")) return false;
+  const check = await checkForUpdate(configDirectory(), VERSION, { force: explicitCheck });
+  if (!check.newer) return false;
+  if (process.env.USAGEMAX_AUTO_UPDATE === "1") {
+    await runLatest([command, ...args.filter((arg) => !["--check-updates", "--no-update-check"].includes(arg))]);
+    return true;
+  }
+  process.stderr.write(`UsageMax ${check.latest} is available. Run \`usagemax update ${command}\` or set USAGEMAX_AUTO_UPDATE=1.\n`);
+  return false;
+}
+
 async function removeLink(args = []) {
   const path = configPath();
   const config = await readConfig();
@@ -559,6 +626,8 @@ async function main() {
   const command = args[0] || "sync";
   if (["--help", "-h", "help"].includes(command)) return help();
   if (["--version", "-v"].includes(command)) return process.stdout.write(`${VERSION}\n`);
+  if (command === "update") return update(args.slice(1));
+  if (await maybeUpdate(command, args)) return;
   if (command === "service") {
     const action = args[1] || "status";
     const directory = option(args, "--config-dir") || configDirectory();

@@ -23,7 +23,7 @@ describe("/llms.txt", () => {
     expect(body).toContain("https://www.skills.sh/");
     expect(body).toContain("npx skills add SYMBaiEX/usagemax --skill usage-observability");
     expect(body).toContain("npx skills add SYMBaiEX/usagemax --skill collector-diagnostics");
-    expect(body).toContain("npm exec --yes usagemax@latest -- --help");
+    expect(body).toContain("npm exec --yes usagemax -- --help");
     expect(body).toContain("npm install --global usagemax");
     expect(body).toContain("The public directory");
     expect(body).toContain("https://www.skills.sh/symbaiex/usagemax/usage-observability");
@@ -32,6 +32,6 @@ describe("/llms.txt", () => {
     expect(body).toContain("WorkOS Connect");
     expect(body).toContain("Personal and small-team plans are free");
     expect(body).toContain("no card is required");
-    expect(body).toContain("bunx usagemax@latest link");
+    expect(body).toContain("bunx usagemax link");
   });
 });

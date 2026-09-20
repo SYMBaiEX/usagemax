@@ -30,15 +30,23 @@ packages until they are separately reviewed and published.
 
 ```bash
 # Create a one-use code at https://usagemax.com/account.
-bunx usagemax@latest link UMX-XXXX-XXXX-XXXX-XXXX
+bunx usagemax link UMX-XXXX-XXXX-XXXX-XXXX
 
 # npm users can run the same one-shot command with npx.
-npx --yes usagemax@latest link UMX-XXXX-XXXX-XXXX-XXXX
+npx --yes usagemax link UMX-XXXX-XXXX-XXXX-XXXX
 
 # Preview, then upload changed local usage.
 bunx usagemax sync --dry-run --explain
 bunx usagemax sync
 ```
+
+The CLI checks npm's `latest` dist-tag at most twice per day and never replaces
+itself silently. Run `usagemax update sync` to hand a command to the current
+release without typing `@latest`, or set `USAGEMAX_AUTO_UPDATE=1` for an
+explicit automatic handoff. Use `--no-update-check` or set
+`USAGEMAX_DISABLE_UPDATE_CHECK=1` in offline environments. Interactive
+terminals show a small stderr progress line; JSON,
+quiet, CI, and scheduled runs remain machine-readable and quiet.
 
 Agent-friendly checks can request JSON and keep the secret out of arguments and
 logs. This example only inspects local source coverage:
@@ -119,14 +127,15 @@ stdin; never pass it as an argument or put it in a URL:
 ```bash
 set +x
 printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
-  | bunx usagemax@latest token status \
+  | bunx usagemax token status \
       --device-id "$USAGEMAX_INSTALLATION_ID" \
       --json
 ```
 
-The `token status` command is included in CLI `0.3.6`. If the public npm tag
-does not yet contain `0.3.6`, run `node packages/cli/src/cli.js token status`
-from the UsageMax repository until that release is published.
+The `token status` command is included in CLI `0.3.7`. If a fresh environment
+still has an older npm tag, run `usagemax update token status` or
+`node packages/cli/src/cli.js token status` from this repository until the new
+package is published.
 
 The response is read-only and contains only status, type, scopes, profile/name,
 activation state, and a binding result of `unbound`, `bound`, `matched`, or
@@ -137,7 +146,7 @@ For a numeric-only result suitable for a smoke check:
 ```bash
 set +x
 printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
-  | bunx usagemax@latest token status \
+  | bunx usagemax token status \
       --device-id "$USAGEMAX_INSTALLATION_ID" --json \
   | jq -r '[.httpStatus, (if .ingestAuthorized then 1 else 0 end)] | @tsv'
 ```

@@ -69,10 +69,10 @@ valid for ten minutes and can be used once.
 Run the command on the computer or WSL distribution that owns the history:
 
 ```bash
-bunx usagemax@latest link UMX-XXXX-XXXX-XXXX-XXXX
+bunx usagemax link UMX-XXXX-XXXX-XXXX-XXXX
 
 # Optional explicit name; the account keeps this name for the installation.
-bunx usagemax@latest link UMX-XXXX-XXXX-XXXX-XXXX --name "Work laptop"
+bunx usagemax link UMX-XXXX-XXXX-XXXX-XXXX --name "Work laptop"
 ```
 
 The first link performs a full one-shot sync. Every installation receives a
@@ -87,6 +87,16 @@ bunx usagemax sync                      # upload changed usage
 bunx usagemax sync --full               # reconcile all retained history
 bunx usagemax status --remote            # check the saved credential safely
 ```
+
+### CLI updates and progress
+
+The CLI checks npm's `latest` dist-tag at most twice per day and never replaces
+itself silently. Run `usagemax update sync` to hand a command to the current
+release without typing `@latest`, or set `USAGEMAX_AUTO_UPDATE=1` for an
+explicit automatic handoff. Use `--no-update-check` or set
+`USAGEMAX_DISABLE_UPDATE_CHECK=1` in offline environments. Interactive
+terminals show a small stderr progress line; JSON,
+quiet, CI, and scheduled runs remain machine-readable and quiet.
 
 ## Coverage and correctness
 
@@ -159,16 +169,16 @@ or log:
 ```bash
 set +x
 printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
-  | bunx usagemax@latest token status \
+  | bunx usagemax token status \
       --device-id "$USAGEMAX_INSTALLATION_ID" \
       --json \
   | jq -r '[.httpStatus, (if .ingestAuthorized then 1 else 0 end)] | @tsv'
 ```
 
-`token status` is included in CLI `0.3.6`. Check the npm `latest` tag before
-using it in a fresh environment; if it still points to an older release, run
-the same command with `node packages/cli/src/cli.js` from this repository until
-the new package is published.
+`token status` is included in CLI `0.3.7`. If a fresh environment still has an
+older npm tag, run `usagemax update token status` or use
+`node packages/cli/src/cli.js token status` from this repository until the new
+package is published.
 
 The numeric projection is deliberately small:
 

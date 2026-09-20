@@ -28,7 +28,7 @@ bills, or a complete history from a partial projection.
 Use the published package for a local, one-shot sync:
 
 ```bash
-bunx usagemax@latest link UMX-XXXX-XXXX-XXXX-XXXX
+bunx usagemax link UMX-XXXX-XXXX-XXXX-XXXX
 ```
 
 The collector sends aggregate counters, model/provider names, costs, dates,

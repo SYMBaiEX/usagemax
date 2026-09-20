@@ -7,7 +7,7 @@ const index = {
       description: "Read public UsageMax AI-usage projections and explain the content-free collector contract.",
       type: "skill-md",
       url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/skills/usage-observability/SKILL.md",
-      digest: "sha256:b7233a262032740d3819ab617388d3340acadfb4b2adf124c91c987b76faf6ad",
+      digest: "sha256:f9f2a5255afe3f93e484c8f3f1669d1a5c54901f22120433799a400530145da1",
     },
     {
       name: "enterprise-reporting",
@@ -21,7 +21,7 @@ const index = {
       description: "Diagnose UsageMax collector credentials and device bindings with safe, read-only status checks.",
       type: "skill-md",
       url: "https://raw.githubusercontent.com/SYMBaiEX/usagemax/main/skills/collector-diagnostics/SKILL.md",
-      digest: "sha256:a4c2b1807aac56efb9885fd8f9ee2e8533f41e4042c6e580e0257bdec33f068d",
+      digest: "sha256:a4665cbe5fe583d7b903b1f7450edf6cd8524798e37fed7730aa3f51db05b26d",
     },
   ],
 };

@@ -18,7 +18,7 @@ stable installation UUID separately:
 ```bash
 set +x
 printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
-  | bunx usagemax@latest token status \
+  | bunx usagemax token status \
       --device-id "$USAGEMAX_INSTALLATION_ID" --json
 ```
 
@@ -34,7 +34,7 @@ For automation, keep only the HTTP status and authorization bit:
 ```bash
 set +x
 printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
-  | bunx usagemax@latest token status \
+  | bunx usagemax token status \
       --device-id "$USAGEMAX_INSTALLATION_ID" --json \
   | jq -r '[.httpStatus, (if .ingestAuthorized then 1 else 0 end)] | @tsv'
 ```

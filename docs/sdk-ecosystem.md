@@ -32,8 +32,8 @@ collector modules.
 Install or run it without creating a resident process:
 
 ```bash
-bunx usagemax@latest --help
-npx --yes usagemax@latest -- --help
+bunx usagemax --help
+npx --yes usagemax -- --help
 ```
 
 For an offline or pinned deployment, use the version selected by your release

@@ -1,7 +1,7 @@
 // A pending run is saved before network I/O. Persisting the acknowledged cursor
 // after each request permits replays when the response or local write is lost.
 // The server must receipt begin, chunks, sessions and complete idempotently.
-export async function resumeUpload(config, { save, request, warn = () => {} }) {
+export async function resumeUpload(config, { save, request, warn = () => {}, onProgress = () => {} }) {
   const pending = config.pendingSync;
   if (!pending || pending.version !== 1 || !Array.isArray(pending.requests)) {
     throw new Error("Invalid saved sync; preserve the config for recovery.");
@@ -9,10 +9,12 @@ export async function resumeUpload(config, { save, request, warn = () => {} }) {
   try {
     for (let index = pending.cursor; index < pending.requests.length; index += 1) {
       const { operation, payload } = pending.requests[index];
+      onProgress({ index: index + 1, total: pending.requests.length, operation });
       const response = await request(config, operation, payload, operation === "partitions" ? 60_000 : 30_000);
       warn(response);
       pending.cursor = index + 1;
       await save(config);
+      onProgress({ index: index + 1, total: pending.requests.length, operation, acknowledged: true });
     }
     // Commit local baseline and remove the journal in the same atomic write.
     const next = { ...config, ...pending.checkpoint };

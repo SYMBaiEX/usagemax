@@ -44,15 +44,15 @@ Agent Registration must be enabled in WorkOS under Authentication → Agents, wi
 
 Open [UsageMax sign-in](https://usagemax.com/sign-in), complete the WorkOS browser sign-in, then open [Account](https://usagemax.com/account) and use the computer/collector connection control to create a one-use link code for the computer or CI installation. The code is short-lived and is consumed once. Do not put the code or a collector token in a URL, source repository, prompt, completion, or log.
 
-Run \`bunx usagemax@latest link <one-use-code>\` on the installation. The CLI sends the code to [POST /api/v1/devices/link](https://usagemax.com/api/v1/devices/link) over HTTPS and stores the returned write-only token in a private local configuration file. The token is returned once and is bound to that installation. Use \`bunx usagemax@latest status\` to inspect local link state without printing the secret.
+Run \`bunx usagemax link <one-use-code>\` on the installation. The CLI sends the code to [POST /api/v1/devices/link](https://usagemax.com/api/v1/devices/link) over HTTPS and stores the returned write-only token in a private local configuration file. The token is returned once and is bound to that installation. Use \`usagemax status\` to inspect local link state without printing the secret.
 
 ## Diagnose a collector
 
-New collector keys are active as soon as the authenticated account action creates them; there is no separate activation or propagation step. To check the stored credential, installation binding, scopes, profile, account-side computer name, and last accepted write without printing the token, run \`bunx usagemax@latest status --remote\`. For a key created in **Advanced · custom telemetry collector**, pipe the secret through stdin instead of putting it in shell history or process arguments:
+New collector keys are active as soon as the authenticated account action creates them; there is no separate activation or propagation step. To check the stored credential, installation binding, scopes, profile, account-side computer name, and last accepted write without printing the token, run \`usagemax status --remote\`. For a key created in **Advanced · custom telemetry collector**, pipe the secret through stdin instead of putting it in shell history or process arguments:
 
-    printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" | bunx usagemax@latest token status --device-id "$USAGEMAX_INSTALLATION_ID"
+    printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" | usagemax token status --device-id "$USAGEMAX_INSTALLATION_ID"
 
-The diagnostic endpoint is read-only. It reports \`active\`, \`revoked\`, \`workspace_disabled\`, \`membership_inactive\`, \`device_mismatch\`, or \`scope_missing\` when the bearer token is recognized, and explicitly reports whether \`telemetry:write\` is authorized. An unrecognized token returns a generic 401 and never reveals whether another key exists. A collector created by the advanced flow starts unbound and adopts the first valid installation UUID on its first write; a linked CLI key is already bound. The \`token status\` subcommand is included in CLI \`0.3.6\`.
+The diagnostic endpoint is read-only. It reports \`active\`, \`revoked\`, \`workspace_disabled\`, \`membership_inactive\`, \`device_mismatch\`, or \`scope_missing\` when the bearer token is recognized, and explicitly reports whether \`telemetry:write\` is authorized. An unrecognized token returns a generic 401 and never reveals whether another key exists. A collector created by the advanced flow starts unbound and adopts the first valid installation UUID on its first write; a linked CLI key is already bound. The \`token status\` subcommand is included in CLI \`0.3.7\`. The CLI performs a cached npm release check and supports \`usagemax update sync\` or the explicit \`USAGEMAX_AUTO_UPDATE=1\` handoff.
 
 ## Use a delegated access token
 

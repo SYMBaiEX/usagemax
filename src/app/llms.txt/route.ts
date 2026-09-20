@@ -77,8 +77,8 @@ currently indexes [usage-observability](https://www.skills.sh/symbaiex/usagemax/
 Its automated security audit is external and can change independently; inspect
 the source before installing.
 
-Install the collector with \`bunx usagemax@latest --help\`,
-\`npm exec --yes usagemax@latest -- --help\`, or
+Install the collector with \`bunx usagemax --help\`,
+\`npm exec --yes usagemax -- --help\`, or
 \`npm install --global usagemax\` followed by \`usagemax --help\`. The
 collector is a short-lived local process; its package release and the website
 release are versioned independently.
@@ -102,8 +102,8 @@ preview fallback. See the [WebMCP guide](https://usagemax.com/webmcp).
 2. [Sign in](https://usagemax.com/sign-in), then open Account to create a one-use
    computer link. The sign-in URL is public and does not redirect an agent into
    an authenticated-only page.
-3. Run \`bunx usagemax@latest link UMX-XXXX-XXXX-XXXX-XXXX\`, then run
-   \`bunx usagemax@latest sync\` for a bounded one-shot upload.
+3. Run \`bunx usagemax link UMX-XXXX-XXXX-XXXX-XXXX\`, then run
+   \`usagemax sync\` for a bounded one-shot upload.
 
 Personal and small-team plans are free, and no card is required. Public profile
 publication is optional; prompts, completions, source code, credentials, and
