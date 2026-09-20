@@ -10,8 +10,8 @@
 
 import type * as account from "../account.js";
 import type * as activity from "../activity.js";
-import type * as budgets from "../budgets.js";
 import type * as billing from "../billing.js";
+import type * as budgets from "../budgets.js";
 import type * as collectorAccess from "../collectorAccess.js";
 import type * as connections from "../connections.js";
 import type * as coverageAlerts from "../coverageAlerts.js";
@@ -49,8 +49,8 @@ import type {
 declare const fullApi: ApiFromModules<{
   account: typeof account;
   activity: typeof activity;
-  budgets: typeof budgets;
   billing: typeof billing;
+  budgets: typeof budgets;
   collectorAccess: typeof collectorAccess;
   connections: typeof connections;
   coverageAlerts: typeof coverageAlerts;
