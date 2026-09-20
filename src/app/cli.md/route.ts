@@ -26,6 +26,12 @@ offline environments. Interactive
 terminals show a small stderr progress line; JSON, quiet, CI, and scheduled runs
 remain machine-readable and quiet.
 
+For automation, add <code>--json</code> to <code>status</code>, <code>link</code>,
+<code>unlink</code>, <code>update</code>, or <code>--version</code>. JSON sync
+summaries include the CLI and ccusage versions, elapsed milliseconds, coverage,
+source list, checkpoint counts, and an explicit <code>skipReason</code> when an
+unchanged inventory avoids parsing and upload.
+
 ## Link a computer
 
 1. Sign in at [UsageMax](https://usagemax.com/sign-in).

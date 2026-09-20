@@ -53,7 +53,7 @@ logs. This example only inspects local source coverage:
 
 ```bash
 set +x
-bunx usagemax doctor --deep --json | jq '{complete, sources: [.sources[] | {name, status}]}'
+bunx usagemax doctor --deep --json | jq '{complete: .inventoryComplete, sources: .detectedSources}'
 ```
 
 The JSON shape is intended for local automation; unsupported or unavailable
@@ -92,6 +92,9 @@ bunx usagemax sync --restart              # restart an expired saved upload
 bunx usagemax status --remote --json      # remote check; secret is never printed
 bunx usagemax doctor --deep --json        # parse and audit retained history
 bunx usagemax link UMX-… --no-sync        # link without uploading yet
+bunx usagemax --version --json             # print CLI and ccusage versions
+bunx usagemax update --json                # machine-readable release check
+bunx usagemax unlink --json                # safe automation result; no secret output
 ```
 
 ## Sources and coverage

@@ -116,6 +116,8 @@ bunx usagemax doctor                 # metadata-only coverage check
 bunx usagemax doctor --deep --json   # retained-history audit
 bunx usagemax sync --archives        # one-time compressed-history recovery
 bunx usagemax report                 # local ccusage report
+bunx usagemax status --json          # version, coverage, checkpoints, and link state
+bunx usagemax update --json          # machine-readable npm release check
 ```
 
 Full scans can catalog retained history from 2024 onward. Incomplete source

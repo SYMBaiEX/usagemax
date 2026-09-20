@@ -121,6 +121,7 @@ function help() {
   process.stdout.write("  usagemax sync [--full] [--archives] [--restart] [--dry-run] [--explain] [--json]\n");
   process.stdout.write("                                  Reconcile once; --archives performs one-time recovery\n");
   process.stdout.write("           [--quiet|--no-progress] [--check-updates|--no-update-check]  Control progress and the cached release check\n");
+  process.stdout.write("           [--json]                  Emit one JSON object per link/sync phase\n");
   process.stdout.write("  usagemax status                  Show local link status\n");
   process.stdout.write("           --remote [--json]        Verify the stored collector credential without printing it\n");
   process.stdout.write("           [--quiet|--no-progress]  Disable interactive progress output\n");
@@ -132,8 +133,10 @@ function help() {
   process.stdout.write("  usagemax doctor [--deep] [--json] [--quiet|--no-progress]\n");
   process.stdout.write("                                  Check source coverage; --deep parses full history\n");
   process.stdout.write("  usagemax update [command args]  Check npm and optionally run the latest CLI\n");
+  process.stdout.write("           [--json]                  Emit machine-readable update status\n");
   process.stdout.write("  usagemax report [...args]        Run a local ccusage report\n");
   process.stdout.write("  usagemax unlink [--revoke]       Remove locally; --revoke also disables uploads\n");
+  process.stdout.write("           [--json]                  Emit machine-readable unlink status\n");
 }
 
 function ccusageCliPath() {
@@ -182,6 +185,7 @@ function warnVersion(body) {
 async function link(args) {
   const code = normalizeLinkCode(args[0]);
   if (!code) throw new Error("Paste the one-use UMX link code shown at usagemax.com/account.");
+  const json = args.includes("--json");
   const configuredEndpoint = process.env.USAGEMAX_LINK_ENDPOINT || DEFAULT_LINK_ENDPOINT;
   const endpoint = validHttpsUrl(configuredEndpoint, { allowLocalhost: true });
   if (!endpoint) throw new Error("USAGEMAX_LINK_ENDPOINT must use HTTPS, except for localhost development.");
@@ -223,13 +227,17 @@ async function link(args) {
   };
   await writeConfig(config);
   warnVersion(body);
-  process.stdout.write(`Linked ${savedName} to ${config.profileHandle ? `@${config.profileHandle}` : "UsageMax"}.\n`);
+  if (json) {
+    process.stdout.write(`${JSON.stringify({ linked: true, version: VERSION, deviceName: savedName, profileHandle: config.profileHandle || null, profileUrl: config.profileUrl, deviceIdConfigured: true, sync: args.includes("--no-sync") ? "skipped" : "started" })}\n`);
+  } else {
+    process.stdout.write(`Linked ${savedName} to ${config.profileHandle ? `@${config.profileHandle}` : "UsageMax"}.\n`);
+  }
   if (args.includes("--no-sync")) {
-    process.stdout.write("No usage was uploaded. Run `bunx usagemax sync --full` when you are ready.\n");
+    if (!json) process.stdout.write("No usage was uploaded. Run `bunx usagemax sync --full` when you are ready.\n");
     return;
   }
-  process.stdout.write("Running the first one-shot sync…\n");
-  await sync(["--full"], config);
+  if (!json) process.stdout.write("Running the first one-shot sync…\n");
+  await sync(["--full", ...(json ? ["--json"] : [])], config);
 }
 
 async function sync(args, suppliedConfig) {
@@ -254,6 +262,7 @@ async function sync(args, suppliedConfig) {
 }
 
 async function syncPrepared(args, suppliedConfig, recovery, progress = createProgress({ noProgress: true })) {
+  const startedAt = Date.now();
   const config = suppliedConfig || await readConfig();
   if (!config) throw new Error("This computer is not linked. Open https://usagemax.com/account and create a link code.");
   config.deviceId = await stableInstallationId(configDirectory(), config.deviceId);
@@ -269,7 +278,7 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
   if (config.pendingSync) {
     progress.update("Resuming the saved upload checkpoint…");
     if (dryRun) {
-      const result = { ...config.pendingSync.result, dryRun: true, pendingRunId: config.pendingSync.runId };
+      const result = { ...config.pendingSync.result, dryRun: true, pendingRunId: config.pendingSync.runId, cliVersion: VERSION, ccusageVersion: CCUSAGE_VERSION, durationMs: Date.now() - startedAt };
       process.stdout.write(json ? `${JSON.stringify(result)}\n` : `Dry run: saved run ${config.pendingSync.runId} awaits resume; no upload.\n`);
       progress.succeed("Dry run complete; saved upload remains untouched.");
       return result;
@@ -280,9 +289,10 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
       warn: warnVersion,
       onProgress: ({ index, total, operation, acknowledged }) => progress.update(`${acknowledged ? "Uploaded" : "Uploading"} ${index}/${total} · ${operation}`),
     });
+    const summary = { ...result, cliVersion: VERSION, ccusageVersion: CCUSAGE_VERSION, durationMs: Date.now() - startedAt };
     progress.succeed("Resumed and completed the saved sync.");
-    process.stdout.write(json ? `${JSON.stringify(result)}\n` : "Resumed and completed the saved sync. Run sync again to scan newer local changes.\n");
-    return result;
+    process.stdout.write(json ? `${JSON.stringify(summary)}\n` : "Resumed and completed the saved sync. Run sync again to scan newer local changes.\n");
+    return summary;
   }
   const inventory = await sourceInventory({ env: recovery.env, home: ccusageHome(recovery.env) });
   progress.update(`Found ${inventory.sources.length} source${inventory.sources.length === 1 ? "" : "s"} and ${inventory.files}${inventory.truncated ? "+" : ""} local data file${inventory.files === 1 ? "" : "s"}.`);
@@ -292,9 +302,12 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
     today, now: Date.now(), inventoryVersion: SOURCE_INVENTORY_VERSION, requestedFull, requestedArchives,
   });
   if (skip) {
-    const result = { accepted: 0, changedRows: 0, sessions: 0, sources: inventory.sources, corrections: 0, scanned: false, full: false, coverage: config.lastCoverage || "partial" };
+    const result = { accepted: 0, changedRows: 0, sessions: 0, sources: inventory.sources, corrections: 0, scanned: false, full: false, coverage: config.lastCoverage || "partial", skipReason: "inventory_unchanged", cliVersion: VERSION, ccusageVersion: CCUSAGE_VERSION, durationMs: Date.now() - startedAt };
     if (json) process.stdout.write(`${JSON.stringify(result)}\n`);
-    else process.stdout.write("Already up to date. Local usage files have not changed; no logs were parsed or uploaded.\n");
+    else {
+      process.stdout.write("Already up to date. Local usage files have not changed; no logs were parsed or uploaded.\n");
+      if (explain) process.stdout.write(`Skipped because the source inventory fingerprint is unchanged; coverage remains ${result.coverage}.\n`);
+    }
     progress.succeed("No local changes; upload skipped.");
     return;
   }
@@ -334,6 +347,8 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
     coverage: authoritative ? "complete" : "partial",
     coverageReason: "Parser does not certify complete source/day coverage; decreases and deletions are protected.",
     range: { from: days[0], to: days.at(-1) },
+    cliVersion: VERSION,
+    ccusageVersion: CCUSAGE_VERSION,
   };
   progress.update(`Prepared ${partitions.length} usage chunk${partitions.length === 1 ? "" : "s"} and ${sessions.length} session identifier${sessions.length === 1 ? "" : "s"}.`);
   if (requestedArchives) {
@@ -341,6 +356,7 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
     result.unsupportedArchives = recovery.unsupported;
   }
   if (dryRun) {
+    result.durationMs = Date.now() - startedAt;
     if (json) process.stdout.write(`${JSON.stringify({ ...result, dryRun: true })}\n`);
     else {
       process.stdout.write(`Dry run: ${partitions.length} partition(s), ${result.changedRows} changed row(s), ${sessions.length} private session identifiers, no upload.\n`);
@@ -389,6 +405,7 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
     warn: warnVersion,
     onProgress: ({ index, total, operation, acknowledged }) => progress.update(`${acknowledged ? "Uploaded" : "Uploading"} ${index}/${total} · ${operation}`),
   });
+  result.durationMs = Date.now() - startedAt;
   progress.succeed(`Sync complete · ${partitions.length} chunk${partitions.length === 1 ? "" : "s"}, ${sessions.length} session identifier${sessions.length === 1 ? "" : "s"}.`);
   if (json) process.stdout.write(`${JSON.stringify(result)}\n`);
   else {
@@ -431,7 +448,7 @@ async function status(args = []) {
   const progress = createProgress({ json, quiet: args.includes("--quiet"), noProgress: args.includes("--no-progress") });
   if (!config) {
     if (json) {
-      process.stdout.write(`${JSON.stringify({ linked: false, remote: remote ? { status: "not_linked" } : undefined })}\n`);
+      process.stdout.write(`${JSON.stringify({ linked: false, version: VERSION, ccusageVersion: CCUSAGE_VERSION, configPath: configPath(), remote: remote ? { status: "not_linked" } : undefined })}\n`);
       return;
     }
     process.stdout.write("Not linked. Open https://usagemax.com/account to connect this computer.\n");
@@ -444,12 +461,18 @@ async function status(args = []) {
   }
   const local = {
     linked: true,
+    version: VERSION,
+    ccusageVersion: CCUSAGE_VERSION,
+    configPath: configPath(),
     deviceName: config.deviceName || deviceLabel(),
     profileHandle: config.profileHandle || null,
     deviceIdConfigured: Boolean(config.deviceId),
     lastSyncAt: config.lastSyncAt || null,
     lastFullSyncAt: config.lastFullSyncAt || null,
     pendingSync: config.pendingSync?.runId || null,
+    coverage: config.lastCoverage || null,
+    knownSources: Array.isArray(config.knownSources) ? config.knownSources : [],
+    snapshotRows: Object.keys(config.snapshots || {}).length,
     profileUrl: config.profileUrl || "https://usagemax.com/account",
   };
   let remoteView;
@@ -473,8 +496,11 @@ async function status(args = []) {
     return;
   }
   process.stdout.write(`Linked: ${config.deviceName || deviceLabel()}${config.profileHandle ? ` → @${config.profileHandle}` : ""}\n`);
+  process.stdout.write(`CLI: ${VERSION} · ccusage ${CCUSAGE_VERSION}\n`);
   process.stdout.write(`Last sync: ${config.lastSyncAt || "never"}\n`);
   process.stdout.write(`Last full reconciliation: ${config.lastFullSyncAt || "never"}\n`);
+  process.stdout.write(`Coverage: ${config.lastCoverage || "unknown"} · ${Object.keys(config.snapshots || {}).length} checkpoint rows\n`);
+  if (Array.isArray(config.knownSources) && config.knownSources.length) process.stdout.write(`Known sources: ${config.knownSources.join(", ")}\n`);
   if (config.pendingSync) process.stdout.write(`Pending sync: ${config.pendingSync.runId}; rerun sync to resume\n`);
   process.stdout.write(`Profile: ${config.profileUrl || "https://usagemax.com/account"}\n`);
   if (remote) printRemoteStatus(remoteView);
@@ -538,6 +564,9 @@ async function doctor(args = []) {
     const archives = await discoverProviderArchives({ env, home: ccusageHome(env) });
     const homes = String(env.USAGEMAX_DISCOVERED_HOMES || ccusageHome(env)).split(",").filter(Boolean);
     const result = {
+      cliVersion: VERSION,
+      ccusageVersion: CCUSAGE_VERSION,
+      configPath: configPath(),
       linked: Boolean(config),
       homes,
       detectedSources: inventory.sources,
@@ -592,22 +621,26 @@ async function report(args) {
 }
 
 async function update(args = []) {
+  const json = args.includes("--json");
   const check = await checkForUpdate(configDirectory(), VERSION, { force: true });
   if (!check.latest) {
-    process.stdout.write(`UsageMax CLI ${VERSION} · update check unavailable.\n`);
+    const result = { version: VERSION, latest: null, newer: false, status: "unavailable" };
+    process.stdout.write(json ? `${JSON.stringify(result)}\n` : `UsageMax CLI ${VERSION} · update check unavailable.\n`);
     return;
   }
   if (!check.newer) {
-    process.stdout.write(`UsageMax CLI ${VERSION} is current.\n`);
+    const result = { version: VERSION, latest: check.latest, newer: false, status: "current" };
+    process.stdout.write(json ? `${JSON.stringify(result)}\n` : `UsageMax CLI ${VERSION} is current.\n`);
     return;
   }
-  process.stdout.write(`UsageMax CLI ${check.latest} is available (current ${VERSION}).\n`);
+  const result = { version: VERSION, latest: check.latest, newer: true, status: "available", command: "usagemax update sync" };
+  process.stdout.write(json ? `${JSON.stringify(result)}\n` : `UsageMax CLI ${check.latest} is available (current ${VERSION}).\n`);
   const commandArgs = args.filter((arg) => arg !== "--check");
   if (!commandArgs.length || args.includes("--check")) {
-    process.stdout.write("Run `usagemax update sync` to hand off the next command to the latest npm release.\n");
+    if (!json) process.stdout.write("Run `usagemax update sync` to hand off the next command to the latest npm release.\n");
     return;
   }
-  process.stdout.write(`Launching UsageMax ${check.latest}…\n`);
+  if (!json) process.stdout.write(`Launching UsageMax ${check.latest}…\n`);
   return runLatest(commandArgs);
 }
 
@@ -629,11 +662,13 @@ async function maybeUpdate(command, args) {
 async function removeLink(args = []) {
   const path = configPath();
   const config = await readConfig();
+  const json = args.includes("--json");
   if (!config) {
-    process.stdout.write("This computer is not linked.\n");
+    process.stdout.write(json ? `${JSON.stringify({ unlinked: false, reason: "not_linked" })}\n` : "This computer is not linked.\n");
     return;
   }
-  if (args.includes("--revoke")) {
+  const revoked = args.includes("--revoke");
+  if (revoked) {
     const endpoint = validHttpsUrl(config.revokeUrl, { allowLocalhost: true });
     if (!endpoint) throw new Error("This collector does not have a valid revoke endpoint. Revoke it at https://usagemax.com/account.");
     const response = await fetch(endpoint, {
@@ -647,16 +682,20 @@ async function removeLink(args = []) {
     if (!response.ok) throw new Error("UsageMax could not revoke this collector. It remains linked locally.");
   }
   await unlink(path);
-  process.stdout.write(args.includes("--revoke")
-    ? "Revoked this collector and removed its local key. Existing usage totals were retained.\n"
-    : "Removed the local UsageMax collector key. This computer's private installation identity was retained so relinking cannot duplicate its usage. Revoke the collector in your account if this computer is no longer trusted.\n");
+  if (json) {
+    process.stdout.write(`${JSON.stringify({ unlinked: true, revoked, retainedInstallationIdentity: true })}\n`);
+  } else {
+    process.stdout.write(revoked
+      ? "Revoked this collector and removed its local key. Existing usage totals were retained.\n"
+      : "Removed the local UsageMax collector key. This computer's private installation identity was retained so relinking cannot duplicate its usage. Revoke the collector in your account if this computer is no longer trusted.\n");
+  }
 }
 
 async function main() {
   const args = process.argv.slice(2);
   const command = args[0] || "sync";
   if (["--help", "-h", "help"].includes(command)) return help();
-  if (["--version", "-v"].includes(command)) return process.stdout.write(`${VERSION}\n`);
+  if (["--version", "-v"].includes(command)) return process.stdout.write(args.includes("--json") ? `${JSON.stringify({ version: VERSION, ccusageVersion: CCUSAGE_VERSION })}\n` : `${VERSION}\n`);
   if (command === "update") return update(args.slice(1));
   if (await maybeUpdate(command, args)) return;
   if (command === "service") {
