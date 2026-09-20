@@ -51,8 +51,9 @@ describe("site design and behavior boundaries", () => {
     state.user = { firstName: "Ada", lastName: "Lovelace", email: "ada@example.test" };
     const html = renderToStaticMarkup(<SiteHeader />);
     expect(html).toContain('href="/workspace"');
-    expect(html).toContain("Workspace");
-    expect(html).toContain(">AL</span>");
+    expect(html).not.toContain("<small>Workspace</small>");
+    expect(html).toContain("avatar-small");
+    expect(html).not.toContain(">AL</span>");
     expect(html).not.toContain('href="/sign-in"');
   });
 

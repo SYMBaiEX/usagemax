@@ -143,15 +143,17 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
       <NetworkRecord network={network} connected={connected} />
 
       <div className={`${styles.wrap} ${styles.sources}`}>
-        <span>Integrations</span>
-        <ul aria-label="Supported local coding agents">{sources.map((source) => <li key={source}>{source}</li>)}</ul>
-        <Link href="/docs">16 local sources <ArrowUpRight size={12} /></Link>
-        <Link href="/integrations">Integration guide <ArrowUpRight size={12} /></Link>
-        <Link href="/cli.md">CLI <ArrowUpRight size={12} /></Link>
-        <Link href="/openapi.json">OpenAPI <ArrowUpRight size={12} /></Link>
-        <Link href="/auth.md">Auth <ArrowUpRight size={12} /></Link>
-        <Link href="/pricing.md">Pricing <ArrowUpRight size={12} /></Link>
-        <Link href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest" rel="external">MCP Registry <ArrowUpRight size={12} /></Link>
+        <span className={styles.sourcesLabel}>Integrations</span>
+        <ul className={styles.sourceList} aria-label="Supported local coding agents">{sources.map((source) => <li key={source}>{source}</li>)}</ul>
+        <nav className={styles.sourceLinks} aria-label="Integration resources">
+          <Link href="/docs">16 local sources <ArrowUpRight size={12} /></Link>
+          <Link href="/integrations">Integration guide <ArrowUpRight size={12} /></Link>
+          <Link href="/cli.md">CLI <ArrowUpRight size={12} /></Link>
+          <Link href="/openapi.json">OpenAPI <ArrowUpRight size={12} /></Link>
+          <Link href="/auth.md">Auth <ArrowUpRight size={12} /></Link>
+          <Link href="/pricing.md">Pricing <ArrowUpRight size={12} /></Link>
+          <Link href="https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest" rel="external">MCP Registry <ArrowUpRight size={12} /></Link>
+        </nav>
       </div>
 
       <MotionSurface><PublicLedger rows={rows} period={period} metric={metric} setPeriod={setPeriod} setMetric={setMetric} connected={connected} /></MotionSurface>

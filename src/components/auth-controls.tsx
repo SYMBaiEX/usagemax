@@ -2,9 +2,14 @@
 
 import Link from "next/link";
 import { useAuth } from "@workos-inc/authkit-nextjs/components";
+import { useQuery } from "convex/react";
 
+import { api } from "../../convex/_generated/api";
 import { ArrowUpRight } from "./icons";
 import { AuthNavigation } from "./auth-navigation";
+import { ProfileAvatar } from "./profile-avatar";
+
+type HeaderUser = { id?: string; email?: string | null; firstName?: string | null };
 
 function GitHubMark({ size = 15 }: { size?: number }) {
   return (
@@ -14,17 +19,29 @@ function GitHubMark({ size = 15 }: { size?: number }) {
   );
 }
 
+function ConnectedHeaderAvatar({ user }: { user: HeaderUser }) {
+  const account = useQuery(api.account.current, {});
+  const handle = account?.profile?.handle ?? user.email ?? user.id ?? user.firstName ?? "usagemax";
+  return <ProfileAvatar handle={handle} />;
+}
+
+function HeaderAccountAvatar({ user }: { user: HeaderUser }) {
+  // The public profile handle is the avatar seed used by the leaderboard. Keep
+  // a deterministic identity fallback for the no-Convex shell and onboarding.
+  return process.env.NEXT_PUBLIC_CONVEX_URL
+    ? <ConnectedHeaderAvatar user={user} />
+    : <ProfileAvatar handle={user.email ?? user.id ?? user.firstName ?? "usagemax"} />;
+}
+
 export function HeaderAuthControls() {
   const { user, loading } = useAuth();
   if (loading) return <span aria-hidden="true" className="header-auth-loading" />;
   if (user) {
     const label = user.firstName || user.email || "Account";
-    const initials = `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`.toUpperCase() || label[0]?.toUpperCase() || "U";
     return (
       <Link className="header-login" href="/workspace">
-        <span className="header-account-avatar" aria-hidden="true">{initials}</span>
+        <span className="header-account-avatar" aria-hidden="true"><HeaderAccountAvatar user={user} /></span>
         <span className="header-login-copy">
-          <small>Workspace</small>
           <strong>{label}</strong>
         </span>
       </Link>
@@ -41,7 +58,7 @@ export function MobileAuthLink() {
   const { user, loading } = useAuth();
   if (loading) return null;
   return user ? (
-    <Link href="/workspace">Workspace <ArrowUpRight size={14} /></Link>
+    <Link href="/workspace">Account <ArrowUpRight size={14} /></Link>
   ) : (
     <AuthNavigation href="/sign-in">Sign in <GitHubMark size={14} /></AuthNavigation>
   );
