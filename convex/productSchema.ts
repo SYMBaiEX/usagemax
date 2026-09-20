@@ -36,6 +36,7 @@ export const productTables = {
     createdAt: v.number(),
   })
     .index("by_eventId", ["eventId"])
+    .index("by_createdAt", ["createdAt"])
     .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"]),
   teams: defineTable({
     workspaceId: v.id("workspaces"),

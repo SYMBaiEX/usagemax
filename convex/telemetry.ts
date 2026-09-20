@@ -619,12 +619,12 @@ export const commitBatch = internalMutation({
 
 export const deleteExpired = internalMutation({
   args: {},
-  handler: async (ctx): Promise<{ events: number; receipts: number; snapshotReceipts: number; snapshotRuns: number; staleRuns: number; rateBuckets: number; liveAgents: number; quarantine: number; deviceLinks: number; workosReceipts: number }> => {
+  handler: async (ctx): Promise<{ events: number; receipts: number; snapshotReceipts: number; snapshotRuns: number; staleRuns: number; rateBuckets: number; liveAgents: number; quarantine: number; deviceLinks: number; workosReceipts: number; billingEvents: number }> => {
     const now = Date.now();
     const batchSize = 250;
     const expiredGroups = await ctx.db.query("snapshotChunkGroups").withIndex("by_updatedAt", q => q.lt("updatedAt", now - 180 * DAY_MS)).take(batchSize);
     for (const group of expiredGroups) await ctx.db.delete(group._id);
-    const [events, receipts, snapshotReceipts, completedRuns, failedRuns, uploadingRuns, scanningRuns, rateBuckets, liveAgents, quarantine, deviceLinks, workosReceipts] = await Promise.all([
+    const [events, receipts, snapshotReceipts, completedRuns, failedRuns, uploadingRuns, scanningRuns, rateBuckets, liveAgents, quarantine, deviceLinks, workosReceipts, billingEvents] = await Promise.all([
       // Workspace-aware retention runs separately; never override a contracted window.
       Promise.resolve([] as Doc<"telemetryEvents">[]),
       ctx.db
@@ -671,6 +671,10 @@ export const deleteExpired = internalMutation({
         .query("workosEventReceipts")
         .withIndex("by_createdAt", (q) => q.lt("createdAt", now - 90 * DAY_MS))
         .take(batchSize),
+      ctx.db
+        .query("billingEvents")
+        .withIndex("by_createdAt", (q) => q.lt("createdAt", now - 90 * DAY_MS))
+        .take(batchSize),
     ]);
     for (const event of events) await ctx.db.delete(event._id);
     for (const receipt of receipts) await ctx.db.delete(receipt._id);
@@ -688,9 +692,10 @@ export const deleteExpired = internalMutation({
     for (const row of quarantine) await ctx.db.delete(row._id);
     for (const link of deviceLinks) await ctx.db.delete(link._id);
     for (const receipt of workosReceipts) await ctx.db.delete(receipt._id);
+    for (const event of billingEvents) await ctx.db.delete(event._id);
     const snapshotRuns = completedRuns.length + failedRuns.length;
     const staleRuns = uploadingRuns.length + scanningRuns.length;
-    if ([expiredGroups, events, receipts, snapshotReceipts, completedRuns, failedRuns, uploadingRuns, scanningRuns, rateBuckets, liveAgents, quarantine, deviceLinks, workosReceipts].some((rows) => rows.length === batchSize)) {
+    if ([expiredGroups, events, receipts, snapshotReceipts, completedRuns, failedRuns, uploadingRuns, scanningRuns, rateBuckets, liveAgents, quarantine, deviceLinks, workosReceipts, billingEvents].some((rows) => rows.length === batchSize)) {
       await ctx.scheduler.runAfter(0, internal.telemetry.deleteExpired, {});
     }
     return {
@@ -702,6 +707,7 @@ export const deleteExpired = internalMutation({
       rateBuckets: rateBuckets.length,
       liveAgents: liveAgents.length,
       workosReceipts: workosReceipts.length,
+      billingEvents: billingEvents.length,
       quarantine: quarantine.length,
       deviceLinks: deviceLinks.length,
     };
