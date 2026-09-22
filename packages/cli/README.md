@@ -80,6 +80,7 @@ usagemax status                  Show local link state
 usagemax doctor                  Check discovered sources
 usagemax report [ccusage args]   Run a local ccusage report
 usagemax token status            Diagnose a key piped on stdin
+usagemax telemetry test          Send one zero-token write-path smoke event
 usagemax service install        Opt into periodic OS checkpoints
 usagemax service status|run|uninstall
 usagemax unlink [--revoke]       Remove local credentials
@@ -95,6 +96,7 @@ bunx usagemax sync --full                 # all retained local history
 bunx usagemax sync --archives             # one-time compressed-history recovery
 bunx usagemax sync --restart              # restart an expired saved upload
 bunx usagemax status --remote --json      # remote check; secret is never printed
+bunx usagemax telemetry test --json       # one observability event; no accounting change
 bunx usagemax doctor --deep --json        # parse and audit retained history
 bunx usagemax link UMX-… --no-sync        # link without uploading yet
 bunx usagemax --version --json             # print CLI and ccusage versions
@@ -135,14 +137,14 @@ stdin; never pass it as an argument or put it in a URL:
 
 ```bash
 set +x
+set -o pipefail
 printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
   | bunx usagemax token status \
-      --device-id "$USAGEMAX_INSTALLATION_ID" \
       --json
 ```
 
-The `token status` command is included in CLI `0.3.9`. If a fresh environment
-still has an older npm tag, run `usagemax update token status` or
+The `token status` and `telemetry test` commands are included in CLI `0.3.10`.
+If a fresh environment still has an older npm tag, run `usagemax update token status` or
 `node packages/cli/src/cli.js token status` from this repository until the new
 package is published.
 
@@ -154,9 +156,10 @@ For a numeric-only result suitable for a smoke check:
 
 ```bash
 set +x
+set -o pipefail
 printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
   | bunx usagemax token status \
-      --device-id "$USAGEMAX_INSTALLATION_ID" --json \
+      --json \
   | jq -r '[.httpStatus, (if .ingestAuthorized then 1 else 0 end)] | @tsv'
 ```
 
@@ -172,10 +175,22 @@ installation does not match. A recognized key missing `telemetry:write` has
 `status: scope_missing`, `scopeStatus: missing_telemetry_write`, and
 `ingestAuthorized: false`.
 
-For a write-path smoke check, the root README includes a `curl` request that
-sends one `agent_state` event with all token counters and `costMicros` set to
-zero. It is observability-only: `agent_state` does not update accounting, and
-the probe may bind an otherwise unbound advanced key.
+For a write-path smoke check, run `usagemax telemetry test`. A linked install
+uses its stored collector key. For an advanced key, pipe it through stdin:
+
+```bash
+set +x
+printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
+  | bunx usagemax telemetry test \
+      --token-stdin \
+      --json
+```
+
+The command sends one `agent_state` event with all token counters and
+`costMicros` set to zero. It never sends prompts or raw logs. The event is
+observability-only and does not update accounting; the first accepted write
+binds an otherwise unbound advanced key to the CLI installation. Rejected
+credentials return a non-zero process exit code for reliable scripts.
 
 ## Privacy and resource use
 

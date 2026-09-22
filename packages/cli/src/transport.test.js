@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { collectorStatusView, requestCollectorStatus, requestSnapshot, retryAfterMs } from "./transport.js";
+import { collectorCanWrite, collectorStatusView, requestCollectorStatus, requestSnapshot, requestTelemetrySmokeTest, retryAfterMs } from "./transport.js";
 
 const config = { token: "secret", deviceId: "fixture" };
 const response = (status, body, retryAfter) => ({ ok: status < 300, status, json: async () => body, headers: { get: () => retryAfter } });
@@ -106,4 +106,56 @@ test("collector status keeps a safe installation mismatch diagnostic", () => {
   assert.equal(view.httpStatus, 409);
   assert.equal(view.deviceBinding, "mismatch");
   assert.equal(view.ingestAuthorized, false);
+});
+
+test("credential checks fail unless UsageMax confirms active write authorization", () => {
+  const active = { httpStatus: 200, status: "active", credentialType: "collector", scopeStatus: "valid", ingestAuthorized: true, deviceBinding: "matched" };
+  assert.equal(collectorCanWrite(active), true);
+  for (const change of [
+    { httpStatus: 401 }, { status: "revoked" }, { credentialType: "other" },
+    { scopeStatus: "missing_telemetry_write" }, { ingestAuthorized: false }, { deviceBinding: "mismatch" },
+  ]) assert.equal(collectorCanWrite({ ...active, ...change }), false);
+});
+
+test("telemetry smoke test sends one strict, zero-accounting observability event", async () => {
+  const token = `umx_${"a".repeat(64)}`;
+  let request;
+  const result = await requestTelemetrySmokeTest("https://usagemax.com/api/v1/telemetry/llm", {
+    token, deviceId,
+  }, {
+    eventId: "fixed-id",
+    now: () => 1_789_000_000_000,
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return new Response(JSON.stringify({ ok: true, accepted: 1, conflicts: 0, duplicates: 0, replay: false }), { status: 202 });
+    },
+  });
+  const payload = JSON.parse(request.options.body);
+  const event = payload.events[0];
+  const allowed = new Set(["eventKey", "eventType", "provider", "model", "source", "agentName", "status", "state", "occurredAt", "inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens", "reasoningTokens", "totalTokens", "costMicros", "costBasis", "completeness", "accountingMode", "schemaVersion"]);
+  assert.equal(request.options.method, "POST");
+  assert.equal(request.options.headers.authorization, `Bearer ${token}`);
+  assert.equal(request.options.headers["x-usagemax-device-id"], deviceId);
+  assert.equal(request.options.headers["idempotency-key"], `usagemax-cli:${deviceId}:fixed-id`);
+  assert.equal(payload.events.length, 1);
+  assert.ok(Object.keys(event).every((field) => allowed.has(field)));
+  assert.equal(event.eventType, "agent_state");
+  assert.equal(event.accountingMode, "observability");
+  assert.equal(event.totalTokens, 0);
+  assert.equal(event.costMicros, 0);
+  assert.deepEqual(result, { ok: true, status: "accepted", httpStatus: 202, accepted: 1, duplicates: 0, replay: false, observabilityOnly: true, accountingUpdated: false });
+  assert.equal(JSON.stringify(result).includes(token), false);
+});
+
+test("telemetry smoke test reports safe rejection and network results", async () => {
+  const config = { token: `umx_${"a".repeat(64)}`, deviceId };
+  const rejected = await requestTelemetrySmokeTest("https://usagemax.com/api/v1/telemetry/llm", config, {
+    fetchImpl: async () => new Response(JSON.stringify({ error: "unauthorized", token: config.token }), { status: 401 }),
+  });
+  assert.equal(rejected.status, "unauthorized");
+  assert.equal(JSON.stringify(rejected).includes(config.token), false);
+  const offline = await requestTelemetrySmokeTest("https://usagemax.com/api/v1/telemetry/llm", config, {
+    fetchImpl: async () => { throw new Error(config.token); },
+  });
+  assert.deepEqual(offline, { ok: false, status: "unavailable", httpStatus: null });
 });

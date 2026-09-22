@@ -107,7 +107,9 @@ export async function updateGlobal({ latest = "latest", manager = packageManager
     ? ["add", "--global", `usagemax@${latest}`]
     : ["install", "--global", `usagemax@${latest}`];
   const child = spawnImpl(command, args, {
-    stdio: quiet ? ["ignore", "pipe", "pipe"] : "inherit",
+    // Do not leave child output pipes undrained: a JSON-mode package update
+    // can otherwise block once Bun/npm fills the operating-system pipe buffer.
+    stdio: quiet ? "ignore" : "inherit",
     env: { ...env, NPM_CONFIG_UPDATE_NOTIFIER: "false" },
   });
   return new Promise((resolve, reject) => {

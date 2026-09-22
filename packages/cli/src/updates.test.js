@@ -85,3 +85,20 @@ test("uses Windows package-manager entrypoints without a shell", async () => {
   await result;
   assert.deepEqual(calls[0], { command: "npm.cmd", args: ["install", "--global", "usagemax@0.3.9"] });
 });
+
+test("quiet JSON updates discard child output instead of leaving pipes undrained", async () => {
+  const child = new EventEmitter();
+  let options;
+  const result = updateGlobal({
+    latest: "0.3.10",
+    manager: "npm",
+    quiet: true,
+    spawnImpl: (_command, _args, spawnOptions) => {
+      options = spawnOptions;
+      queueMicrotask(() => child.emit("exit", 0));
+      return child;
+    },
+  });
+  await result;
+  assert.equal(options.stdio, "ignore");
+});

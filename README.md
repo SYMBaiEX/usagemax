@@ -171,17 +171,34 @@ or log:
 
 ```bash
 set +x
+set -o pipefail
 printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
   | bunx usagemax token status \
-      --device-id "$USAGEMAX_INSTALLATION_ID" \
       --json \
   | jq -r '[.httpStatus, (if .ingestAuthorized then 1 else 0 end)] | @tsv'
 ```
 
-`token status` is included in CLI `0.3.9`. If a fresh environment still has an
-older npm tag, run `usagemax update token status` or use
+`token status` and `telemetry test` are included in CLI `0.3.10`. If a fresh
+environment still has an older npm tag, run `usagemax update token status` or use
 `node packages/cli/src/cli.js token status` from this repository until the new
 package is published.
+
+To prove the authenticated write path, send one content-free `agent_state`
+event with all token and cost values set to zero:
+
+```bash
+set +x
+set -o pipefail
+printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
+  | bunx usagemax telemetry test \
+      --token-stdin \
+      --json
+```
+
+This writes one observability event and does not change token or spend totals.
+An unbound advanced key becomes bound to this CLI installation on its first
+accepted write. The CLI returns a non-zero exit code if the credential
+cannot ingest or the API rejects the event.
 
 The numeric projection is deliberately small:
 
@@ -197,41 +214,6 @@ profile/name, binding state, and last accepted/rejected write. It never returns
 the token, its hash, or the authorized UUID. Advanced keys are active
 immediately; they bind on the first valid write. Linked CLI keys are bound
 during the link exchange.
-
-<details>
-<summary>Optional zero-token telemetry smoke test</summary>
-
-This sends exactly one content-free `agent_state` event. It has zero token and
-zero cost fields, is observability-only, and prints only the HTTP status. Use a
-disposable collector if you want to test the write path; the first valid write
-may bind an unbound advanced key.
-
-```bash
-set +x
-device_id="$USAGEMAX_INSTALLATION_ID"
-batch_id="${USAGEMAX_DIAGNOSTIC_BATCH_ID:-hud-diagnostic-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
-occurred_at="${USAGEMAX_DIAGNOSTIC_OCCURRED_AT:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
-
-curl -sS -o /dev/null -w '%{http_code}\n' \
-  --config <(
-    printf '%s\n' \
-      'url = "https://usagemax.com/api/v1/telemetry/llm"' \
-      'request = "POST"' \
-      "header = \"Authorization: Bearer $USAGEMAX_COLLECTOR_TOKEN\"" \
-      "header = \"X-UsageMax-Device-ID: $device_id\"" \
-      "header = \"Idempotency-Key: $batch_id\"" \
-      'header = "Content-Type: application/json"'
-  ) \
-  --data-binary @- <<JSON
-{"events":[{"eventKey":"$batch_id","eventType":"agent_state","accountingMode":"observability","source":"local-hud-relay","provider":"usagemax","model":"relay-activity","inputTokens":0,"outputTokens":0,"cacheReadTokens":0,"cacheWriteTokens":0,"reasoningTokens":0,"totalTokens":0,"costMicros":0,"status":"ok","state":"diagnostic","occurredAt":"$occurred_at","schemaVersion":1,"completeness":"unknown"}]}
-JSON
-```
-
-Expected result: `202` for a new batch and `200` for an exact idempotent
-replay. Only `model_request` events update accounting; this event cannot change
-token totals or spend.
-
-</details>
 
 ## Agent and developer surfaces
 

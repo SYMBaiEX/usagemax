@@ -15,7 +15,7 @@ import { buildSessionPlan, buildSnapshotPlan, normalizeLinkCode, reportDateArgs,
 import { stableInstallationId } from "./installation.js";
 import { createProgress } from "./progress.js";
 import { intervalMinutes, manageService, runScheduledSync } from "./service.js";
-import { collectorStatusView, requestCollectorStatus, requestSnapshot } from "./transport.js";
+import { collectorCanWrite, collectorStatusView, requestCollectorStatus, requestSnapshot, requestTelemetrySmokeTest } from "./transport.js";
 import { resumeUpload, restartExpiredUpload, withConfigLock } from "./resume.js";
 import { CCUSAGE_VERSION, ccusageEnvironment, ccusageHome, discoverProviderArchives, SOURCE_INVENTORY_VERSION, sourceInventory, SUPPORTED_SOURCES } from "./sources.js";
 import { checkForUpdate, packageManagerFor, runLatest, updateGlobal } from "./updates.js";
@@ -26,7 +26,7 @@ process.title = "UsageMax";
 
 const require = createRequire(import.meta.url);
 const executeFile = promisify(execFile);
-const VERSION = "0.3.9";
+const VERSION = "0.3.10";
 const PUBLIC_API_ORIGIN = "https://usagemax.com/api";
 const DEFAULT_LINK_ENDPOINT = `${PUBLIC_API_ORIGIN}/v1/devices/link`;
 const DEFAULT_STATUS_ENDPOINT = `${PUBLIC_API_ORIGIN}/v1/devices/status`;
@@ -111,7 +111,27 @@ function deviceLabel() {
   return "Computer";
 }
 
-function help() {
+function help(command) {
+  if (command) {
+    const usage = {
+      link: "Usage: usagemax link <one-use-code> [--no-sync] [--name <name>] [--json]",
+      sync: "Usage: usagemax sync [--full] [--archives] [--restart] [--dry-run] [--explain] [--json] [--quiet|--no-progress]",
+      status: "Usage: usagemax status [--remote] [--json] [--quiet|--no-progress]",
+      doctor: "Usage: usagemax doctor [--deep] [--json] [--quiet|--no-progress]",
+      "token status": "Usage: printf '%s' \"$USAGEMAX_COLLECTOR_TOKEN\" | usagemax token status [--device-id <uuid>] [--json] [--quiet|--no-progress]\nRead-only credential check; the token is read from stdin and never printed.",
+      "telemetry test": "Usage: usagemax telemetry test [--token-stdin] [--device-id <uuid>] [--json] [--quiet|--no-progress]\nSend one content-free zero-token observability event to verify the write path.",
+      service: "Usage: usagemax service install [--every <minutes>] | status | run | uninstall",
+      "service install": "Usage: usagemax service install [--every <minutes>]",
+      "service status": "Usage: usagemax service status",
+      "service run": "Usage: usagemax service run",
+      "service uninstall": "Usage: usagemax service uninstall",
+      update: "Usage: usagemax update [--check|--no-install] [--json]\n       usagemax update <command args> [--json]",
+      report: "Usage: usagemax report [...ccusage args]",
+      unlink: "Usage: usagemax unlink [--revoke] [--json]",
+    }[command];
+    process.stdout.write(`${usage || `No help is available for '${command}'. Run usagemax --help.`}\n`);
+    return;
+  }
   process.stdout.write(`UsageMax ${VERSION}\n\n`);
   process.stdout.write("Link aggregate coding-agent usage to your UsageMax profile.\n\n");
   process.stdout.write("Commands:\n");
@@ -125,8 +145,10 @@ function help() {
   process.stdout.write("  usagemax status                  Show local link status\n");
   process.stdout.write("           --remote [--json]        Verify the stored collector credential without printing it\n");
   process.stdout.write("           [--quiet|--no-progress]  Disable interactive progress output\n");
-  process.stdout.write("  usagemax token status [--device-id <uuid>] [--json]\n");
+  process.stdout.write("  usagemax token status [--device-id <uuid>] [--json] [--quiet|--no-progress]\n");
   process.stdout.write("                                  Diagnose a key piped on stdin; never pass it as an argument\n");
+  process.stdout.write("  usagemax telemetry test [--token-stdin] [--device-id <uuid>] [--json] [--quiet|--no-progress]\n");
+  process.stdout.write("                                  Send one zero-token observability smoke event\n");
   process.stdout.write("  usagemax service install [--every 15]\n");
   process.stdout.write("                                  Opt into lightweight OS-scheduled sync\n");
   process.stdout.write("  usagemax service status|run|uninstall\n");
@@ -138,6 +160,44 @@ function help() {
   process.stdout.write("  usagemax report [...args]        Run a local ccusage report\n");
   process.stdout.write("  usagemax unlink [--revoke]       Remove locally; --revoke also disables uploads\n");
   process.stdout.write("           [--json]                  Emit machine-readable unlink status\n");
+  process.stdout.write("\nAdd --help after a command for its usage.\n");
+}
+
+function validateCommandArgs(command, args) {
+  const specs = {
+    link: { flags: ["--no-sync", "--json", "--check-updates", "--no-update-check"], values: ["--name"], positional: 1 },
+    sync: { flags: ["--full", "--archives", "--restart", "--dry-run", "--explain", "--json", "--quiet", "--no-progress", "--check-updates", "--no-update-check"], values: [], positional: 0 },
+    status: { flags: ["--remote", "--json", "--quiet", "--no-progress"], values: [], positional: 0 },
+    doctor: { flags: ["--deep", "--json", "--quiet", "--no-progress", "--check-updates", "--no-update-check"], values: [], positional: 0 },
+    unlink: { flags: ["--revoke", "--json"], values: [], positional: 0 },
+    "token status": { flags: ["--json", "--quiet", "--no-progress"], values: ["--device-id"], positional: 0 },
+    "telemetry test": { flags: ["--token-stdin", "--json", "--quiet", "--no-progress"], values: ["--device-id"], positional: 0 },
+  };
+  if (command === "service") {
+    const action = args[0] || "status";
+    if (!["install", "status", "run", "uninstall"].includes(action)) throw new Error(`Unknown service action: ${action}. Run usagemax service --help.`);
+    command = `service ${action}`;
+    args = args.slice(1);
+    specs[command] = { flags: [], values: ["--config-dir", ...(action === "install" ? ["--every"] : [])], positional: 0 };
+  }
+  const spec = specs[command];
+  if (!spec) return;
+  let positional = 0;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (!arg.startsWith("-")) {
+      positional += 1;
+      continue;
+    }
+    if (spec.flags.includes(arg)) continue;
+    if (spec.values.includes(arg)) {
+      if (index + 1 >= args.length || args[index + 1].startsWith("-")) throw new Error(`${arg} requires a value.`);
+      index += 1;
+      continue;
+    }
+    throw new Error(`Unknown option for ${command}: ${arg}. Run usagemax ${command} --help.`);
+  }
+  if (positional > spec.positional) throw new Error(`Unexpected argument for ${command}. Run usagemax ${command} --help.`);
 }
 
 function ccusageCliPath() {
@@ -432,6 +492,7 @@ function printRemoteStatus(view) {
   if (view.credentialType) process.stdout.write(`Type: ${view.credentialType}${view.writeOnly ? "; write-only" : ""}\n`);
   if (view.scopes?.length) process.stdout.write(`Scopes: ${view.scopes.join(", ")}\n`);
   if (view.scopeStatus) process.stdout.write(`Ingest scope: ${view.scopeStatus === "valid" ? "authorized" : "missing telemetry:write"}\n`);
+  if (typeof view.ingestAuthorized === "boolean") process.stdout.write(`Ingestion: ${view.ingestAuthorized ? "authorized" : "blocked"}\n`);
   if (view.deviceBinding) process.stdout.write(`Device binding: ${view.deviceBinding}\n`);
   if (view.profileHandle) process.stdout.write(`Profile: @${view.profileHandle}\n`);
   if (view.deviceName) process.stdout.write(`Computer: ${view.deviceName}\n`);
@@ -450,9 +511,11 @@ async function status(args = []) {
   if (!config) {
     if (json) {
       process.stdout.write(`${JSON.stringify({ linked: false, version: VERSION, ccusageVersion: CCUSAGE_VERSION, configPath: configPath(), remote: remote ? { status: "not_linked" } : undefined })}\n`);
+      if (remote) process.exitCode = 1;
       return;
     }
     process.stdout.write("Not linked. Open https://usagemax.com/account to connect this computer.\n");
+    if (remote) process.exitCode = 1;
     return;
   }
   const stableId = await stableInstallationId(configDirectory(), config.deviceId);
@@ -489,6 +552,7 @@ async function status(args = []) {
     }
     if (json) {
       process.stdout.write(`${JSON.stringify({ ...local, remote: remoteView })}\n`);
+      if (!collectorCanWrite(remoteView)) process.exitCode = 1;
       return;
     }
   }
@@ -505,6 +569,7 @@ async function status(args = []) {
   if (config.pendingSync) process.stdout.write(`Pending sync: ${config.pendingSync.runId}; rerun sync to resume\n`);
   process.stdout.write(`Profile: ${config.profileUrl || "https://usagemax.com/account"}\n`);
   if (remote) printRemoteStatus(remoteView);
+  if (remote && !collectorCanWrite(remoteView)) process.exitCode = 1;
 }
 
 async function readTokenFromStdin() {
@@ -525,6 +590,8 @@ async function readTokenFromStdin() {
 async function tokenStatus(args = []) {
   const requestedDeviceId = option(args, "--device-id");
   if (requestedDeviceId && !DEVICE_PATTERN.test(requestedDeviceId)) throw new Error("--device-id must be a UUID.");
+  const localConfig = await readConfig();
+  const deviceId = requestedDeviceId || localConfig?.deviceId;
   const json = args.includes("--json");
   const progress = createProgress({ json, quiet: args.includes("--quiet"), noProgress: args.includes("--no-progress") });
   progress.start("Checking the collector credential…");
@@ -539,7 +606,7 @@ async function tokenStatus(args = []) {
   const endpoint = validHttpsUrl(configuredEndpoint, { allowLocalhost: true });
   try {
     if (!endpoint) throw new Error("USAGEMAX_STATUS_ENDPOINT must use HTTPS, except for localhost development.");
-    const result = await requestCollectorStatus(endpoint, { token, deviceId: requestedDeviceId });
+    const result = await requestCollectorStatus(endpoint, { token, deviceId });
     const view = collectorStatusView(result.httpStatus, result.body, token);
     progress.succeed("Collector credential checked.");
     if (json) process.stdout.write(`${JSON.stringify(view)}\n`);
@@ -547,6 +614,39 @@ async function tokenStatus(args = []) {
       process.stdout.write("Credential format: valid (umx_ + 64 lowercase hexadecimal characters)\n");
       printRemoteStatus(view);
     }
+    if (!collectorCanWrite(view)) process.exitCode = 1;
+  } catch (error) {
+    progress.stop();
+    throw error;
+  }
+}
+
+async function telemetryTest(args = []) {
+  const requestedDeviceId = option(args, "--device-id");
+  if (requestedDeviceId && !DEVICE_PATTERN.test(requestedDeviceId)) throw new Error("--device-id must be a UUID.");
+  const json = args.includes("--json");
+  const progress = createProgress({ json, quiet: args.includes("--quiet"), noProgress: args.includes("--no-progress") });
+  const localConfig = await readConfig();
+  let token;
+  try {
+    if (!localConfig || args.includes("--token-stdin")) {
+      token = await readTokenFromStdin();
+    } else {
+      token = localConfig.token;
+    }
+    const deviceId = requestedDeviceId || await stableInstallationId(configDirectory(), localConfig?.deviceId);
+    const configuredEndpoint = process.env.USAGEMAX_TELEMETRY_ENDPOINT || localConfig?.ingestUrl || `${PUBLIC_API_ORIGIN}/v1/telemetry/llm`;
+    const endpoint = validHttpsUrl(configuredEndpoint, { allowLocalhost: true });
+    if (!endpoint) throw new Error("USAGEMAX_TELEMETRY_ENDPOINT must use HTTPS, except for localhost development.");
+    progress.start("Sending a zero-token telemetry smoke event…");
+    const result = await requestTelemetrySmokeTest(endpoint, { token, deviceId });
+    if (result.ok) progress.succeed("Telemetry smoke event accepted.");
+    else progress.fail("Telemetry smoke event was rejected.");
+    const summary = { ...result, deviceIdConfigured: true };
+    if (json) process.stdout.write(`${JSON.stringify(summary)}\n`);
+    else if (result.ok) process.stdout.write(`UsageMax accepted the smoke event (HTTP ${result.httpStatus}). No token or cost totals were recorded.\n`);
+    else process.stdout.write(`Telemetry check failed (${result.status}${result.httpStatus ? `, HTTP ${result.httpStatus}` : ""}). Run usagemax token status --device-id ${deviceId} to diagnose the credential.\n`);
+    if (!result.ok) process.exitCode = 1;
   } catch (error) {
     progress.stop();
     throw error;
@@ -714,8 +814,21 @@ async function removeLink(args = []) {
 async function main() {
   const args = process.argv.slice(2);
   const command = args[0] || "sync";
-  if (["--help", "-h", "help"].includes(command)) return help();
+  if (["--help", "-h", "help"].includes(command)) return help(args[1]);
   if (["--version", "-v"].includes(command)) return process.stdout.write(args.includes("--json") ? `${JSON.stringify({ version: VERSION, ccusageVersion: CCUSAGE_VERSION })}\n` : `${VERSION}\n`);
+  if (command === "report") return report(args.slice(1));
+  const invocationHelp = command === "update"
+    ? ["--help", "-h"].includes(args[1])
+    : args.slice(1).some((arg) => arg === "--help" || arg === "-h");
+  if (invocationHelp) {
+    const helpCommand = command === "token" && args[1] === "status" ? "token status"
+      : command === "telemetry" ? "telemetry test"
+        : command === "service" ? `service ${args[1] || "status"}` : command;
+    return help(helpCommand);
+  }
+  if (command === "token" && args[1] !== "status") throw new Error("Use `usagemax token status`; run usagemax --help for all commands.");
+  if (command === "telemetry" && args[1] !== "test") throw new Error("Use `usagemax telemetry test`; run usagemax --help for all commands.");
+  validateCommandArgs(command === "token" ? "token status" : command === "telemetry" ? "telemetry test" : command, command === "service" ? args.slice(1) : command === "token" || command === "telemetry" ? args.slice(2) : args.slice(1));
   if (command === "update") return update(args.slice(1));
   if (await maybeUpdate(command, args)) return;
   if (command === "service") {
@@ -738,8 +851,8 @@ async function main() {
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     return;
   }
-  if (command === "report") return report(args.slice(1));
   if (command === "token" && args[1] === "status") return tokenStatus(args.slice(2));
+  if (command === "telemetry" && args[1] === "test") return telemetryTest(args.slice(2));
   if (["link", "sync", "status", "doctor", "unlink"].includes(command)) {
     return withConfigLock(configDirectory(), async () => {
       if (command === "link") return link(args.slice(1));

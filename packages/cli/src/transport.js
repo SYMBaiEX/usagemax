@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 
 export function retryAfterMs(value, now = Date.now()) {
@@ -14,6 +15,15 @@ function record(value) {
 const collectorStates = new Set(["active", "revoked", "workspace_disabled", "membership_inactive", "device_mismatch", "scope_missing"]);
 const deviceBindings = new Set(["unbound", "bound", "matched", "mismatch"]);
 const collectorTokenPattern = /umx_[a-f0-9]{64}/gi;
+
+export function collectorCanWrite(view) {
+  return view?.httpStatus === 200
+    && view?.status === "active"
+    && view?.credentialType === "collector"
+    && view?.scopeStatus === "valid"
+    && view?.ingestAuthorized === true
+    && view?.deviceBinding !== "mismatch";
+}
 
 function safeText(value, secret) {
   let text = value;
@@ -81,6 +91,72 @@ export async function requestCollectorStatus(endpoint, config, {
   }
   const body = await response.json().catch(() => null);
   return { httpStatus: response.status, body };
+}
+
+/** Send one zero-token observability event to prove the authenticated write path. */
+export async function requestTelemetrySmokeTest(endpoint, config, {
+  timeout = 15_000,
+  fetchImpl = fetch,
+  now = Date.now,
+  eventId = randomUUID(),
+} = {}) {
+  const eventKey = `usagemax-cli-test:${eventId}`;
+  const event = {
+    eventKey,
+    eventType: "agent_state",
+    provider: "usagemax-cli",
+    model: "usagemax-connectivity-check",
+    source: "usagemax-cli",
+    agentName: "UsageMax CLI",
+    status: "ok",
+    state: "connected",
+    occurredAt: now(),
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    reasoningTokens: 0,
+    totalTokens: 0,
+    costMicros: 0,
+    costBasis: "unknown",
+    completeness: "unknown",
+    accountingMode: "observability",
+    schemaVersion: 1,
+  };
+  const body = JSON.stringify({ events: [event] });
+  let response;
+  try {
+    response = await fetchImpl(endpoint, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${config.token}`,
+        "content-type": "application/json",
+        "x-usagemax-device-id": config.deviceId,
+        "idempotency-key": `usagemax-cli:${config.deviceId}:${eventId}`,
+      },
+      body,
+      cache: "no-store",
+      signal: AbortSignal.timeout(timeout),
+    });
+  } catch {
+    return { ok: false, status: "unavailable", httpStatus: null };
+  }
+  const result = record(await response.json().catch(() => null));
+  const ok = response.ok && result?.ok === true;
+  return {
+    ok,
+    status: ok ? "accepted" : response.status === 401 ? "unauthorized"
+      : response.status === 403 ? "forbidden"
+        : response.status === 409 ? "device_or_idempotency_conflict"
+          : response.status === 429 ? "rate_limited"
+            : response.status >= 500 ? "unavailable" : "rejected",
+    httpStatus: response.status,
+    ...(Number.isSafeInteger(result?.accepted) ? { accepted: result.accepted } : {}),
+    ...(Number.isSafeInteger(result?.duplicates) ? { duplicates: result.duplicates } : {}),
+    ...(typeof result?.replay === "boolean" ? { replay: result.replay } : {}),
+    observabilityOnly: true,
+    accountingUpdated: false,
+  };
 }
 
 // Only snapshot operations have server receipts. Never automatically replay a

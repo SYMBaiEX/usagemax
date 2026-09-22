@@ -2,7 +2,7 @@ const markdown = `---
 title: UsageMax CLI
 description: Install, link, sync, and schedule the lightweight UsageMax collector.
 canonical: https://usagemax.com/cli.md
-last-updated: 2026-09-16
+last-updated: 2026-09-22
 ---
 
 # UsageMax CLI
@@ -42,13 +42,15 @@ unchanged inventory avoids parsing and upload.
 
 The computer name selected in Account is retained. Use <code>--name "Work laptop"</code> only when you want the current CLI to explicitly override that account-side name.
 
-The link code and collector token are never included in documentation examples, URLs, telemetry fields, or logs. Use <code>usagemax status</code> to inspect local state without printing the token. Add <code>--remote</code> to verify the stored key against UsageMax without exposing it. The <code>token status</code> diagnostic is included in CLI <code>0.3.9</code>; if npm <code>latest</code> still points to an older release, run <code>usagemax update token status</code> or <code>node packages/cli/src/cli.js token status</code> from the repository until that release is published.
+The link code and collector token are never included in documentation examples, URLs, telemetry fields, or logs. Use <code>usagemax status</code> to inspect local state without printing the token. Add <code>--remote</code> to verify the stored key against UsageMax without exposing it. The <code>token status</code> and <code>telemetry test</code> commands are included in CLI <code>0.3.10</code>; if npm <code>latest</code> still points to an older release, use the repository source until that release is published.
 
 For an advanced key that is not stored by the CLI, pipe the token through stdin and optionally check an installation UUID:
 
-    printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" | usagemax token status --device-id "$USAGEMAX_INSTALLATION_ID"
+    printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" | usagemax token status
 
 The status check is read-only. It reports the key format, collector scopes, activation state, account-side profile/name, and whether the supplied installation is unbound, bound, matched, or mismatched. New advanced keys do not require activation; linked CLI keys are bound during the link exchange.
+
+To verify the authenticated telemetry write path, run <code>usagemax telemetry test</code>. A linked installation uses its local key; pipe an advanced collector key through stdin with <code>--token-stdin</code>. The command sends one content-free, zero-token <code>agent_state</code> event and exits non-zero when ingestion is rejected. The event may bind an otherwise unbound advanced key to the supplied installation UUID.
 
 Snapshot uploads return a read-only status URL and <code>Location</code> header for the current run. Poll it with the same bearer token and installation UUID; it reports bounded progress and coverage metadata, never snapshot rows, workspace identifiers, or credential hashes.
 
