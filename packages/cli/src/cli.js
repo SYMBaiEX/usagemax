@@ -17,7 +17,7 @@ import { createProgress } from "./progress.js";
 import { intervalMinutes, manageService, runScheduledSync } from "./service.js";
 import { collectorCanWrite, collectorStatusView, requestCollectorStatus, requestSnapshot, requestTelemetrySmokeTest } from "./transport.js";
 import { resumeUpload, restartExpiredUpload, withConfigLock } from "./resume.js";
-import { CCUSAGE_VERSION, ccusageEnvironment, ccusageHome, discoverProviderArchives, SOURCE_INVENTORY_VERSION, sourceInventory, SUPPORTED_SOURCES } from "./sources.js";
+import { CCUSAGE_VERSION, ccusageEnvironment, ccusageHome, discoverProviderArchives, discoverWslWindowsHomeStatus, SOURCE_INVENTORY_VERSION, sourceInventory, SUPPORTED_SOURCES } from "./sources.js";
 import { checkForUpdate, packageManagerFor, runLatest, updateCommandWillRun, updateGlobal, updateRequest } from "./updates.js";
 
 // Make the short-lived collector recognizable in Activity Monitor and `ps`.
@@ -661,6 +661,7 @@ async function doctor(args = []) {
     const config = await readConfig();
     const env = await ccusageEnvironment();
     const inventory = await sourceInventory({ env, home: ccusageHome(env) });
+    const windowsHomeDiscovery = await discoverWslWindowsHomeStatus();
     progress.update(`Found ${inventory.sources.length} source${inventory.sources.length === 1 ? "" : "s"} and ${inventory.files}${inventory.truncated ? "+" : ""} local data file${inventory.files === 1 ? "" : "s"}.`);
     const archives = await discoverProviderArchives({ env, home: ccusageHome(env) });
     const homes = String(env.USAGEMAX_DISCOVERED_HOMES || ccusageHome(env)).split(",").filter(Boolean);
@@ -670,6 +671,7 @@ async function doctor(args = []) {
       configPath: configPath(),
       linked: Boolean(config),
       homes,
+      windowsHomeDiscovery,
       detectedSources: inventory.sources,
       files: inventory.files,
       inventoryComplete: inventory.complete,
@@ -696,7 +698,16 @@ async function doctor(args = []) {
     process.stdout.write(`Detected sources: ${inventory.sources.join(", ") || "none"} (${inventory.files}${inventory.truncated ? "+" : ""} data files)\n`);
     process.stdout.write(`Supported sources: ${SUPPORTED_SOURCES.join(", ")} (+ named pi-format stores)\n`);
     if (platform() === "linux" && process.env.WSL_DISTRO_NAME) {
-      process.stdout.write(`Environment: WSL ${process.env.WSL_DISTRO_NAME}; readable Windows provider homes are included automatically\n`);
+      process.stdout.write(`Windows home discovery: ${windowsHomeDiscovery.status}`);
+      if (windowsHomeDiscovery.selected.length) {
+        process.stdout.write(` (${windowsHomeDiscovery.selected.join(", ")})`);
+      }
+      process.stdout.write("\n");
+      if (windowsHomeDiscovery.status === "ambiguous") {
+        process.stdout.write("No Windows profile was selected to avoid mixing users. Set USAGEMAX_ADDITIONAL_HOME to the exact profile path you own, for example /mnt/c/Users/<your-profile>.\n");
+      } else if (windowsHomeDiscovery.status === "unavailable") {
+        process.stdout.write("No supported provider directory was found in readable Windows profiles. If your data is elsewhere, set USAGEMAX_ADDITIONAL_HOME to its exact profile path.\n");
+      }
     }
     if (archives.length) process.stdout.write(`Recovery: ${archives.length} compressed provider archive(s) detected; run \`bunx usagemax sync --archives\` once to reconcile them\n`);
     if (!inventory.complete) process.stdout.write(`Inventory: incomplete (${inventory.errors} read error(s)${inventory.truncated ? ", file limit reached" : ""}); no-change shortcut disabled\n`);

@@ -54,6 +54,12 @@ const fixture = vi.hoisted(() => ({
         name: "Product",
         description: "Customer experiences",
       },
+      {
+        _id: "team_archived",
+        name: "Archived team",
+        description: "Historical team",
+        archivedAt: 1,
+      },
     ],
     projects: [
       {
@@ -326,6 +332,80 @@ describe("workspace product surfaces", () => {
     fixture.projectStatus = "Exhausted";
     fixture.projectResults = [];
     fixture.candidateStatus = "Exhausted";
+  });
+  test("archived teams are absent from invite options and projects expose an edit lifecycle", () => {
+    const overview = fixture.overview as unknown as Parameters<
+      typeof Teams
+    >[0]["overview"];
+    const inviteHtml = renderToStaticMarkup(<Teams overview={overview} />);
+    expect(inviteHtml).toContain('<option value="team_platform">Platform</option>');
+    expect(inviteHtml).toContain('<option value="team_product">Product</option>');
+    expect(inviteHtml).not.toContain('<option value="team_archived">');
+
+    fixture.projectResults = [
+      {
+        _id: "project_editable",
+        name: "Research portal",
+        key: "research",
+        costCenter: "R&D",
+        teamId: "team_platform",
+      },
+    ];
+    const projectHtml = renderToStaticMarkup(<Teams overview={overview} />);
+    expect(projectHtml).toContain("Edit or archive");
+    expect(projectHtml).toContain("Archive this project");
+    expect(projectHtml).toContain("Team: Platform");
+    expect(projectHtml).toContain("Save project");
+    expect(projectHtml).not.toContain('<option value="team_archived">');
+    fixture.projectResults = [];
+  });
+  test("archived project team history is visible but cannot be reassigned from the picker", () => {
+    fixture.projectResults = [
+      {
+        _id: "project_archived_team",
+        name: "Legacy service",
+        key: "legacy",
+        costCenter: "R&D",
+        teamId: "team_archived",
+      },
+    ];
+    const overview = fixture.overview as unknown as Parameters<
+      typeof Teams
+    >[0]["overview"];
+    const html = renderToStaticMarkup(<Teams overview={overview} />);
+    expect(html).toContain("Team: Archived team (archived)");
+    expect(html).toContain('value="keep-archived:team_archived"');
+    expect(html).toContain("Keep current: Archived team (archived)");
+    expect(html).not.toContain('<option value="team_archived">');
+    expect(html).toContain('<option value="team_platform">Platform</option>');
+    fixture.projectResults = [];
+  });
+  test("finance-only users can inspect projects but cannot edit their lifecycle", () => {
+    fixture.projectResults = [
+      {
+        _id: "project_finance_readonly",
+        name: "Finance report",
+        key: "finance-report",
+        costCenter: "Finance",
+        teamId: "team_platform",
+      },
+    ];
+    const overview = {
+      ...fixture.overview,
+      capabilities: {
+        ...fixture.overview.capabilities,
+        "members:manage": false,
+        "teams:manage": false,
+        "finance:read": true,
+      },
+    } as unknown as Parameters<typeof Teams>[0]["overview"];
+    const html = renderToStaticMarkup(<Teams overview={overview} />);
+    expect(html).toContain("Finance report");
+    expect(html).toContain("Team: Platform");
+    expect(html).not.toContain("Edit or archive");
+    expect(html).not.toContain("Archive this project");
+    expect(html).not.toContain("Save project");
+    fixture.projectResults = [];
   });
   test("project and candidate initial loading states do not look empty", () => {
     fixture.projectStatus = "LoadingFirstPage";

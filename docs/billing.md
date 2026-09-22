@@ -18,19 +18,24 @@ counts are never used as a hidden billable meter.
 
 ## Required configuration
 
-Set these server-side values in Vercel and Convex:
+Set the following values in Vercel:
 
 - `STRIPE_SECRET_KEY` — Stripe secret key; never send to the browser.
 - `STRIPE_WEBHOOK_SECRET` — the signing secret for
-  `https://usagemax.com/api/webhooks/stripe`.
+  `https://usagemax.com/api/webhooks/stripe`; this is verified at the Vercel
+  webhook boundary against the raw request body.
 - `STRIPE_TEAM_PRICE_ID` — a recurring Stripe Price in the production
   currency and interval you sell.
 - `BILLING_INTERNAL_SECRET` — the same high-entropy secret in Vercel and
-  Convex. It signs the server-only handoff that links a newly created Stripe
-  customer to a workspace; it is never returned to a browser.
+  Convex. It signs server-only billing handoffs; it is never returned to a
+  browser.
 - `NEXT_PUBLIC_CONVEX_SITE_URL` — the Convex site URL used by the webhook
   facade.
 - `NEXT_PUBLIC_APP_URL` — normally `https://usagemax.com`.
+
+Convex only needs `BILLING_INTERNAL_SECRET` for the billing handoff. The Stripe
+API key and webhook signing secret stay in Vercel; the Convex deployment never
+receives Stripe credentials.
 
 Create the Stripe recurring product and Price before enabling the checkout
 button. Keep the Price ID in deployment configuration, not in source code.
@@ -54,11 +59,19 @@ official pricing references reviewed on 2026-09-19:
 
 ## Webhook contract
 
-Stripe sends events to `/api/webhooks/stripe`. The Vercel route forwards the
-raw request body and `stripe-signature` header to Convex, where the signature is
-verified before a bounded, idempotent billing projection job is scheduled.
-The endpoint acknowledges the signed event quickly; the projection job records
-the Stripe event ID before applying it so retries are safe.
+Stripe sends events to `/api/webhooks/stripe`. The Vercel Node route verifies
+the raw body with Stripe's SDK, retrieves the subscription's current state, and
+sends only a small normalized snapshot to Convex using an HMAC signed with
+`BILLING_INTERNAL_SECRET`. Convex verifies that short-lived handoff and
+enqueues a bounded projection. It deduplicates by Stripe event ID; it does not
+infer chronology from event IDs or Stripe's second-precision `created` time.
+If the current subscription cannot be retrieved or the signed handoff fails,
+the endpoint returns a retryable error rather than projecting the stale event
+payload.
+During a staggered Vercel/Convex rollout, the Vercel facade falls back to the
+previous signed raw-event route only when the new snapshot route returns 404;
+other failures remain retryable. The canonical current-state path takes over
+automatically as soon as the Convex snapshot route is deployed.
 
 Register these event types for the endpoint: `checkout.session.completed`,
 `customer.subscription.created`, `customer.subscription.updated`,
@@ -74,6 +87,13 @@ portal sessions are generated server-side only after a WorkOS-authenticated
 workspace access check. Customer linking also requires a short-lived server
 signature, so a caller cannot attach an arbitrary Stripe customer to its
 workspace.
+
+Account deletion is paused while a Stripe subscription remains active or its
+state is unresolved. UsageMax does not cancel the subscription remotely during
+account deletion; the account page directs the owner to the billing portal (or
+support) and retries local erasure after cancellation is confirmed. The local
+billing identifiers are retained during this hold so billing management and
+reconciliation remain possible.
 
 Configure the portal to allow payment-method updates, invoice history, and
 subscription cancellation or plan changes only after the corresponding

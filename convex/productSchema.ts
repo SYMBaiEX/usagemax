@@ -25,6 +25,7 @@ export const productTables = {
     lastInvoiceId: v.optional(v.string()),
     lastStripeEventCreatedAt: v.optional(v.number()),
     lastStripeEventId: v.optional(v.string()),
+    lastStripeSnapshotAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

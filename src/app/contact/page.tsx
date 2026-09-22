@@ -34,8 +34,8 @@ export default function ContactPage() {
             <p>For a team evaluation, tell us the number of people, connected computers, providers, retention expectations, identity requirements, and whether you need private cost-center reporting. We can then discuss workspace boundaries, SSO and directory setup, ingestion limits, exports, support, and any residency or compliance requirements that must be verified before a commitment.</p>
             <p>For a suspected vulnerability, use the same address with “Security” in the subject and avoid sending exploit payloads or secrets. Review the <TextLink href="/security">security overview</TextLink> and <TextLink href="/privacy">privacy policy</TextLink> first; they define the current public boundary.</p>
           </section>
-          <div className="content-callout content-callout-cyan"><ArrowUpRight size={18} /><span><strong>Public by choice.</strong> We can help with profile visibility, deletion, or collector revocation. <TextLink href="/docs">Start with the docs</TextLink>.</span></div>
-          <div className="content-callout content-callout-acid"><ShieldCheck size={18} /><span>UsageMax does not promise a response time or compliance certification on this public page. Enterprise service levels are documented separately during onboarding.</span></div>
+          <div className="content-callout content-callout-acid"><ArrowUpRight size={18} /><span><strong>Public by choice.</strong> We can help with profile visibility, deletion, or collector revocation. <TextLink href="/docs">Start with the docs</TextLink>.</span></div>
+          <div className="content-callout"><ShieldCheck size={18} /><span>UsageMax does not promise a response time or compliance certification on this public page. Enterprise service levels are documented separately during onboarding.</span></div>
         </article>
       </div>
     </div>

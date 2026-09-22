@@ -126,10 +126,14 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
           <div className={styles.heroActions}>
             <AuthNavigation className={styles.primaryButton} href="/sign-up">Start tracking <ArrowUpRight size={17} /></AuthNavigation>
             <Link className={styles.textLink} href="/leaderboard">Leaderboard <ArrowRight size={16} /></Link>
-            <Link className={styles.textLink} href="/?mode=agent" rel="alternate" type="application/json" aria-label="Open UsageMax agent mode">Agent mode <ArrowUpRight size={16} /></Link>
-            <Link className={styles.textLink} href="/sandbox">Try the no-write sandbox <ArrowUpRight size={16} /></Link>
           </div>
           <span className={styles.privacy}><LockClosed size={13} /> Private by default. Public when you choose.</span>
+          <nav className={styles.developerLinks} aria-label="Developer resources">
+            <span>For builders</span>
+            <Link href="/docs">Docs</Link>
+            <Link href="/?mode=agent" rel="alternate" type="application/json" aria-label="Open UsageMax agent mode">Agent mode</Link>
+            <Link href="/sandbox">No-write sandbox</Link>
+          </nav>
         </div>
         <div className={styles.instrumentStage}>
           <CodeField />

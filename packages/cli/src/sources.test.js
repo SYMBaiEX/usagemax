@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { ccusageEnvironment, ccusageHome, discoverProviderArchives, sourceDefinitions, sourceInventory, SUPPORTED_SOURCES } from "./sources.js";
+import { ccusageEnvironment, ccusageHome, discoverProviderArchives, discoverWslWindowsHomeStatus, sourceDefinitions, sourceInventory, SUPPORTED_SOURCES } from "./sources.js";
 
 test("matches ccusage home precedence on Windows and POSIX", () => {
   assert.equal(ccusageHome({ HOME: "/linux", USERPROFILE: "C:\\Users\\me" }), "/linux");
@@ -63,6 +63,83 @@ test("discovers readable Windows provider homes from WSL without scanning their 
   assert.ok(effective.CODEX_HOME.split(",").includes(path.join(windowsHome, ".codex")));
   const inventory = await sourceInventory({ env: effective, home, cwd: root });
   assert.deepEqual(inventory.sources, ["claude", "codex"]);
+});
+
+test("discovers Windows homes containing only Kimi, Qwen, or Copilot data", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "usagemax-wsl-providers-"));
+  const home = path.join(root, "linux-home");
+  const users = path.join(root, "mnt", "c", "Users");
+  const windowsHome = path.join(users, "austi");
+  const providerFiles = [
+    path.join(windowsHome, ".kimi", "sessions", "session.jsonl"),
+    path.join(windowsHome, ".qwen", "projects", "project", "session.jsonl"),
+    path.join(windowsHome, ".copilot", "otel", "events.jsonl"),
+  ];
+  for (const file of providerFiles) {
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, "{}\n");
+  }
+
+  const env = { HOME: home, USAGEMAX_WSL_USERS_DIR: users, WSL_DISTRO_NAME: "Ubuntu" };
+  const discovery = await discoverWslWindowsHomeStatus({ env, platform: "linux" });
+  assert.equal(discovery.status, "discovered");
+  assert.deepEqual(discovery.selected, [windowsHome]);
+
+  const effective = await ccusageEnvironment({ env, platform: "linux" });
+  assert.ok(effective.KIMI_DATA_DIR.split(",").includes(path.join(windowsHome, ".kimi")));
+  assert.ok(effective.QWEN_DATA_DIR.split(",").includes(path.join(windowsHome, ".qwen")));
+  assert.ok(effective.COPILOT_OTEL_DIR.split(",").includes(path.join(windowsHome, ".copilot", "otel")));
+  const inventory = await sourceInventory({ env: effective, home, cwd: root });
+  assert.deepEqual(inventory.sources, ["copilot", "kimi", "qwen"]);
+});
+
+test("discovers the Windows AppData Goose session store from WSL", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "usagemax-wsl-goose-"));
+  const home = path.join(root, "linux-home");
+  const users = path.join(root, "mnt", "c", "Users");
+  const windowsHome = path.join(users, "austi");
+  const database = path.join(windowsHome, "AppData", "Roaming", "Block", "goose", "data", "sessions", "sessions.db");
+  await mkdir(path.dirname(database), { recursive: true });
+  await writeFile(database, "db");
+
+  const env = { HOME: home, USAGEMAX_WSL_USERS_DIR: users, WSL_DISTRO_NAME: "Ubuntu" };
+  const discovery = await discoverWslWindowsHomeStatus({ env, platform: "linux" });
+  assert.equal(discovery.status, "discovered");
+  assert.deepEqual(discovery.selected, [windowsHome]);
+
+  const effective = await ccusageEnvironment({ env, platform: "linux" });
+  assert.ok(effective.GOOSE_PATH_ROOT.split(",").includes(path.join(windowsHome, "AppData", "Roaming", "Block", "goose")));
+  const definitions = sourceDefinitions({ env: effective, home, cwd: root });
+  assert.ok(definitions.some((item) => item.source === "goose" && item.path === database));
+  const inventory = await sourceInventory({ env: effective, home, cwd: root });
+  assert.deepEqual(inventory.sources, ["goose"]);
+});
+
+test("keeps WSL Windows profile discovery conservative when multiple profiles qualify", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "usagemax-wsl-ambiguous-"));
+  const users = path.join(root, "mnt", "c", "Users");
+  const first = path.join(users, "first");
+  const second = path.join(users, "second");
+  await mkdir(path.join(first, ".kimi"), { recursive: true });
+  await mkdir(path.join(second, ".copilot", "otel"), { recursive: true });
+
+  const env = { HOME: path.join(root, "linux-home"), USAGEMAX_WSL_USERS_DIR: users, WSL_DISTRO_NAME: "Ubuntu" };
+  const discovery = await discoverWslWindowsHomeStatus({ env, platform: "linux" });
+  assert.equal(discovery.status, "ambiguous");
+  assert.deepEqual(discovery.candidates, [first, second]);
+  assert.deepEqual(discovery.selected, []);
+  const effective = await ccusageEnvironment({ env, platform: "linux" });
+  assert.equal(effective.COPILOT_OTEL_DIR, path.join(env.HOME, ".copilot", "otel"));
+  assert.ok(!effective.KIMI_DATA_DIR.includes(first));
+});
+
+test("reports unavailable and non-WSL Windows-home discovery states", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "usagemax-wsl-empty-"));
+  const users = path.join(root, "mnt", "c", "Users");
+  await mkdir(path.join(users, "austi", "Documents"), { recursive: true });
+
+  assert.equal((await discoverWslWindowsHomeStatus({ env: { WSL_DISTRO_NAME: "Ubuntu", USAGEMAX_WSL_USERS_DIR: users }, platform: "linux" })).status, "unavailable");
+  assert.equal((await discoverWslWindowsHomeStatus({ env: { WSL_DISTRO_NAME: "Ubuntu" }, platform: "darwin" })).status, "not-applicable");
 });
 
 test("discovers Claude Desktop agent homes, mirrors, renamed backups, and archives", async () => {

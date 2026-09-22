@@ -43,6 +43,20 @@ describe("landing page", () => {
     expect(queryMock.mock.calls[1][1]).toEqual({ period: "all", metric: "tokens", limit: 5 });
   });
 
+  test("keeps onboarding and public proof prominent while grouping builder tools quietly", () => {
+    const html = render();
+    const heroActions = html.match(/class="[^"]*heroActions[^"]*">(.*?)<\/div>/)?.[1] ?? "";
+    const developerLinks = html.match(/aria-label="Developer resources">(.*?)<\/nav>/)?.[1] ?? "";
+
+    expect(heroActions).toContain("Start tracking");
+    expect(heroActions).toContain("Leaderboard");
+    expect(heroActions).not.toContain("Agent mode");
+    expect(heroActions).not.toContain("sandbox");
+    expect(developerLinks).toContain('href="/docs"');
+    expect(developerLinks).toContain('href="/?mode=agent"');
+    expect(developerLinks).toContain('href="/sandbox"');
+  });
+
   test("does not invent data while the subscriptions load", () => {
     queryMock.mockReturnValue(undefined);
     const html = renderToStaticMarkup(<LandingPage />);

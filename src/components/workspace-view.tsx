@@ -96,6 +96,7 @@ function readableError(error: unknown) {
     SAVED_VIEW_LIMIT: "Remove a saved view before adding another (30 maximum).",
     TEAM_LIMIT_REACHED: "This workspace has reached its team limit.",
     TEAM_NAME_TAKEN: "A team with that name already exists.",
+    TEAM_ARCHIVED: "Choose an active team, or remove the team assignment.",
   };
   for (const [key, message] of Object.entries(known))
     if (value.includes(key)) return message;
@@ -136,9 +137,11 @@ function Field({
 function Form({
   children,
   submit,
+  resetOnSuccess = true,
 }: {
   children: ReactNode;
   submit: (data: FormData) => Promise<unknown>;
+  resetOnSuccess?: boolean;
 }) {
   const { run } = useContext(Operations);
   return (
@@ -149,7 +152,7 @@ function Form({
         const form = event.currentTarget;
         const data = new FormData(form);
         void run(() => submit(data)).then((ok) => {
-          if (ok) form.reset();
+          if (ok && resetOnSuccess) form.reset();
         });
       }}
     >
@@ -1019,6 +1022,7 @@ export function Teams({ overview }: { overview: Overview }) {
     overview.teams.some((team) => team._id === teamSelection.teamId)
       ? teamSelection.teamId
       : overview.teams.find((team) => !team.archivedAt)?._id ?? null;
+  const activeTeams = overview.teams.filter((team) => !team.archivedAt);
   const projectRows = usePaginatedQuery(
     api.workspaces.projects,
     canManage || overview.capabilities["finance:read"] ? {} : "skip",
@@ -1102,15 +1106,81 @@ export function Teams({ overview }: { overview: Overview }) {
                   : "No projects have been added to this workspace yet."}
               </Empty>
             ) : null}
-            {projectRows.results.map((p) => (
-              <p className={styles.item} key={p._id}>
-                {p.name}
-                <small>
-                  {p.key} · {p.costCenter || "No cost center"}
-                  {p.archivedAt ? " · Archived" : ""}
-                </small>
-              </p>
-            ))}
+            {projectRows.results.map((p) => {
+              const assignedTeam = overview.teams.find(
+                (team) => team._id === p.teamId,
+              );
+              return (
+                <details className={`${styles.item} ${styles.projectItem}`} key={p._id}>
+                  <summary className={styles.projectSummary}>
+                    <span className={styles.projectSummaryCopy}>
+                      <span className={styles.projectName}>{p.name}</span>
+                      <small>
+                        {p.key} · {p.costCenter || "No cost center"} · Team: {assignedTeam?.name ?? "Unassigned"}
+                        {assignedTeam?.archivedAt ? " (archived)" : ""}
+                        {p.archivedAt ? " · Archived" : ""}
+                      </small>
+                    </span>
+                    {canManage && (
+                      <span className={styles.projectActionHint}>
+                        {p.archivedAt ? "Edit or restore" : "Edit or archive"}
+                      </span>
+                    )}
+                  </summary>
+                  {canManage && (
+                    <Form
+                      resetOnSuccess={false}
+                      submit={(data) =>
+                        saveProject({
+                          projectId: p._id,
+                          name: text(data, "name"),
+                          key: text(data, "key"),
+                          costCenter: text(data, "costCenter"),
+                          teamId: text(data, "team").startsWith("keep-archived:")
+                            ? p.teamId
+                            : (text(data, "team") || undefined) as Id<"teams"> | undefined,
+                          archived: data.get("archived") === "on",
+                        })
+                      }
+                    >
+                      <Field label="Project name">
+                        <input name="name" required maxLength={80} defaultValue={p.name} />
+                      </Field>
+                      <Field label="Key">
+                        <input name="key" required pattern="[a-z0-9][a-z0-9_-]{0,63}" defaultValue={p.key} />
+                      </Field>
+                      <Field label="Cost center">
+                        <input name="costCenter" maxLength={80} defaultValue={p.costCenter} />
+                      </Field>
+                      <Field label="Team">
+                        <select name="team" defaultValue={
+                          assignedTeam?.archivedAt ? `keep-archived:${assignedTeam._id}` : p.teamId ?? ""
+                        }>
+                          {assignedTeam?.archivedAt ? (
+                            <>
+                              <option value={`keep-archived:${assignedTeam._id}`}>
+                                Keep current: {assignedTeam.name} (archived)
+                              </option>
+                              <option value="">Unassigned</option>
+                            </>
+                          ) : <option value="">Unassigned</option>}
+                          {activeTeams.map((team) => (
+                            <option key={team._id} value={team._id}>
+                              {team.name}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <label className={styles.archiveControl}>
+                        <input name="archived" type="checkbox" defaultChecked={Boolean(p.archivedAt)} />
+                        Archive this project
+                      </label>
+                      <Button>Save project</Button>
+                    </Form>
+                  )}
+                </details>
+              );
+            })}
             {canManage && (
               <Form
                 submit={(data) =>
@@ -1136,7 +1206,7 @@ export function Teams({ overview }: { overview: Overview }) {
                 <Field label="Team">
                   <select name="team">
                     <option value="">Unassigned</option>
-                    {overview.teams.map((t) => (
+                    {activeTeams.map((t) => (
                       <option key={t._id} value={t._id}>
                         {t.name}
                       </option>
@@ -1274,7 +1344,7 @@ export function Teams({ overview }: { overview: Overview }) {
               <Field label="Initial team">
                 <select name="team">
                   <option value="">None</option>
-                  {overview.teams.map((t) => (
+                  {activeTeams.map((t) => (
                     <option key={t._id} value={t._id}>
                       {t.name}
                     </option>

@@ -415,6 +415,16 @@
 .notice:not([data-error="true"])::before { content: "✓"; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--positive-soft); color: var(--green); font-size: 11px; }
 .item { padding: 16px; border: 1px solid color-mix(in srgb, var(--line) 60%, transparent); border-radius: 12px; }
 .item:hover { border-color: color-mix(in srgb, var(--orange) 35%, var(--line)); }
+.projectItem { padding: 0; overflow: clip; }
+.projectSummary { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px; cursor: pointer; list-style: none; }
+.projectSummary::-webkit-details-marker { display: none; }
+.projectSummaryCopy { display: grid; gap: 5px; min-width: 0; }
+.projectName { font-weight: 650; color: var(--ink); }
+.projectSummary small { color: var(--ink-soft); line-height: 1.5; }
+.projectActionHint { flex: 0 0 auto; color: var(--orange-dark); font-size: 12px; font-weight: 600; }
+.projectItem[open] > .form { margin: 0; padding: 0 16px 16px; border-top: 1px solid var(--line); padding-top: 16px; }
+.archiveControl { display: flex; align-items: center; gap: 9px; color: var(--ink-soft); font-size: 12px; }
+.archiveControl input { accent-color: var(--orange); }
 .loadingShell { display: grid; gap: 14px; padding-top: 24px; }
 .loadingShell span { display: block; height: 58px; border-radius: 14px; background: linear-gradient(90deg, var(--surface-inset), var(--surface-card), var(--surface-inset)); background-size: 220% 100%; animation: workspace-shimmer 1.4s ease-in-out infinite; }
 .loadingShell span:first-child { height: 160px; }

@@ -563,14 +563,16 @@ export const saveProject = mutation({
     const key = args.key.trim().toLowerCase();
     if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(key))
       throw new ConvexError("INVALID_PROJECT_KEY");
-    if (
-      args.teamId &&
-      (await ctx.db.get(args.teamId))?.workspaceId !== workspace._id
-    )
-      throw new ConvexError("TEAM_NOT_FOUND");
     const existing = args.projectId ? await ctx.db.get(args.projectId) : null;
     if (args.projectId && existing?.workspaceId !== workspace._id)
       throw new ConvexError("PROJECT_NOT_FOUND");
+    if (args.teamId) {
+      const team = await ctx.db.get(args.teamId);
+      if (team?.workspaceId !== workspace._id)
+        throw new ConvexError("TEAM_NOT_FOUND");
+      if (team.archivedAt && existing?.teamId !== team._id)
+        throw new ConvexError("TEAM_ARCHIVED");
+    }
     const duplicate = await ctx.db
       .query("projects")
       .withIndex("by_workspaceId_and_key", (q) =>
@@ -807,11 +809,12 @@ export const reserveInvitation = internalMutation({
     )
       throw new ConvexError("OWNER_REQUIRED");
     if (args.role === "owner") throw new ConvexError("USE_OWNERSHIP_TRANSFER");
-    if (
-      args.teamId &&
-      (await ctx.db.get(args.teamId))?.workspaceId !== workspace._id
-    )
-      throw new ConvexError("TEAM_NOT_FOUND");
+    if (args.teamId) {
+      const team = await ctx.db.get(args.teamId);
+      if (team?.workspaceId !== workspace._id)
+        throw new ConvexError("TEAM_NOT_FOUND");
+      if (team.archivedAt) throw new ConvexError("TEAM_ARCHIVED");
+    }
     const now = Date.now();
     const limit = productPolicy(workspace.plan).members;
     const existing = await ctx.db

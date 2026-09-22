@@ -379,4 +379,169 @@ describe("workspace lifecycle and import safety", () => {
       [],
     );
   });
+
+  test("deletion removes local billing metadata only after the subscription is canceled", async () => {
+    const t = convexTest(schema, modules);
+    const session = t.withIdentity(identity);
+    await session.mutation(api.account.ensureProfile, { handle: "billing-delete" });
+    const overview = await session.query(api.workspaces.overview, {});
+    const billingId = await t.run((ctx) => ctx.db.insert("workspaceBilling", {
+      workspaceId: overview.workspace.id,
+      stripeCustomerId: "cus_fixture",
+      stripeSubscriptionId: "sub_fixture",
+      stripePriceId: "price_fixture",
+      tier: "team",
+      status: "active",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }));
+    const webhookEventId = await t.run((ctx) => ctx.db.insert("billingEvents", {
+      eventId: "evt_fixture_deleted_workspace",
+      type: "customer.subscription.updated",
+      workspaceId: overview.workspace.id,
+      providerCreatedAt: Date.now(),
+      createdAt: Date.now(),
+    }));
+    await session.mutation(api.account.requestAccountDeletion, {
+      confirmation: "delete my account",
+    });
+    const request = (await t.run((ctx) => ctx.db.query("accountDeletionRequests").first()))!;
+    await t.run((ctx) => ctx.db.patch(request._id, { scheduledFor: Date.now() - 1 }));
+
+    await t.mutation(internal.account.processAccountDeletion, {
+      requestId: request._id,
+    });
+    const waiting = await t.mutation(internal.account.processAccountDeletion, {
+      requestId: request._id,
+    });
+    expect(waiting).toMatchObject({
+      processed: false,
+      stage: "workspaceBilling",
+      waitingForSubscriptionCancellation: true,
+    });
+    expect(await t.run((ctx) => ctx.db.get(billingId))).toMatchObject({
+      status: "active",
+      stripeSubscriptionId: "sub_fixture",
+    });
+    expect(await t.run((ctx) => ctx.db.get(overview.workspace.id))).not.toBeNull();
+    expect((await t.run((ctx) => ctx.db.get(request._id)))?.stage).toBe("workspaceBilling");
+    expect(await t.run((ctx) => ctx.db.get(webhookEventId))).toMatchObject({
+      workspaceId: overview.workspace.id,
+    });
+    expect((await session.query(api.account.current, {}))?.deletionRequest).toMatchObject({
+      waitingForBillingCancellation: true,
+      billingPortalAvailable: true,
+    });
+
+    await t.run((ctx) => ctx.db.patch(billingId, { status: "canceled", updatedAt: Date.now() }));
+    expect((await session.query(api.account.current, {}))?.deletionRequest).toMatchObject({
+      waitingForBillingCancellation: false,
+      billingCancellationConfirmed: true,
+    });
+    for (let i = 0; i < 80; i++) {
+      await t.mutation(internal.account.processAccountDeletion, { requestId: request._id });
+      if ((await t.run((ctx) => ctx.db.get(request._id)))?.completedAt) break;
+    }
+    expect(await t.run((ctx) => ctx.db.get(billingId))).toBeNull();
+    expect((await t.run((ctx) => ctx.db.get(request._id)))?.completedAt).toBeTypeOf("number");
+    const retainedEvent = await t.run((ctx) => ctx.db.get(webhookEventId));
+    expect(retainedEvent).toMatchObject({
+      eventId: "evt_fixture_deleted_workspace",
+      type: "customer.subscription.updated",
+    });
+    expect(retainedEvent?.workspaceId).toBeUndefined();
+  });
+
+  test("archived teams cannot be selected for new invitations or project assignments", async () => {
+    const t = convexTest(schema, modules);
+    const organizationIdentity = {
+      ...identity,
+      org_id: "org_archived_team",
+      role: "owner",
+      email: "owner@example.com",
+    };
+    const session = t.withIdentity(organizationIdentity);
+    await session.mutation(api.account.ensureProfile, { handle: "archived-team-owner" });
+    const activeTeamId = await session.mutation(api.workspaces.createTeam, {
+      name: "Active team",
+      description: "Available for assignment",
+    });
+    const archivedTeamId = await session.mutation(api.workspaces.createTeam, {
+      name: "Archived team",
+      description: "Historical assignment",
+    });
+    await session.mutation(api.workspaces.updateTeam, {
+      teamId: archivedTeamId,
+      name: "Archived team",
+      description: "Historical assignment",
+      archived: true,
+    });
+
+    const access = {
+      identityKey: identity.tokenIdentifier,
+      subject: identity.subject,
+      organizationId: "org_archived_team",
+      roles: ["owner"],
+      permissions: [],
+      permissionsAuthoritative: false,
+    };
+    await t.mutation(internal.workspaces.reserveInvitation, {
+      access,
+      email: "active@example.com",
+      role: "member",
+      teamId: activeTeamId,
+      externalId: "invite-active-team",
+    });
+    const existingProjectId = await session.mutation(api.workspaces.saveProject, {
+      name: "Historical project",
+      key: "historical-project",
+      costCenter: "R&D",
+      teamId: activeTeamId,
+      archived: false,
+    });
+    await expect(
+      t.mutation(internal.workspaces.reserveInvitation, {
+        access,
+        email: "archived@example.com",
+        role: "member",
+        teamId: archivedTeamId,
+        externalId: "invite-archived-team",
+      }),
+    ).rejects.toThrow("TEAM_ARCHIVED");
+
+    await expect(
+      session.mutation(api.workspaces.saveProject, {
+        name: "Blocked assignment",
+        key: "blocked-assignment",
+        costCenter: "R&D",
+        teamId: archivedTeamId,
+        archived: false,
+      }),
+    ).rejects.toThrow("TEAM_ARCHIVED");
+    await expect(
+      session.mutation(api.workspaces.saveProject, {
+        name: "Active assignment",
+        key: "active-assignment",
+        costCenter: "R&D",
+        teamId: activeTeamId,
+        archived: false,
+      }),
+    ).resolves.toBeTruthy();
+    await session.mutation(api.workspaces.updateTeam, {
+      teamId: activeTeamId,
+      name: "Active team",
+      description: "Now archived",
+      archived: true,
+    });
+    await expect(
+      session.mutation(api.workspaces.saveProject, {
+        projectId: existingProjectId,
+        name: "Historical project updated",
+        key: "historical-project",
+        costCenter: "R&D",
+        teamId: activeTeamId,
+        archived: false,
+      }),
+    ).resolves.toBe(existingProjectId);
+  });
 });

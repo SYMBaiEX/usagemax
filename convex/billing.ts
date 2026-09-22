@@ -1,6 +1,5 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
 import { audit, requireWorkspaceAccess } from "./account";
 
 const billingStatus = v.union(
@@ -154,7 +153,8 @@ type StripeEventArgs = {
   eventId: string;
   eventType: string;
   eventCreatedAt: number;
-  workspaceId?: Id<"workspaces">;
+  snapshotRetrievedAt: number;
+  workspaceId?: string;
   customerId?: string;
   subscriptionId?: string;
   priceId?: string;
@@ -171,7 +171,8 @@ export const applyStripeEvent = internalMutation({
     eventId: v.string(),
     eventType: v.string(),
     eventCreatedAt: v.number(),
-    workspaceId: v.optional(v.id("workspaces")),
+    snapshotRetrievedAt: v.number(),
+    workspaceId: v.optional(v.string()),
     customerId: v.optional(v.string()),
     subscriptionId: v.optional(v.string()),
     priceId: v.optional(v.string()),
@@ -191,13 +192,22 @@ export const applyStripeEvent = internalMutation({
 
     if (!Number.isSafeInteger(args.eventCreatedAt) || args.eventCreatedAt <= 0)
       throw new ConvexError("INVALID_STRIPE_EVENT_TIME");
+    if (!Number.isSafeInteger(args.snapshotRetrievedAt) || args.snapshotRetrievedAt <= 0)
+      throw new ConvexError("INVALID_STRIPE_SNAPSHOT_TIME");
 
-    let billing = args.workspaceId
+    const metadataWorkspaceId = args.workspaceId
+      ? ctx.db.normalizeId("workspaces", args.workspaceId) ?? undefined
+      : undefined;
+    const metadataWorkspace = metadataWorkspaceId
+      ? await ctx.db.get(metadataWorkspaceId)
+      : null;
+
+    let billing = metadataWorkspace
       ? (
           await ctx.db
             .query("workspaceBilling")
             .withIndex("by_workspaceId", (q) =>
-              q.eq("workspaceId", args.workspaceId!),
+              q.eq("workspaceId", metadataWorkspace._id),
             )
             .take(1)
         )[0]
@@ -217,12 +227,11 @@ export const applyStripeEvent = internalMutation({
         )
         .unique() ?? undefined;
 
-    // Stripe retries can arrive out of order. Persist and compare Stripe's
-    // event time, with event ID as a stable tie-break for same-second events.
-    if (billing?.lastStripeEventCreatedAt !== undefined) {
-      const stale = args.eventCreatedAt < billing.lastStripeEventCreatedAt ||
-        (args.eventCreatedAt === billing.lastStripeEventCreatedAt &&
-          args.eventId <= (billing.lastStripeEventId ?? ""));
+    // The Vercel webhook facade fetches Stripe's current subscription before
+    // this projection. Use that fetch time only to guard against delayed jobs;
+    // Stripe event.created has second precision and event IDs are not ordered.
+    if (billing?.lastStripeSnapshotAt !== undefined) {
+      const stale = args.snapshotRetrievedAt < billing.lastStripeSnapshotAt;
       if (stale) {
         await ctx.db.insert("billingEvents", {
           eventId: args.eventId,
@@ -237,10 +246,10 @@ export const applyStripeEvent = internalMutation({
 
     const tier = tierValue(args.tier) ?? billing?.tier ?? "team";
     const status = statusValue(args.status);
-    if (!billing && args.workspaceId && args.customerId && validCustomer(args.customerId)) {
+    if (!billing && metadataWorkspace && args.customerId && validCustomer(args.customerId)) {
       const now = Date.now();
       const id = await ctx.db.insert("workspaceBilling", {
-        workspaceId: args.workspaceId,
+        workspaceId: metadataWorkspace._id,
         stripeCustomerId: args.customerId,
         stripeSubscriptionId: validSubscription(args.subscriptionId)
           ? args.subscriptionId
@@ -254,6 +263,7 @@ export const applyStripeEvent = internalMutation({
         lastInvoiceId: args.invoiceId,
         lastStripeEventCreatedAt: args.eventCreatedAt,
         lastStripeEventId: args.eventId,
+        lastStripeSnapshotAt: args.snapshotRetrievedAt,
         createdAt: now,
         updatedAt: now,
       });
@@ -271,13 +281,14 @@ export const applyStripeEvent = internalMutation({
       if (args.currentPeriodEnd !== undefined) patch.currentPeriodEnd = args.currentPeriodEnd;
       if (args.cancelAtPeriodEnd !== undefined) patch.cancelAtPeriodEnd = args.cancelAtPeriodEnd;
       if (args.invoiceId) patch.lastInvoiceId = args.invoiceId;
+      patch.lastStripeSnapshotAt = args.snapshotRetrievedAt;
       patch.lastStripeEventCreatedAt = args.eventCreatedAt;
       patch.lastStripeEventId = args.eventId;
       await ctx.db.patch(billing._id, patch);
       billing = (await ctx.db.get(billing._id)) ?? undefined;
     }
 
-    const workspaceId = billing?.workspaceId ?? args.workspaceId;
+    const workspaceId = billing?.workspaceId ?? metadataWorkspace?._id;
     if (workspaceId && tier === "team" && status) {
       const workspace = await ctx.db.get(workspaceId);
       if (workspace) {
@@ -293,7 +304,7 @@ export const applyStripeEvent = internalMutation({
     await ctx.db.insert("billingEvents", {
       eventId: args.eventId,
       type: args.eventType,
-      workspaceId: billing?.workspaceId ?? args.workspaceId,
+      workspaceId: billing?.workspaceId ?? metadataWorkspace?._id,
       providerCreatedAt: args.eventCreatedAt,
       createdAt: Date.now(),
     });
@@ -301,24 +312,18 @@ export const applyStripeEvent = internalMutation({
   },
 });
 
-/** Verify Stripe's raw-body signature without importing the Node SDK into Convex. */
-export async function verifyStripeSignature(
+/** Verify the signed, normalized subscription snapshot forwarded by Vercel. */
+export async function verifyStripeSnapshotSignature(
   payload: string,
-  header: string,
+  issuedAtHeader: string,
+  signature: string,
   secret: string,
 ) {
-  const parts = header.split(",");
-  const timestamp = parts
-    .find((part) => part.startsWith("t="))
-    ?.slice(2);
-  const signatures = parts
-    .filter((part) => part.startsWith("v1="))
-    .map((part) => part.slice(3))
-    .filter((value) => /^[a-f0-9]{64}$/i.test(value));
-  const seconds = Number(timestamp);
-  if (!timestamp || !Number.isSafeInteger(seconds) || !signatures.length)
+  if (!/^\d{13}$/.test(issuedAtHeader) || !/^[a-f0-9]{64}$/i.test(signature) || !secret)
     return false;
-  if (Math.abs(Date.now() - seconds * 1000) > 5 * 60_000) return false;
+  const issuedAt = Number(issuedAtHeader);
+  if (!Number.isSafeInteger(issuedAt) || Math.abs(Date.now() - issuedAt) > 5 * 60_000)
+    return false;
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),
@@ -326,10 +331,7 @@ export async function verifyStripeSignature(
     false,
     ["verify"],
   );
-  const data = new TextEncoder().encode(`${timestamp}.${payload}`);
-  for (const signature of signatures) {
-    const bytes = new Uint8Array(signature.match(/.{2}/g)!.map((byte) => parseInt(byte, 16)));
-    if (await crypto.subtle.verify("HMAC", key, bytes, data)) return true;
-  }
-  return false;
+  const bytes = new Uint8Array(signature.match(/.{2}/g)!.map((byte) => parseInt(byte, 16)));
+  const data = new TextEncoder().encode(`${issuedAtHeader}.${payload}`);
+  return crypto.subtle.verify("HMAC", key, bytes, data);
 }

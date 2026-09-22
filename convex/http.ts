@@ -5,7 +5,7 @@ import { internal } from "./_generated/api";
 import { MIN_EVENT_TIME, clampNonNegative, cleanText, jsonResponse, sha256 } from "./lib";
 import { isAutomaticDeviceName } from "./device_name";
 import type { telemetryEventValidator } from "./telemetry";
-import { verifyStripeSignature } from "./billing";
+import { verifyStripeSnapshotSignature } from "./billing";
 
 type NormalizedEvent = typeof telemetryEventValidator.type;
 type JsonObject = Record<string, unknown>;
@@ -793,86 +793,79 @@ const workosLifecycle = httpAction(async (ctx, request) => {
   }
 });
 
-const stripeWebhook = httpAction(async (ctx, request) => {
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+const stripeSnapshotWebhook = httpAction(async (ctx, request) => {
+  const secret = process.env.BILLING_INTERNAL_SECRET;
   if (!secret) return jsonResponse({ error: "webhook_not_configured" }, 503);
   const payload = await request.text();
-  if (payload.length > 262_144)
+  if (payload.length > 32_768)
     return jsonResponse({ error: "payload_too_large" }, 413);
-  const signature = request.headers.get("stripe-signature");
-  if (!signature || !(await verifyStripeSignature(payload, signature, secret)))
+  const issuedAt = request.headers.get("x-usagemax-issued-at") ?? "";
+  const signature = request.headers.get("x-usagemax-signature") ?? "";
+  if (!(await verifyStripeSnapshotSignature(payload, issuedAt, signature, secret)))
     return jsonResponse({ error: "invalid_signature" }, 401);
-  let envelope: JsonObject;
+  let snapshot: JsonObject;
   try {
     const parsed = JSON.parse(payload);
     const value = object(parsed);
-    if (!value) throw new Error("invalid_event");
-    envelope = value;
+    if (!value) throw new Error("invalid_snapshot");
+    snapshot = value;
   } catch {
-    return jsonResponse({ error: "invalid_event" }, 400);
+    return jsonResponse({ error: "invalid_snapshot" }, 400);
   }
-  const eventId = optionalText(envelope.id, 120);
-  const eventType = optionalText(envelope.type, 120);
-  const eventCreatedAt = typeof envelope.created === "number" &&
-      Number.isSafeInteger(envelope.created) &&
-      envelope.created > 0 &&
-      Number.isSafeInteger(envelope.created * 1000)
-    ? envelope.created * 1000
-    : undefined;
-  const data = object(envelope.data);
-  const eventObject = object(data?.object);
-  if (!eventId || !eventType || !eventObject || eventCreatedAt === undefined)
-    return jsonResponse({ error: "invalid_event" }, 400);
-
-  const metadata = object(eventObject.metadata);
-  const customerId = optionalText(
-    eventObject.customer ?? eventObject.customer_id,
-    100,
-  );
-  const subscriptionValue = eventObject.subscription;
-  const subscriptionId = optionalText(
-    typeof subscriptionValue === "string"
-      ? subscriptionValue
-      : eventType.startsWith("customer.subscription.")
-        ? eventObject.id
-        : undefined,
-    100,
-  );
-  const items = object(eventObject.items);
-  const itemList = Array.isArray(items?.data) ? items.data : [];
-  const firstItem = object(itemList[0]);
-  const price = object(firstItem?.price);
-  const quantity = typeof firstItem?.quantity === "number" ? firstItem.quantity : undefined;
-  const periodEnd = typeof eventObject.current_period_end === "number"
-    ? Math.round(eventObject.current_period_end * 1000)
-    : undefined;
-  const status = billingStatus(eventObject.status)
-    ?? (eventType === "checkout.session.completed" || eventType === "invoice.paid"
-      ? "active"
-      : eventType === "invoice.payment_failed"
-        ? "past_due"
-        : eventType === "customer.subscription.deleted"
-          ? "canceled"
-          : undefined);
+  const eventId = optionalText(snapshot.eventId, 120);
+  const eventType = optionalText(snapshot.eventType, 120);
+  const eventCreatedAt = snapshot.eventCreatedAt;
+  const snapshotRetrievedAt = snapshot.snapshotRetrievedAt;
+  const subscriptionId = optionalText(snapshot.subscriptionId, 100);
+  const customerId = optionalText(snapshot.customerId, 100);
+  const status = billingStatus(snapshot.status);
+  const allowedEventTypes = new Set([
+    "checkout.session.completed",
+    "customer.subscription.created",
+    "customer.subscription.updated",
+    "customer.subscription.deleted",
+    "invoice.paid",
+    "invoice.payment_failed",
+  ]);
+  const issuedAtNumber = Number(issuedAt);
+  if (
+    !eventId || !/^evt_[A-Za-z0-9_]{1,115}$/.test(eventId) ||
+    !eventType || !allowedEventTypes.has(eventType) ||
+    typeof eventCreatedAt !== "number" || !Number.isSafeInteger(eventCreatedAt) || eventCreatedAt <= 0 ||
+    typeof snapshotRetrievedAt !== "number" || snapshotRetrievedAt !== issuedAtNumber ||
+    !subscriptionId || !/^sub_[A-Za-z0-9_]{1,95}$/.test(subscriptionId) ||
+    !customerId || !/^cus_[A-Za-z0-9_]{1,95}$/.test(customerId) ||
+    !status || typeof snapshot.cancelAtPeriodEnd !== "boolean"
+  ) return jsonResponse({ error: "invalid_snapshot" }, 400);
+  const quantity = snapshot.seatQuantity;
+  if (quantity !== undefined && (typeof quantity !== "number" || !Number.isSafeInteger(quantity) || quantity < 0 || quantity > 100_000))
+    return jsonResponse({ error: "invalid_snapshot" }, 400);
+  const periodEnd = snapshot.currentPeriodEnd;
+  if (periodEnd !== undefined && (typeof periodEnd !== "number" || !Number.isSafeInteger(periodEnd) || periodEnd < 0))
+    return jsonResponse({ error: "invalid_snapshot" }, 400);
+  const priceId = optionalText(snapshot.priceId, 100);
+  if (priceId && !/^price_[A-Za-z0-9_]{1,90}$/.test(priceId))
+    return jsonResponse({ error: "invalid_snapshot" }, 400);
+  const invoiceId = optionalText(snapshot.invoiceId, 100);
+  if (invoiceId && !/^in_[A-Za-z0-9_]{1,94}$/.test(invoiceId))
+    return jsonResponse({ error: "invalid_snapshot" }, 400);
   await ctx.scheduler.runAfter(0, internal.billing.applyStripeEvent, {
     eventId,
     eventType,
     eventCreatedAt,
+    snapshotRetrievedAt,
+    workspaceId: optionalText(snapshot.workspaceId, 128),
     customerId,
     subscriptionId,
-    priceId: optionalText(price?.id, 100),
-    tier: billingTier(metadata?.tier),
+    priceId,
+    tier: billingTier(snapshot.tier),
     status,
-    seatQuantity: quantity,
-    currentPeriodEnd: periodEnd,
-    cancelAtPeriodEnd: typeof eventObject.cancel_at_period_end === "boolean"
-      ? eventObject.cancel_at_period_end
-      : undefined,
-    invoiceId: eventType.startsWith("invoice.")
-      ? optionalText(eventObject.id, 100)
-      : undefined,
+    ...(typeof quantity === "number" ? { seatQuantity: quantity } : {}),
+    ...(typeof periodEnd === "number" ? { currentPeriodEnd: periodEnd } : {}),
+    cancelAtPeriodEnd: snapshot.cancelAtPeriodEnd,
+    invoiceId,
   });
-  return jsonResponse({ ok: true, accepted: true });
+  return jsonResponse({ ok: true, accepted: true }, 202);
 });
 
 const http = httpRouter();
@@ -896,7 +889,7 @@ http.route({ path: "/health", method: "GET", handler: httpAction(async () => jso
 http.route({ path: "/v1/devices/link", method: "POST", handler: linkDevice });
 http.route({ path: "/v1/devices/status", method: "GET", handler: collectorStatus });
 http.route({ path: "/v1/devices/revoke", method: "POST", handler: revokeDevice });
-http.route({ path: "/v1/billing/stripe-webhook", method: "POST", handler: stripeWebhook });
+http.route({ path: "/v1/billing/stripe-sync", method: "POST", handler: stripeSnapshotWebhook });
 http.route({ pathPrefix: "/v2/usage/snapshots/", method: "GET", handler: snapshotStatus });
 http.route({ pathPrefix: "/v2/usage/snapshots/", method: "OPTIONS", handler: cors });
 http.route({ path: "/v2/usage/snapshots", method: "POST", handler: snapshots });

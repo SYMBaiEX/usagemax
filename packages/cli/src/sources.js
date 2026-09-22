@@ -69,13 +69,24 @@ async function entries(value) {
 }
 
 async function providerBearingHome(home, pathApi) {
-  const markers = [".claude", ".codex", ".factory", ".gemini", ".openclaw", ".hermes", ".grok"];
+  // Only inspect known provider roots. Avoid treating generic profile folders
+  // (for example .local/share itself) as evidence that a Windows profile is
+  // relevant; that would make multi-user WSL selection noisy and unsafe.
+  const markers = [
+    ".claude", ".config/claude", ".codex", ".factory", ".gemini", ".openclaw", ".clawdbot", ".moltbot", ".moldbot", ".hermes", ".grok",
+    ".kimi", ".kimi-code", ".qwen", ".copilot", ".pi",
+    ".local/share/amp", ".local/share/goose", ".local/share/Block/goose", ".local/share/kilo", ".local/share/opencode",
+    "AppData/Roaming/Block/goose",
+    ".config/manicode", ".config/manicode-dev", ".config/manicode-staging",
+  ];
   const checks = await Promise.all(markers.map((marker) => existsDirectory(pathApi.join(home, marker))));
   return checks.some(Boolean);
 }
 
-async function discoverWslWindowsHomes(env, platform, pathApi) {
-  if (platform !== "linux" || !String(env.WSL_DISTRO_NAME ?? "").trim()) return [];
+export async function discoverWslWindowsHomeStatus({ env = process.env, platform = process.platform, pathApi = path } = {}) {
+  if (platform !== "linux" || !String(env.WSL_DISTRO_NAME ?? "").trim()) {
+    return { status: "not-applicable", candidates: [], selected: [] };
+  }
   const usersRoot = String(env.USAGEMAX_WSL_USERS_DIR ?? "/mnt/c/Users").trim();
   const candidates = [];
   for (const entry of await entries(usersRoot)) {
@@ -86,7 +97,8 @@ async function discoverWslWindowsHomes(env, platform, pathApi) {
   // A WSL distro can see every Windows profile. Auto-select only when there is
   // one unambiguous provider-bearing profile; multi-user systems opt in with
   // USAGEMAX_ADDITIONAL_HOME so one employee never absorbs another's usage.
-  return candidates.length === 1 ? candidates : [];
+  const status = candidates.length === 1 ? "discovered" : candidates.length > 1 ? "ambiguous" : "unavailable";
+  return { status, candidates, selected: status === "discovered" ? candidates : [] };
 }
 
 async function discoverBackupRoots(home, pathApi) {
@@ -229,15 +241,15 @@ export function sourceDefinitions({ env = process.env, home = ccusageHome(env), 
     definitions.push(tree("pi", root, "jsonl"));
   }
 
-  const gooseRoot = String(env.GOOSE_PATH_ROOT ?? "").trim();
-  const gooseDatabases = gooseRoot
-    ? [join(gooseRoot, "data", "sessions", "sessions.db")]
+  const gooseRoots = envList(env, "GOOSE_PATH_ROOT", []);
+  const gooseDatabases = gooseRoots.length
+    ? gooseRoots.map((root) => join(root, "data", "sessions", "sessions.db"))
     : [
         join(home, ".local", "share", "goose", "sessions", "sessions.db"),
         join(home, "Library", "Application Support", "goose", "sessions", "sessions.db"),
         join(home, ".local", "share", "Block", "goose", "sessions", "sessions.db"),
       ];
-  if (!gooseRoot && String(env.APPDATA ?? "").trim()) {
+  if (!gooseRoots.length && String(env.APPDATA ?? "").trim()) {
     gooseDatabases.push(join(String(env.APPDATA).trim(), "Block", "goose", "data", "sessions", "sessions.db"));
   }
   for (const database of gooseDatabases) definitions.push(...db("goose", database));
@@ -260,7 +272,9 @@ export function sourceDefinitions({ env = process.env, home = ccusageHome(env), 
     definitions.push(tree("qwen", join(root, "projects"), "jsonl"));
   }
 
-  definitions.push(tree("copilot", join(home, ".copilot", "otel"), "jsonl"));
+  for (const root of envList(env, "COPILOT_OTEL_DIR", [join(home, ".copilot", "otel")])) {
+    definitions.push(tree("copilot", root, "jsonl"));
+  }
   if (String(env.COPILOT_OTEL_FILE_EXPORTER_PATH ?? "").trim()) {
     definitions.push(file("copilot", String(env.COPILOT_OTEL_FILE_EXPORTER_PATH).trim()));
   }
@@ -283,8 +297,29 @@ export async function ccusageEnvironment({ env = process.env, platform = process
   const effective = { ...env };
   const home = ccusageHome(effective);
   const configuredHomes = commaList(effective.USAGEMAX_ADDITIONAL_HOME).map((item) => expandTilde(item, home, pathApi));
-  const wslHomes = await discoverWslWindowsHomes(effective, platform, pathApi);
+  const wslDiscovery = await discoverWslWindowsHomeStatus({ env: effective, platform, pathApi });
+  const wslHomes = wslDiscovery.selected;
   const additionalHomes = uniquePaths([...configuredHomes, ...wslHomes], pathApi).filter((item) => pathApi.normalize(item) !== pathApi.normalize(home));
+  const discoveredWindowsGooseRoots = [];
+  if (platform === "linux" && String(effective.WSL_DISTRO_NAME ?? "").trim()) {
+    for (const candidate of additionalHomes) {
+      const root = pathApi.join(candidate, "AppData", "Roaming", "Block", "goose");
+      if (await existsDirectory(root)) discoveredWindowsGooseRoots.push(root);
+    }
+  }
+  if (discoveredWindowsGooseRoots.length) {
+    const explicitRoots = commaList(effective.GOOSE_PATH_ROOT);
+    const defaultRoots = [
+      pathApi.join(home, ".local", "share", "goose"),
+      pathApi.join(home, "Library", "Application Support", "goose"),
+      pathApi.join(home, ".local", "share", "Block", "goose"),
+      ...(String(effective.APPDATA ?? "").trim() ? [pathApi.join(String(effective.APPDATA).trim(), "Block", "goose")] : []),
+    ];
+    effective.GOOSE_PATH_ROOT = uniquePaths([
+      ...(explicitRoots.length ? explicitRoots : defaultRoots),
+      ...discoveredWindowsGooseRoots,
+    ], pathApi).join(",");
+  }
   const homes = [home, ...additionalHomes];
   const backups = await Promise.all(homes.map((candidate) => discoverBackupRoots(candidate, pathApi)));
   const nestedClaude = (await Promise.all(homes.map((candidate) => discoverNestedClaudeRoots(candidate, pathApi)))).flat();
@@ -318,6 +353,7 @@ export async function ccusageEnvironment({ env = process.env, platform = process
   setDiscoveredList(effective, "KIMI_DATA_DIR", [pathApi.join(home, ".kimi"), pathApi.join(home, ".kimi-code")], additionalHomes.flatMap((candidate) => [pathApi.join(candidate, ".kimi"), pathApi.join(candidate, ".kimi-code")]), pathApi);
   setDiscoveredList(effective, "QWEN_DATA_DIR", [pathApi.join(home, ".qwen")], additions([".qwen"]), pathApi);
   setDiscoveredList(effective, "GEMINI_DATA_DIR", [pathApi.join(home, ".gemini", "tmp")], additions([".gemini", "tmp"]), pathApi);
+  setDiscoveredList(effective, "COPILOT_OTEL_DIR", [pathApi.join(home, ".copilot", "otel")], additions([".copilot", "otel"]), pathApi);
 
   effective.USAGEMAX_DISCOVERED_HOMES = homes.join(",");
 

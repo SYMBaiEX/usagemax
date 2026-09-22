@@ -499,6 +499,12 @@ export const current = query({
     const latestDeletion = user
       ? await ctx.db.query("accountDeletionRequests").withIndex("by_userId_and_requestedAt", (q) => q.eq("userId", user._id)).order("desc").first()
       : null;
+    const activeDeletion = latestDeletion && latestDeletion.workspaceId === access?.workspace._id && !latestDeletion.cancelledAt && !latestDeletion.completedAt
+      ? latestDeletion
+      : null;
+    const deletionBilling = activeDeletion
+      ? (await ctx.db.query("workspaceBilling").withIndex("by_workspaceId", (q) => q.eq("workspaceId", activeDeletion.workspaceId)).take(1))[0] ?? null
+      : null;
     const latestRun = collectors.length
       ? (await Promise.all(collectors.map((collector) => ctx.db.query("snapshotRuns").withIndex("by_collectorId_and_updatedAt", (q) => q.eq("collectorId", collector._id)).order("desc").first())))
           .filter(Boolean)
@@ -552,8 +558,18 @@ export const current = query({
         to: latestRun.coverageEndDay,
         completedAt: latestRun.completedAt,
       } : null,
-      deletionRequest: latestDeletion && latestDeletion.workspaceId === access?.workspace._id && !latestDeletion.cancelledAt && !latestDeletion.completedAt
-        ? { requestedAt: latestDeletion.requestedAt, scheduledFor: latestDeletion.scheduledFor }
+      deletionRequest: activeDeletion
+        ? {
+            requestedAt: activeDeletion.requestedAt,
+            scheduledFor: activeDeletion.scheduledFor,
+            waitingForBillingCancellation: activeDeletion.stage === "workspaceBilling" && Boolean(
+              deletionBilling && needsBillingCancellation(deletionBilling),
+            ),
+            billingCancellationConfirmed: activeDeletion.stage === "workspaceBilling" && Boolean(
+              !deletionBilling || !needsBillingCancellation(deletionBilling),
+            ),
+            billingPortalAvailable: Boolean(deletionBilling?.stripeCustomerId),
+          }
         : null,
     };
   },
@@ -1173,8 +1189,13 @@ export const cancelAccountDeletion = mutation({
   },
 });
 
+function needsBillingCancellation(billing: Doc<"workspaceBilling">) {
+  return billing.status !== "canceled" &&
+    (billing.status !== "inactive" || Boolean(billing.stripeSubscriptionId));
+}
+
 const deletionStages = [
-  "privacy", "leaderboard", "telemetry", "outcomes", "agents", "dailyUsage",
+  "privacy", "workspaceBilling", "billingEvents", "leaderboard", "telemetry", "outcomes", "agents", "dailyUsage",
   "dailyTotals", "dimensions", "devices", "models", "snapshots",
   "collectorSessions", "ingestReceipts", "rateBuckets", "sessionReceipts",
   "snapshotRuns", "snapshotReceipts", "snapshotChunkGroups", "snapshotPartitionHeads", "deviceLinks", "collectors", "stats",
@@ -1230,6 +1251,34 @@ export const processAccountDeletion = internalMutation({
       if (rows.length > 5000) throw new ConvexError("COLLECTOR_LIMIT_EXCEEDED");
       return rows;
     };
+
+    if (stage === "workspaceBilling") {
+      const rows = await ctx.db.query("workspaceBilling")
+        .withIndex("by_workspaceId", (q) => q.eq("workspaceId", request.workspaceId))
+        .take(100);
+      const activeSubscription = rows.some(needsBillingCancellation);
+      if (activeSubscription) {
+        // Never erase the only local reference to a billable Stripe subscription.
+        // Keep deletion resumable and retry after Stripe reports cancellation; no
+        // external Stripe mutation is performed by account deletion.
+        await ctx.scheduler.runAfter(24 * 60 * 60 * 1000, internal.account.processAccountDeletion, { requestId });
+        return { processed: false, stage, rows: 0, waitingForSubscriptionCancellation: true };
+      }
+      return finishRows(rows);
+    }
+    if (stage === "billingEvents") {
+      const rows = await ctx.db.query("billingEvents")
+        .withIndex("by_workspaceId_and_createdAt", (q) => q.eq("workspaceId", request.workspaceId))
+        .take(100);
+      if (rows.length) {
+        for (const row of rows) await ctx.db.patch(row._id, { workspaceId: undefined });
+        const processed = (request.processedRows ?? 0) + rows.length;
+        await repeatDeletion(ctx, requestId, processed);
+        return { processed: true, stage, rows: rows.length };
+      }
+      await advanceDeletion(ctx, requestId, stage, request.processedRows ?? 0);
+      return { processed: true, stage, rows: 0 };
+    }
 
     if (stage === "privacy") {
       const profile = profileId ? await ctx.db.get(profileId) : null;
