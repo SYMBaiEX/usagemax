@@ -94,6 +94,8 @@ function readableError(error: unknown) {
       "The invitation result is uncertain. Check WorkOS before sending another invitation.",
     OWNER_REQUIRED: "Only the workspace owner can manage administrators.",
     SAVED_VIEW_LIMIT: "Remove a saved view before adding another (30 maximum).",
+    TEAM_LIMIT_REACHED: "This workspace has reached its team limit.",
+    TEAM_NAME_TAKEN: "A team with that name already exists.",
   };
   for (const [key, message] of Object.entries(known))
     if (value.includes(key)) return message;
@@ -298,7 +300,7 @@ export function Workspace() {
   const create = useAction(api.organizationActions.create);
   const selectPersonal = useMutation(api.workspaces.selectPersonal);
   const { switchToOrganization } = useAuth();
-  const [tab, setTab] = useState("Usage");
+  const [tab, setTab] = useState("Overview");
   const [message, setMessage] = useState("");
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -342,6 +344,7 @@ export function Workspace() {
     .map((part) => part[0]?.toUpperCase())
     .join("") || "U";
   const tabs = [
+    "Overview",
     cap["finance:read"] && "Usage",
     cap["finance:read"] && "Activity",
     "Teams",
@@ -475,6 +478,9 @@ export function Workspace() {
           key={`${overview.workspace.id}:${selected}`}
         >
           {selected === "Usage" && <Usage />}
+          {selected === "Overview" && (
+            <WorkspaceOverview overview={overview} onNavigate={setTab} />
+          )}
           {selected === "Activity" && <Activity />}
           {selected === "Teams" && <Teams overview={overview} />}
           {selected === "Ledger" && <Ledger overview={overview} />}
@@ -490,6 +496,196 @@ export function Workspace() {
         </div>
       </Operations.Provider>
     </Timezone.Provider>
+  );
+}
+
+function WorkspaceOverview({
+  overview,
+  onNavigate,
+}: {
+  overview: Overview;
+  onNavigate: (tab: string) => void;
+}) {
+  const canReadUsage = overview.capabilities["finance:read"];
+  const summary = useQuery(
+    api.personal.summary,
+    canReadUsage ? {} : "skip",
+  );
+  const agents = usePaginatedQuery(
+    api.activity.agents,
+    canReadUsage ? {} : "skip",
+    { initialNumItems: 4 },
+  );
+  const [since] = useState(() => Date.now() - 7 * 86400000);
+  const outcomes = usePaginatedQuery(
+    api.activity.outcomes,
+    canReadUsage ? { startAt: since } : "skip",
+    { initialNumItems: 4 },
+  );
+  const dateTime = useDateTime();
+  const activeWorkspace = overview.workspace.organizationId
+    ? "Company workspace"
+    : "Personal workspace";
+  const plan = overview.policy.enterprise
+    ? "Enterprise"
+    : overview.billing?.status === "active" ||
+        overview.billing?.status === "trialing"
+      ? "Team operations"
+      : "Free workspace";
+  return (
+    <>
+      {canReadUsage && (
+        <div className={styles.stats} role="group" aria-label="Your usage summary">
+          <div>
+            <span>Lifetime tokens</span>
+            <strong>
+              {summary ? numeric.format(summary.stats?.totalTokens ?? 0) : "—"}
+            </strong>
+          </div>
+          <div>
+            <span>Tracked cost · not an invoice</span>
+            <strong>
+              {summary ? money(summary.stats?.totalCostMicros) : "—"}
+            </strong>
+          </div>
+          <div>
+            <span>Active days</span>
+            <strong>{summary ? summary.stats?.activeDays ?? 0 : "—"}</strong>
+          </div>
+          <div>
+            <span>Connected devices</span>
+            <strong>{summary ? summary.stats?.deviceCount ?? 0 : "—"}</strong>
+          </div>
+        </div>
+      )}
+      {canReadUsage && !summary && (
+        <LoadingState label="Loading your usage summary…" />
+      )}
+      <div className={styles.split}>
+        <Panel title="Workspace status" eyebrow="OVERVIEW">
+          <div className={styles.workspaceStatus}>
+            <div>
+              <span>Workspace type</span>
+              <strong>{activeWorkspace}</strong>
+            </div>
+            <div>
+              <span>Plan</span>
+              <strong>{plan}</strong>
+            </div>
+            <div>
+              <span>Detailed data retention</span>
+              <strong>{overview.workspace.retentionDays} days</strong>
+            </div>
+          </div>
+          <p className={styles.hint}>
+            Workspace status and retention settings apply to this selected
+            workspace. Usage totals remain separate from provider invoices.
+          </p>
+        </Panel>
+        <Panel title="Quick navigation" eyebrow="SHORTCUTS">
+          <div className={styles.quickActions}>
+            {canReadUsage && (
+              <button className="button button-outline" onClick={() => onNavigate("Usage")}>
+                Usage reports
+              </button>
+            )}
+            <button className="button button-outline" onClick={() => onNavigate("Teams")}>
+              {canReadUsage || overview.capabilities["members:manage"]
+                ? "Teams & projects"
+                : "Your teams"}
+            </button>
+            {overview.capabilities["finance:read"] && (
+              <button className="button button-outline" onClick={() => onNavigate("Ledger")}>
+                Cost ledger
+              </button>
+            )}
+            {overview.capabilities["finance:read"] &&
+              overview.capabilities["finance:manage"] && (
+              <button className="button button-outline" onClick={() => onNavigate("Budgets")}>
+                Budget controls
+              </button>
+            )}
+            <button className="button button-outline" onClick={() => onNavigate("Settings")}>
+              Workspace settings
+            </button>
+          </div>
+        </Panel>
+      </div>
+      {canReadUsage && (
+        <div className={styles.split}>
+          <Panel
+            title="Recent agents"
+            eyebrow="TELEMETRY"
+            action={
+              <button className={styles.textButton} onClick={() => onNavigate("Activity")}>
+                View activity
+              </button>
+            }
+          >
+            {agents.status === "LoadingFirstPage" ? (
+              <LoadingState label="Loading recent agent activity…" />
+            ) : agents.results.length ? (
+              <div className={styles.recentList}>
+                {agents.results.slice(0, 4).map((agent) => (
+                  <div className={styles.recentRow} key={agent._id}>
+                    <span className={styles.recentMark} aria-hidden="true" />
+                    <span className={styles.recentCopy}>
+                      <strong>{agent.name}</strong>
+                      <small>{agent.task || agent.externalId} · {agent.state}</small>
+                    </span>
+                    <time>{dateTime(agent.updatedAt)}</time>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Empty>
+                No agent telemetry received yet. Historical token imports do not
+                fabricate live agent activity.
+              </Empty>
+            )}
+          </Panel>
+          <Panel title="Recent outcomes" eyebrow="LAST 7 DAYS">
+            {outcomes.status === "LoadingFirstPage" ? (
+              <LoadingState label="Loading recent outcomes…" />
+            ) : outcomes.results.length ? (
+              <div className={styles.recentList}>
+                {outcomes.results.slice(0, 4).map((row) => (
+                  <div className={styles.recentRow} key={row._id}>
+                    <span className={styles.recentMark} aria-hidden="true" />
+                    <span className={styles.recentCopy}>
+                      <strong>{row.outcome}</strong>
+                      <small>{row.logicalRequestId}</small>
+                    </span>
+                    <time>{dateTime(row.occurredAt)}</time>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Empty>
+                No outcomes were supplied. Token volume alone is not a
+                productivity measurement.
+              </Empty>
+            )}
+          </Panel>
+        </div>
+      )}
+      {!canReadUsage && (
+        <Panel title="Workspace overview" eyebrow="GETTING STARTED">
+          <p className={styles.hint}>
+            You can view your teams and workspace preferences. Usage and
+            financial summaries are available to roles with finance read access.
+          </p>
+          <div className={styles.quickActions}>
+            <button className="button button-outline" onClick={() => onNavigate("Teams")}>
+              View teams
+            </button>
+            <button className="button button-outline" onClick={() => onNavigate("Settings")}>
+              Preferences
+            </button>
+          </div>
+        </Panel>
+      )}
+    </>
   );
 }
 
@@ -583,29 +779,11 @@ function UsageHistory({
   const stats = summary?.stats;
   return (
     <>
-      <div className={styles.stats}>
-        <div>
-          <span>Lifetime tokens</span>
-          <strong>{numeric.format(stats?.totalTokens ?? 0)}</strong>
-        </div>
-        <div>
-          <span>Tracked cost · not an invoice</span>
-          <strong>{money(stats?.totalCostMicros)}</strong>
-        </div>
-        <div>
-          <span>Active days</span>
-          <strong>{stats?.activeDays ?? 0}</strong>
-        </div>
-        <div>
-          <span>Connected devices</span>
-          <strong>{stats?.deviceCount ?? 0}</strong>
-        </div>
-      </div>
       <Panel
         title="History"
         eyebrow="REPORTING"
         action={
-          <a href="/api/workspace/export?dataset=daily">Export all history ↗</a>
+          <a href="/api/workspace/export?dataset=daily">Export daily history ↗</a>
         }
       >
         <div className={styles.form}>
@@ -832,22 +1010,62 @@ export function Teams({ overview }: { overview: Overview }) {
   const manageInvite = useAction(api.organizationActions.manageInvitation);
   const changeMember = useAction(api.organizationActions.changeMember);
   const { run } = useContext(Operations);
-  const [selectedTeam, setSelectedTeam] = useState<Id<"teams"> | null>(null);
+  const [teamSelection, setTeamSelection] = useState<{
+    workspaceId: string;
+    teamId: Id<"teams">;
+  } | null>(null);
+  const selectedTeam =
+    teamSelection?.workspaceId === overview.workspace.id &&
+    overview.teams.some((team) => team._id === teamSelection.teamId)
+      ? teamSelection.teamId
+      : overview.teams.find((team) => !team.archivedAt)?._id ?? null;
+  const projectRows = usePaginatedQuery(
+    api.workspaces.projects,
+    canManage || overview.capabilities["finance:read"] ? {} : "skip",
+    { initialNumItems: 40 },
+  );
   return (
     <>
       <div className={styles.split}>
-        <Panel title="Teams" eyebrow="PEOPLE">
+        <Panel
+          title="Teams"
+          eyebrow="PEOPLE"
+          action={
+            <span className={styles.panelMeta}>
+              {overview.teams.length} of {overview.policy.teams} teams
+            </span>
+          }
+        >
           <div className={styles.list}>
             {overview.teams
-              .filter((t) => !t.archivedAt)
               .map((team) => (
                 <button
-                  className={`button button-outline ${styles.item}`}
+                  className={`${styles.teamCard} ${selectedTeam === team._id ? styles.teamCardSelected : ""}`}
                   key={team._id}
-                  onClick={() => setSelectedTeam(team._id)}
+                  onClick={() =>
+                    setTeamSelection({
+                      workspaceId: overview.workspace.id,
+                      teamId: team._id,
+                    })
+                  }
+                  aria-pressed={selectedTeam === team._id}
                 >
-                  {team.name}
-                  <span className={styles.hint}>{team.description}</span>
+                  <span className={styles.teamCardMain}>
+                    <span className={styles.teamGlyph} aria-hidden="true">
+                      {team.name.trim().slice(0, 1).toUpperCase() || "T"}
+                    </span>
+                    <span className={styles.teamCardCopy}>
+                      <span className={styles.teamName}>{team.name}</span>
+                      <span className={styles.teamDescription}>
+                        {team.description || "No description"}
+                      </span>
+                    </span>
+                  </span>
+                  <span className={styles.teamCardMeta}>
+                  <span className={team.archivedAt ? styles.archivedBadge : styles.teamStatus}>
+                    {team.archivedAt ? "Archived" : "Active"}
+                    </span>
+                  </span>
                 </button>
               ))}
           </div>
@@ -873,62 +1091,86 @@ export function Teams({ overview }: { overview: Overview }) {
             </Form>
           )}
         </Panel>
-        <Panel title="Projects & cost centers" eyebrow="ALLOCATION">
-          {overview.projects.map((p) => (
-            <p className={styles.item} key={p._id}>
-              {p.name}
-              <small>
-                {p.key} · {p.costCenter || "No cost center"}
-                {p.archivedAt ? " · Archived" : ""}
-              </small>
-            </p>
-          ))}
-          {canManage && (
-            <Form
-              submit={(data) =>
-                saveProject({
-                  name: text(data, "name"),
-                  key: text(data, "key"),
-                  costCenter: text(data, "costCenter"),
-                  teamId: (text(data, "team") || undefined) as
-                    Id<"teams"> | undefined,
-                  archived: false,
-                })
-              }
-            >
-              <Field label="Project name">
-                <input name="name" required maxLength={80} />
-              </Field>
-              <Field label="Key">
-                <input name="key" required pattern="[a-z0-9][a-z0-9_-]{0,63}" />
-              </Field>
-              <Field label="Cost center">
-                <input name="costCenter" maxLength={80} />
-              </Field>
-              <Field label="Team">
-                <select name="team">
-                  <option value="">Unassigned</option>
-                  {overview.teams.map((t) => (
-                    <option key={t._id} value={t._id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Button>Add project</Button>
-            </Form>
-          )}
-        </Panel>
+        {(canManage || overview.capabilities["finance:read"]) && (
+          <Panel title="Projects & cost centers" eyebrow="ALLOCATION">
+            {projectRows.status === "LoadingFirstPage" ? (
+              <LoadingState label="Loading projects…" />
+            ) : !projectRows.results.length ? (
+              <Empty>
+                {canManage
+                  ? "Add a project to connect teams with cost centers."
+                  : "No projects have been added to this workspace yet."}
+              </Empty>
+            ) : null}
+            {projectRows.results.map((p) => (
+              <p className={styles.item} key={p._id}>
+                {p.name}
+                <small>
+                  {p.key} · {p.costCenter || "No cost center"}
+                  {p.archivedAt ? " · Archived" : ""}
+                </small>
+              </p>
+            ))}
+            {canManage && (
+              <Form
+                submit={(data) =>
+                  saveProject({
+                    name: text(data, "name"),
+                    key: text(data, "key"),
+                    costCenter: text(data, "costCenter"),
+                    teamId: (text(data, "team") || undefined) as
+                      Id<"teams"> | undefined,
+                    archived: false,
+                  })
+                }
+              >
+                <Field label="Project name">
+                  <input name="name" required maxLength={80} />
+                </Field>
+                <Field label="Key">
+                  <input name="key" required pattern="[a-z0-9][a-z0-9_-]{0,63}" />
+                </Field>
+                <Field label="Cost center">
+                  <input name="costCenter" maxLength={80} />
+                </Field>
+                <Field label="Team">
+                  <select name="team">
+                    <option value="">Unassigned</option>
+                    {overview.teams.map((t) => (
+                      <option key={t._id} value={t._id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Button>Add project</Button>
+              </Form>
+            )}
+            <More status={projectRows.status} load={projectRows.loadMore} />
+          </Panel>
+        )}
       </div>
       {selectedTeam && (
         <TeamMembers
           teamId={selectedTeam}
           overview={overview}
-          members={members.results}
         />
       )}
       {canManage && (
-        <Panel title="People">
+        <Panel
+          title="People"
+          eyebrow="WORKSPACE ACCESS"
+          action={
+            <span className={styles.panelMeta}>
+              {members.status === "LoadingFirstPage"
+                ? "Loading members…"
+                : `${members.results.length}${members.status === "CanLoadMore" ? "+" : ""} shown`}
+            </span>
+          }
+        >
+          {members.status === "LoadingFirstPage" ? (
+            <LoadingState label="Loading workspace members…" />
+          ) : members.results.length ? (
           <Table headings={["Member", "Role", "Status", "Access"]}>
             {members.results.map((m) => (
               <tr key={m.id}>
@@ -997,6 +1239,9 @@ export function Teams({ overview }: { overview: Overview }) {
               </tr>
             ))}
           </Table>
+          ) : (
+            <Empty>No members have joined this workspace yet.</Empty>
+          )}
           <More status={members.status} load={members.loadMore} />
           {overview.workspace.organizationId ? (
             <Form
@@ -1044,7 +1289,20 @@ export function Teams({ overview }: { overview: Overview }) {
               stays here.
             </p>
           )}
-          {invitations.results.map((invitation) => (
+          <div className={styles.invitationSection}>
+            <div className={styles.subsectionHeader}>
+              <h3>Invitations</h3>
+              <span className={styles.panelMeta}>
+                {invitations.status === "LoadingFirstPage"
+                  ? "Loading"
+                  : `${invitations.results.length}${invitations.status === "CanLoadMore" ? "+" : ""} shown`}
+              </span>
+            </div>
+          {invitations.status === "LoadingFirstPage" ? (
+            <LoadingState label="Loading invitations…" />
+          ) : !invitations.results.length ? (
+            <Empty>Invitations will appear here after you send one.</Empty>
+          ) : invitations.results.map((invitation) => (
             <div className={styles.item} key={invitation._id}>
               <span>
                 {invitation.email} · {invitation.role} · {invitation.state}
@@ -1096,10 +1354,11 @@ export function Teams({ overview }: { overview: Overview }) {
                       Revoke
                     </button>
                   </div>
-                )}
+              )}
             </div>
           ))}
           <More status={invitations.status} load={invitations.loadMore} />
+          </div>
         </Panel>
       )}
     </>
@@ -1108,11 +1367,9 @@ export function Teams({ overview }: { overview: Overview }) {
 function TeamMembers({
   teamId,
   overview,
-  members,
 }: {
   teamId: Id<"teams">;
   overview: Overview;
-  members: FunctionReturnType<typeof api.workspaces.members>["page"];
 }) {
   const dateTime = useDateTime();
   const rows = usePaginatedQuery(
@@ -1120,12 +1377,52 @@ function TeamMembers({
     { teamId },
     { initialNumItems: 40 },
   );
+  const team = overview.teams.find((item) => item._id === teamId);
+  const candidates = usePaginatedQuery(
+    api.workspaces.teamCandidates,
+    overview.capabilities["teams:manage"] && !team?.archivedAt
+      ? { teamId }
+      : "skip",
+    { initialNumItems: 40 },
+  );
   const setMember = useMutation(api.workspaces.setTeamMember);
+  const updateTeam = useMutation(api.workspaces.updateTeam);
   const { run } = useContext(Operations);
   return (
     <Panel
-      title={`${overview.teams.find((t) => t._id === teamId)?.name ?? "Team"} members`}
+      title={`${team?.name ?? "Team"} members`}
+      eyebrow="TEAM DETAILS"
     >
+      {team?.description && <p className={styles.teamDetailDescription}>{team.description}</p>}
+      {overview.capabilities["members:manage"] && team && (
+        <details className={styles.teamSettings}>
+          <summary>{team.archivedAt ? "Restore team" : "Edit team settings"}</summary>
+          <Form
+            submit={(data) =>
+              updateTeam({
+                teamId,
+                name: text(data, "name"),
+                description: text(data, "description"),
+                archived: text(data, "archived") === "on",
+              })
+            }
+          >
+            <Field label="Team name">
+              <input name="name" required maxLength={80} defaultValue={team.name} />
+            </Field>
+            <Field label="Description">
+              <input name="description" maxLength={300} defaultValue={team.description} />
+            </Field>
+            <Field label="Archived">
+              <input name="archived" type="checkbox" defaultChecked={Boolean(team.archivedAt)} />
+            </Field>
+            <Button>Save team</Button>
+          </Form>
+        </details>
+      )}
+      {rows.status === "LoadingFirstPage" ? (
+        <LoadingState label="Loading team members…" />
+      ) : rows.results.length ? (
       <Table headings={["Name", "Team role", "Joined", ""]}>
         {rows.results.map((row) => (
           <tr key={row._id}>
@@ -1135,6 +1432,7 @@ function TeamMembers({
             <td>
               {overview.capabilities["teams:manage"] && (
                 <button
+                  disabled={Boolean(team?.archivedAt)}
                   onClick={() =>
                     void run(() =>
                       setMember({
@@ -1153,8 +1451,11 @@ function TeamMembers({
           </tr>
         ))}
       </Table>
+      ) : (
+        <Empty>This team has no active members yet.</Empty>
+      )}
       <More status={rows.status} load={rows.loadMore} />
-      {overview.capabilities["members:manage"] && (
+      {overview.capabilities["teams:manage"] && !team?.archivedAt && (
         <Form
           submit={(data) =>
             setMember({
@@ -1167,20 +1468,41 @@ function TeamMembers({
         >
           <Field label="Member">
             <select name="member" required>
-              {members
-                .filter((m) => m.status === "active")
-                .map((m) => (
-                  <option key={m.id} value={m.userId}>
-                    {m.name} · {m.email}
+              {(candidates.status === "LoadingFirstPage" ||
+                candidates.status === "LoadingMore") &&
+                !candidates.results.length && (
+                <option value="" disabled>
+                  Loading eligible members…
+                </option>
+              )}
+              {candidates.status === "CanLoadMore" && !candidates.results.length && (
+                <option value="" disabled>
+                  No eligible members on this page; load more below
+                </option>
+              )}
+              {candidates.status === "Exhausted" &&
+                !candidates.results.length && (
+                <option value="" disabled>
+                  No eligible members available
+                </option>
+                )}
+              {candidates.results.map((member) => (
+                  <option key={member.userId} value={member.userId}>
+                    {member.name} · {member.email}
                   </option>
-                ))}
+              ))}
             </select>
           </Field>
-          <Field label="Team manager">
-            <input name="manager" type="checkbox" />
-          </Field>
-          <Button>Add to team</Button>
+          {overview.capabilities["members:manage"] && (
+            <Field label="Team manager">
+              <input name="manager" type="checkbox" />
+            </Field>
+          )}
+          <Button disabled={!candidates.results.length}>Add to team</Button>
         </Form>
+      )}
+      {overview.capabilities["teams:manage"] && (
+        <More status={candidates.status} load={candidates.loadMore} />
       )}
     </Panel>
   );
@@ -1872,34 +2194,64 @@ function Settings({ overview }: { overview: Overview }) {
         </Panel>
         <Panel title="Your data, without a paywall" eyebrow="EXPORTS">
           <div className={styles.toolbar}>
-            <a
-              className="button button-outline"
-              href="/api/workspace/export?dataset=daily"
-            >
-              Daily usage
-            </a>
-            <a
-              className="button button-outline"
-              href="/api/workspace/export?dataset=models"
-            >
-              Models
-            </a>
-            {overview.capabilities["audit:read"] && (
-              <a
-                className="button button-outline"
-                href="/api/workspace/export?dataset=audit"
-              >
-                Audit log
-              </a>
-            )}
+            {overview.capabilities["data:export"] &&
+              overview.capabilities["finance:read"] && (
+                <>
+                  <a
+                    className="button button-outline"
+                    href="/api/workspace/export?dataset=daily"
+                  >
+                    Daily usage
+                  </a>
+                  <a
+                    className="button button-outline"
+                    href="/api/workspace/export?dataset=models"
+                  >
+                    Models
+                  </a>
+                <a
+                  className="button button-outline"
+                  href="/api/workspace/export?dataset=ledger"
+                >
+                  Ledger
+                </a>
+                <a
+                  className="button button-outline"
+                  href="/api/workspace/export?dataset=telemetry"
+                >
+                  Telemetry
+                </a>
+                <a
+                  className="button button-outline"
+                  href="/api/workspace/export?dataset=agents"
+                >
+                  Agents
+                </a>
+                <a
+                  className="button button-outline"
+                  href="/api/workspace/export?dataset=outcomes"
+                >
+                  Outcomes
+                </a>
+                </>
+              )}
+            {overview.capabilities["data:export"] &&
+              overview.capabilities["audit:read"] && (
+                <a
+                  className="button button-outline"
+                  href="/api/workspace/export?dataset=audit"
+                >
+                  Audit log
+                </a>
+              )}
             <Link className="button button-outline" href="/account">
               Privacy & deletion
             </Link>
           </div>
           <p className={styles.hint}>
-            Exports stream every page as NDJSON, not a 500-row sample. They
-            reflect live data, not a frozen accounting snapshot; the final line
-            marks successful completion.
+            {overview.capabilities["data:export"]
+              ? "Available datasets stream as paginated NDJSON and end with a completion marker. They reflect live data, not a frozen accounting snapshot."
+              : "Workspace dataset exports are not available to your current role."}
           </p>
         </Panel>
       </div>

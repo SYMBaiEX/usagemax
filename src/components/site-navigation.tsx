@@ -10,6 +10,7 @@ const links = [
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/methodology", label: "How we count" },
   { href: "/docs", label: "Docs" },
+  { href: "/pricing", label: "Pricing" },
   { href: "/enterprise", label: "For teams" },
 ];
 

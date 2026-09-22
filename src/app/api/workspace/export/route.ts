@@ -6,13 +6,13 @@ import { apiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
-type Dataset = "daily" | "models" | "ledger" | "audit";
+type Dataset = "daily" | "models" | "ledger" | "audit" | "telemetry" | "agents" | "outcomes";
 export async function GET(request: Request) {
   const { user, accessToken } = await withAuth();
   if (!user || !accessToken)
     return apiError("unauthorized", 401, { hint: "Sign in to UsageMax before requesting a workspace export." });
   const dataset = new URL(request.url).searchParams.get("dataset") as Dataset;
-  if (!["daily", "models", "ledger", "audit"].includes(dataset))
+  if (!["daily", "models", "ledger", "audit", "telemetry", "agents", "outcomes"].includes(dataset))
     return apiError("invalid_dataset", 400);
   const options = { token: accessToken };
   type Page = FunctionReturnType<typeof api.personal.exportPage>;

@@ -46,6 +46,7 @@ describe("Stripe webhook signatures", () => {
     const result = await t.mutation(internal.billing.applyStripeEvent, {
       eventId: "evt_team_active",
       eventType: "customer.subscription.created",
+      eventCreatedAt: Date.now(),
       workspaceId: overview.workspace.id,
       customerId: "cus_billing_test",
       subscriptionId: "sub_billing_test",
@@ -60,5 +61,60 @@ describe("Stripe webhook signatures", () => {
     const updated = await owner.query(api.workspaces.overview, {});
     expect(updated.policy).toMatchObject({ tier: "team", members: 100, devices: 250 });
     expect(updated.billing).toMatchObject({ status: "active", seatQuantity: 8 });
+  });
+
+  it("deduplicates and ignores older Stripe events after a newer cancellation", async () => {
+    const t = convexTest(schema, modules);
+    const owner = t.withIdentity({
+      subject: "user_01BILLINGORDER",
+      issuer: "https://api.workos.com/",
+      tokenIdentifier: "https://api.workos.com/|user_01BILLINGORDER",
+      org_id: "org_01BILLINGORDER",
+      role: "admin",
+      email: "billing-order@example.com",
+    });
+    await owner.mutation(api.account.ensureProfile, { handle: "billing-order" });
+    const workspaceId = (await owner.query(api.workspaces.overview, {})).workspace.id;
+    const base = Date.now();
+    await t.mutation(internal.billing.applyStripeEvent, {
+      eventId: "evt_order_10",
+      eventType: "customer.subscription.created",
+      eventCreatedAt: base,
+      workspaceId,
+      customerId: "cus_billing_order",
+      subscriptionId: "sub_billing_order",
+      tier: "team",
+      status: "active",
+    });
+    await t.mutation(internal.billing.applyStripeEvent, {
+      eventId: "evt_order_30",
+      eventType: "customer.subscription.deleted",
+      eventCreatedAt: base + 2_000,
+      customerId: "cus_billing_order",
+      subscriptionId: "sub_billing_order",
+      tier: "team",
+      status: "canceled",
+    });
+    await expect(t.mutation(internal.billing.applyStripeEvent, {
+      eventId: "evt_order_20",
+      eventType: "customer.subscription.updated",
+      eventCreatedAt: base + 1_000,
+      customerId: "cus_billing_order",
+      subscriptionId: "sub_billing_order",
+      tier: "team",
+      status: "active",
+    })).resolves.toEqual({ replay: false, ignored: true, stale: true });
+    await expect(t.mutation(internal.billing.applyStripeEvent, {
+      eventId: "evt_order_20",
+      eventType: "customer.subscription.updated",
+      eventCreatedAt: base + 1_000,
+      customerId: "cus_billing_order",
+      subscriptionId: "sub_billing_order",
+      tier: "team",
+      status: "active",
+    })).resolves.toEqual({ replay: true, ignored: false });
+    const overview = await owner.query(api.workspaces.overview, {});
+    expect(overview.billing?.status).toBe("canceled");
+    expect(overview.policy.tier).toBe("free");
   });
 });

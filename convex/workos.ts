@@ -179,14 +179,17 @@ export const applyDirectoryEvent = internalMutation({
         q.eq("workosOrganizationId", args.organizationId),
       )
       .unique();
+    const directory = workspace && args.directoryId
+      ? await ctx.db.query("directories").withIndex("by_workspaceId_and_directoryId", (q) =>
+          q.eq("workspaceId", workspace._id).eq("directoryId", args.directoryId!),
+        ).unique()
+      : null;
     let outcome = "ignored_unprovisioned_organization";
     if (workspace && args.eventName === "dsync.activated" && args.directoryId) {
-      const existingDirectory = await ctx.db
-        .query("directories")
-        .withIndex("by_workspaceId_and_directoryId", (q) =>
-          q.eq("workspaceId", workspace._id).eq("directoryId", args.directoryId!),
-        )
-        .unique();
+      const existingDirectory = directory;
+      if (existingDirectory && existingDirectory.updatedAt > args.occurredAt) {
+        outcome = "ignored_stale_event";
+      } else {
       const values = {
         workspaceId: workspace._id,
         organizationId: args.organizationId,
@@ -194,58 +197,31 @@ export const applyDirectoryEvent = internalMutation({
         name: args.directoryName,
         type: args.directoryType,
         state: "active" as const,
-        updatedAt: args.now,
+        updatedAt: args.occurredAt,
       };
       if (existingDirectory) await ctx.db.patch(existingDirectory._id, { ...values, deletedAt: undefined });
       else await ctx.db.insert("directories", { ...values, createdAt: args.now });
       outcome = "directory_activated";
+      }
     } else if (workspace && args.eventName === "dsync.deleted" && args.directoryId) {
-      const directory = await ctx.db
-        .query("directories")
-        .withIndex("by_workspaceId_and_directoryId", (q) =>
-          q.eq("workspaceId", workspace._id).eq("directoryId", args.directoryId!),
-        )
-        .unique();
-      if (directory)
-        await ctx.db.patch(directory._id, {
-          state: "deleted",
-          updatedAt: args.now,
-          deletedAt: args.now,
-        });
-      const directoryUsers = await ctx.db
-        .query("directoryUsers")
-        .withIndex("by_directoryId", (q) => q.eq("directoryId", args.directoryId!))
-        .take(5_001);
-      for (const directoryUser of directoryUsers.filter(
-        (row) => row.workspaceId === workspace._id,
-      )) {
-        await ctx.db.patch(directoryUser._id, {
-          state: "deleted",
-          lastSyncedAt: args.now,
-          updatedAt: args.now,
-        });
-      }
-      const memberships = await ctx.db
-        .query("workspaceMemberships")
-        .withIndex("by_workspaceId_and_directoryId", (q) =>
-          q.eq("workspaceId", workspace._id).eq("directoryId", args.directoryId!),
-        )
-        .take(5_001);
-      for (const membership of memberships) {
-        if (membership.source !== "directory" || membership.status !== "active")
-          continue;
-        await ctx.db.patch(membership._id, {
-          status: "deactivated",
-          authorizationChangedAt: args.occurredAt,
-          lastSyncedAt: args.now,
-          updatedAt: args.now,
-        });
-        await ctx.scheduler.runAfter(0, internal.workspaces.offboardDevices, {
+      if (directory && directory.updatedAt > args.occurredAt) {
+        outcome = "ignored_stale_event";
+      } else {
+        if (directory)
+          await ctx.db.patch(directory._id, {
+            state: "deleted",
+            updatedAt: args.occurredAt,
+            deletedAt: args.now,
+          });
+        await ctx.scheduler.runAfter(0, internal.workos.continueDirectoryDeletion, {
           workspaceId: workspace._id,
-          userId: membership.userId,
+          directoryId: args.directoryId,
+          occurredAt: args.occurredAt,
+          phase: "users",
+          cursor: null,
         });
+        outcome = "directory_deactivation_scheduled";
       }
-      outcome = "directory_deactivated";
     } else if (
       workspace &&
       args.directoryId &&
@@ -257,13 +233,34 @@ export const applyDirectoryEvent = internalMutation({
       const state = args.state === "inactive" || args.eventName === "dsync.user.deleted"
         ? args.eventName === "dsync.user.deleted" ? "deleted" : "inactive"
         : "active";
-      const roles = args.roleSlugs.length ? args.roleSlugs : ["member"];
       const existing = await ctx.db
         .query("directoryUsers")
         .withIndex("by_workspaceId_and_directoryUserId", (q) =>
           q.eq("workspaceId", workspace._id).eq("directoryUserId", args.directoryUserId!),
         )
         .unique();
+      const staleDirectoryUser = existing && existing.updatedAt > args.occurredAt;
+      // A directory must be explicitly reactivated before its users can regain
+      // access; a late user-updated event alone must not resurrect it.
+      const staleDirectory = directory !== null &&
+        (directory.state === "deleted" || directory.updatedAt > args.occurredAt);
+      if (staleDirectoryUser || staleDirectory) {
+        outcome = "ignored_stale_event";
+      } else {
+      const user = await ctx.db
+        .query("users")
+        .withIndex("by_email", (q) => q.eq("email", email))
+        .take(10);
+      const localUser = user[0];
+      const membership = localUser
+        ? await ctx.db.query("workspaceMemberships").withIndex("by_workspaceId_and_userId", (q) =>
+            q.eq("workspaceId", workspace._id).eq("userId", localUser._id),
+          ).unique()
+        : null;
+      if (membership?.authorizationChangedAt !== undefined && membership.authorizationChangedAt > args.occurredAt) {
+        outcome = "ignored_stale_event";
+      } else {
+      const roles = args.roleSlugs.length ? args.roleSlugs : ["member"];
       const values = {
         workspaceId: workspace._id,
         directoryId: args.directoryId,
@@ -273,22 +270,11 @@ export const applyDirectoryEvent = internalMutation({
         state: state as "active" | "inactive" | "deleted",
         roles,
         lastSyncedAt: args.now,
-        updatedAt: args.now,
+        updatedAt: args.occurredAt,
       };
       if (existing) await ctx.db.patch(existing._id, values);
       else await ctx.db.insert("directoryUsers", values);
-      const user = await ctx.db
-        .query("users")
-        .withIndex("by_email", (q) => q.eq("email", email))
-        .take(10);
-      const localUser = user[0];
       if (localUser) {
-        const membership = await ctx.db
-          .query("workspaceMemberships")
-          .withIndex("by_workspaceId_and_userId", (q) =>
-            q.eq("workspaceId", workspace._id).eq("userId", localUser._id),
-          )
-          .unique();
         const nextStatus = state === "active" ? "active" : "deactivated";
         if (membership) {
           await ctx.db.patch(membership._id, {
@@ -299,18 +285,24 @@ export const applyDirectoryEvent = internalMutation({
             status: nextStatus,
             lastSyncedAt: args.now,
             authorizationChangedAt: args.occurredAt,
-            updatedAt: args.now,
+            updatedAt: args.occurredAt,
           });
           if (nextStatus !== "active")
             await ctx.scheduler.runAfter(0, internal.workspaces.offboardDevices, {
               workspaceId: workspace._id,
               userId: localUser._id,
             });
+        } else {
+          outcome = state === "active" ? "directory_user_active" : "directory_user_deactivated";
         }
       }
-      outcome = localUser
-        ? state === "active" ? "directory_user_active" : "directory_user_deactivated"
-        : "directory_user_pending_sign_in";
+      if (outcome === "ignored_unprovisioned_organization") {
+        outcome = localUser
+          ? state === "active" ? "directory_user_active" : "directory_user_deactivated"
+          : "directory_user_pending_sign_in";
+      }
+      }
+      }
     }
     await ctx.db.insert("workosEventReceipts", {
       eventId: args.eventId,
@@ -319,5 +311,74 @@ export const applyDirectoryEvent = internalMutation({
       createdAt: args.now,
     });
     return { replay: false, outcome };
+  },
+});
+
+/** Continue directory-user and membership offboarding in bounded, resumable pages. */
+export const continueDirectoryDeletion = internalMutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    directoryId: v.string(),
+    occurredAt: v.number(),
+    phase: v.union(v.literal("users"), v.literal("memberships")),
+    cursor: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    const directory = await ctx.db.query("directories").withIndex("by_workspaceId_and_directoryId", (q) =>
+      q.eq("workspaceId", args.workspaceId).eq("directoryId", args.directoryId),
+    ).unique();
+    if (directory && (directory.state !== "deleted" || directory.updatedAt < args.occurredAt)) {
+      return { directoryUsersProcessed: 0, membershipsProcessed: 0, continued: false, superseded: true };
+    }
+    const offboardingAt = Math.max(args.occurredAt, directory?.updatedAt ?? args.occurredAt);
+    if (args.phase === "users") {
+      const page = await ctx.db.query("directoryUsers")
+        .withIndex("by_directoryId", (q) => q.eq("directoryId", args.directoryId))
+        .paginate({ numItems: 100, cursor: args.cursor });
+      for (const directoryUser of page.page) {
+        if (directoryUser.workspaceId !== args.workspaceId || directoryUser.state === "deleted") continue;
+        await ctx.db.patch(directoryUser._id, {
+          state: "deleted",
+          lastSyncedAt: Date.now(),
+        });
+      }
+      await ctx.scheduler.runAfter(0, internal.workos.continueDirectoryDeletion, {
+        ...args,
+        phase: page.isDone ? "memberships" : "users",
+        cursor: page.isDone ? null : page.continueCursor,
+      });
+      return { directoryUsersProcessed: page.page.length, membershipsProcessed: 0, continued: true, superseded: false };
+    }
+
+    const page = await ctx.db.query("workspaceMemberships")
+        .withIndex("by_workspaceId_and_directoryId", (q) =>
+          q.eq("workspaceId", args.workspaceId).eq("directoryId", args.directoryId),
+        )
+        .paginate({ numItems: 100, cursor: args.cursor });
+    for (const membership of page.page) {
+      if (membership.source !== "directory" || membership.status !== "active") continue;
+      await ctx.db.patch(membership._id, {
+        status: "deactivated",
+        authorizationChangedAt: offboardingAt,
+        lastSyncedAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      await ctx.scheduler.runAfter(0, internal.workspaces.offboardDevices, {
+        workspaceId: args.workspaceId,
+        userId: membership.userId,
+      });
+    }
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(0, internal.workos.continueDirectoryDeletion, {
+        ...args,
+        cursor: page.continueCursor,
+      });
+    }
+    return {
+      directoryUsersProcessed: 0,
+      membershipsProcessed: page.page.length,
+      continued: !page.isDone,
+      superseded: false,
+    };
   },
 });

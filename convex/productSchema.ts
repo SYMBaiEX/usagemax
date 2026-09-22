@@ -23,6 +23,8 @@ export const productTables = {
     currentPeriodEnd: v.optional(v.number()),
     cancelAtPeriodEnd: v.optional(v.boolean()),
     lastInvoiceId: v.optional(v.string()),
+    lastStripeEventCreatedAt: v.optional(v.number()),
+    lastStripeEventId: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -33,6 +35,7 @@ export const productTables = {
     eventId: v.string(),
     type: v.string(),
     workspaceId: v.optional(v.id("workspaces")),
+    providerCreatedAt: v.optional(v.number()),
     createdAt: v.number(),
   })
     .index("by_eventId", ["eventId"])

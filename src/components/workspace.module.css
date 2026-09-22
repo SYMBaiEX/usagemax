@@ -432,3 +432,89 @@
 @media (prefers-reduced-motion: reduce) {
   .body, .loadingShell span, .loadingNote span, .loadingStateMark { animation: none; }
 }
+
+/* Team directory and access management */
+.panelMeta {
+  color: var(--ink-faint);
+  font: 500 10px/1.4 var(--font-mono);
+  white-space: nowrap;
+}
+.teamCard {
+  display: grid;
+  gap: 13px;
+  width: 100%;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-card);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .16s, background .16s, box-shadow .16s;
+}
+.teamCard:hover {
+  border-color: color-mix(in srgb, var(--orange) 45%, var(--line));
+  background: var(--surface-hover, var(--surface-card));
+}
+.teamCardSelected {
+  border-color: color-mix(in srgb, var(--orange) 58%, var(--line));
+  background: color-mix(in srgb, var(--accent-soft) 52%, var(--surface-card));
+  box-shadow: inset 3px 0 0 var(--orange), var(--shadow-control);
+}
+.teamCardMain { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+.teamGlyph {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border: 1px solid color-mix(in srgb, var(--orange) 30%, var(--line));
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--orange-dark);
+  font: 600 12px/1 var(--font-mono);
+}
+.teamCardCopy { display: grid; gap: 3px; min-width: 0; }
+.teamName { font-size: 13px; font-weight: 620; line-height: 1.35; }
+.teamDescription { color: var(--ink-soft); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.teamCardMeta { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 10px; border-top: 1px solid var(--line); color: var(--ink-faint); font: 500 9px/1.4 var(--font-mono); text-transform: uppercase; letter-spacing: .04em; }
+.teamStatus { color: var(--orange-dark); }
+.archivedBadge { color: var(--ink-faint); }
+.teamDetailDescription { margin: -6px 0 16px; color: var(--ink-soft); font-size: 12px; line-height: 1.65; }
+.teamSettings { margin: 0 0 18px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface-inset); }
+.teamSettings summary { width: fit-content; color: var(--orange-dark); font-size: 11px; font-weight: 600; cursor: pointer; }
+.teamSettings[open] summary { margin-bottom: 12px; }
+.teamSettings .form { margin-top: 0; }
+.invitationSection { display: grid; gap: 10px; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.subsectionHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.subsectionHeader h3 { margin: 0; font-size: 13px; font-weight: 620; }
+.invitationSection > .form { margin-top: 0; }
+.teamCard:focus-visible,
+.teamSettings summary:focus-visible { outline: 2px solid var(--focus-ring, var(--orange-dark)); outline-offset: 3px; }
+.workspaceStatus { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-inset); }
+.workspaceStatus > div { display: grid; align-content: start; gap: 7px; min-width: 0; padding: 16px; border-right: 1px solid var(--line); }
+.workspaceStatus > div:last-child { border-right: 0; }
+.workspaceStatus span { color: var(--ink-faint); font: 550 9px/1.4 var(--font-mono); letter-spacing: .05em; text-transform: uppercase; }
+.workspaceStatus strong { color: var(--ink); font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
+.quickActions { display: flex; flex-wrap: wrap; gap: 9px; }
+.recentList { display: grid; }
+.recentRow { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; align-items: center; gap: 11px; padding: 12px 0; border-top: 1px solid var(--line); }
+.recentRow:first-child { border-top: 0; padding-top: 0; }
+.recentMark { width: 6px; height: 6px; border-radius: 50%; background: var(--orange); }
+.recentCopy { display: grid; gap: 3px; min-width: 0; }
+.recentCopy strong { color: var(--ink); font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recentCopy small { color: var(--ink-faint); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recentRow time { color: var(--ink-faint); font: 500 9px/1.4 var(--font-mono); text-align: right; }
+.errorTitle { margin: 10px 0 4px; font-size: clamp(22px, 3vw, 28px); letter-spacing: -.035em; }
+.errorReference { margin: 8px 0 18px; color: var(--ink-faint); font: 500 10px/1.5 var(--font-mono); overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .panelMeta { white-space: normal; text-align: right; }
+  .teamCard { padding: 13px; }
+  .teamCardMeta { align-items: flex-start; }
+  .teamSettings { padding: 11px; }
+  .workspaceStatus { grid-template-columns: 1fr; }
+  .workspaceStatus > div { border-right: 0; border-bottom: 1px solid var(--line); }
+  .workspaceStatus > div:last-child { border-bottom: 0; }
+  .recentRow { grid-template-columns: 8px minmax(0, 1fr); }
+  .recentRow time { grid-column: 2; text-align: left; }
+}

@@ -27,7 +27,6 @@ const plans = [
     items: ["Invitations, roles, and private workspaces", "Shared provider and model reporting", "Project and cost-center dimensions", "No card required"],
     action: "Open a workspace",
     href: "/workspace",
-    tone: "detail-card-cyan",
   },
   {
     eyebrow: "03 / TEAM OPERATIONS",
@@ -45,7 +44,6 @@ const plans = [
     items: ["Higher member, device, and telemetry capacity", "SSO and directory integration", "Private attribution and longer retention", "Scoped security and service commitments"],
     action: "Talk to the team",
     href: "/contact",
-    tone: "detail-card-acid",
   },
 ] as const;
 
@@ -62,7 +60,7 @@ export default function PricingPage() {
           <div className="section-heading"><h2 id="pricing-title">Start with the complete core.</h2><p>UsageMax keeps individual and small-team observability open. Enterprise work is scoped to the capacity and controls a real organization needs.</p></div>
           <div className="pricing-grid">
             {plans.map((plan) => (
-              <article className={`detail-card ${plan.tone}`} key={plan.title}>
+              <article className={`detail-card ${"tone" in plan ? plan.tone : ""}`} key={plan.title}>
                 <div className="detail-card-top"><span>{plan.eyebrow}</span><span className="detail-card-icon"><ShieldCheck size={17} /></span></div>
                 <h3>{plan.title}</h3>
                 <div className="detail-card-copy">

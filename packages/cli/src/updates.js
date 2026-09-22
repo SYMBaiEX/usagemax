@@ -20,6 +20,24 @@ export function compareVersions(left, right) {
   return 0;
 }
 
+/** Parse the read-only and command-handoff options shared by `usagemax update`. */
+export function updateRequest(args = []) {
+  const json = args.includes("--json");
+  const checkOnly = args.includes("--check") || args.includes("--no-install");
+  const commandArgs = args.filter((arg) => !["--check", "--no-install", "--json"].includes(arg));
+  return {
+    json,
+    checkOnly,
+    commandArgs,
+    handoffArgs: commandArgs.length && !checkOnly ? [...commandArgs, ...(json ? ["--json"] : [])] : [],
+  };
+}
+
+/** A command suffix runs only after a usable npm release was confirmed. */
+export function updateCommandWillRun({ latest, checkOnly, commandArgs = [] }) {
+  return Boolean(latest && !checkOnly && commandArgs.length);
+}
+
 function cachePath(directory) {
   return join(directory, "update-check.json");
 }
@@ -76,11 +94,11 @@ export async function checkForUpdate(directory, currentVersion, { force = false,
   return { ...result, newer: compareVersions(result.latest, currentVersion) > 0 };
 }
 
-function runner() {
-  const override = process.env.USAGEMAX_PACKAGE_RUNNER?.trim();
+function runner({ manager, env = process.env, platform = process.platform }) {
+  const override = env.USAGEMAX_PACKAGE_RUNNER?.trim();
   if (override) return { command: override, prefix: [] };
-  if (process.env.npm_execpath) return { command: "npm", prefix: ["exec", "--yes"] };
-  return { command: "bunx", prefix: ["--bun"] };
+  if (manager === "bun") return { command: platform === "win32" ? "bunx.exe" : "bunx", prefix: ["--bun"] };
+  return { command: platform === "win32" ? "npm.cmd" : "npm", prefix: ["exec", "--yes"] };
 }
 
 /**
@@ -123,11 +141,18 @@ export async function updateGlobal({ latest = "latest", manager = packageManager
 }
 
 /** Re-run a command through the current npm dist-tag without requiring @latest. */
-export async function runLatest(args, { spawnImpl = spawn } = {}) {
-  const selected = runner();
+export async function runLatest(args, {
+  spawnImpl = spawn,
+  cliPath = process.argv[1],
+  runtime = process.versions,
+  env = process.env,
+  platform = process.platform,
+} = {}) {
+  const manager = packageManagerFor({ cliPath, runtime, env });
+  const selected = runner({ manager, env, platform });
   const child = spawnImpl(selected.command, [...selected.prefix, "usagemax@latest", "--", ...args], {
     stdio: "inherit",
-    env: { ...process.env, USAGEMAX_UPDATE_HANDOFF: "1" },
+    env: { ...env, USAGEMAX_UPDATE_HANDOFF: "1" },
   });
   const code = await new Promise((resolve, reject) => {
     child.once("error", reject);

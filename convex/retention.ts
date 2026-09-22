@@ -22,7 +22,9 @@ export const trim = internalMutation({
   args: { workspaceId: v.id("workspaces") },
   handler: async (ctx, args) => {
     const workspace = await ctx.db.get(args.workspaceId);
-    if (!workspace || workspace.accessDisabledAt) return;
+    // Disabled organizations are still subject to their configured retention
+    // period. Disabling access must not silently exempt their data from expiry.
+    if (!workspace) return;
     const retention = Math.max(1, Math.min(365, workspace.retentionDays));
     const cutoff = Date.now() - retention * 86_400_000;
     const events = await ctx.db

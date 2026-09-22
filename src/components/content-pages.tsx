@@ -68,6 +68,7 @@ export function EnterpriseView() {
         <section className={stories.setup} aria-labelledby="plans-title"><div className={stories.sectionHeading}><h2 id="plans-title">Free for builders. More for companies.</h2><span>No card to start</span></div><div className={stories.planGrid}>
           <article><h3>Personal · Free</h3><p>All retained history, public or private profiles, device linking, saved views, budgets and complete data exports. No paid tier required to keep your own data.</p></article>
           <article><h3>Small teams · Free</h3><p>Up to 10 members, 5 teams and 25 devices. Invitations, projects, roles, financial records and a private workspace.</p></article>
+          <article><h3>Team operations · $49/month</h3><p>Up to 100 members, 250 devices, 200 projects and 50 budgets, with Stripe billing and 90-day detailed retention.</p></article>
           <article><h3>Enterprise · By agreement</h3><p>Higher capacity, server-side provider connections, extended telemetry retention and WorkOS SSO/directory setup. Security, residency and support commitments are agreed and verified during onboarding.</p></article>
         </div></section>
       </div>

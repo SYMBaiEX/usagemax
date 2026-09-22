@@ -44,7 +44,9 @@ The CLI checks npm's `latest` dist-tag at most twice per day. Run
 `usagemax update` to update a global installation through the package manager
 that launched it (Bun or npm). Add `--check` for a read-only check, or
 `--json` for automation. A command suffix such as `usagemax update sync` hands
-that command to the newest release without typing `@latest`. Set
+that command to the newest release without typing `@latest`. When `--check` or
+`--no-install` is present, the suffix is reported in JSON and never handed off;
+in a terminal, install the update and then run the printed command. Set
 `USAGEMAX_AUTO_UPDATE=1` for an explicit automatic handoff. Use `--no-update-check` or set
 `USAGEMAX_DISABLE_UPDATE_CHECK=1` in offline environments. Interactive
 terminals show a small stderr progress line; JSON,

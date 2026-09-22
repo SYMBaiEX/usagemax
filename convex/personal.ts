@@ -246,7 +246,17 @@ export const readNotification = mutation({
 });
 
 export const beginExport = mutation({
-  args: { dataset: v.string() },
+  args: {
+    dataset: v.union(
+      v.literal("daily"),
+      v.literal("models"),
+      v.literal("ledger"),
+      v.literal("audit"),
+      v.literal("telemetry"),
+      v.literal("agents"),
+      v.literal("outcomes"),
+    ),
+  },
   handler: async (ctx, args) => {
     const { workspace, user } = await requireWorkspaceAccess(
       ctx,
@@ -272,6 +282,9 @@ export const exportPage = query({
       v.literal("models"),
       v.literal("ledger"),
       v.literal("audit"),
+      v.literal("telemetry"),
+      v.literal("agents"),
+      v.literal("outcomes"),
     ),
     paginationOpts: paginationOptsValidator,
   },
@@ -311,6 +324,105 @@ export const exportPage = query({
           q.eq("profileId", profile._id),
         )
         .paginate(args.paginationOpts);
+    if (args.dataset === "telemetry") {
+      const result = await ctx.db
+        .query("telemetryEvents")
+        .withIndex("by_profileId_and_occurredAt", (q) =>
+          q.eq("profileId", profile._id),
+        )
+        .order("desc")
+        .paginate(args.paginationOpts);
+      return {
+        ...result,
+        page: result.page.map((event) => ({
+          eventKey: event.eventKey,
+          logicalRequestId: event.logicalRequestId,
+          sessionId: event.sessionId,
+          agentExternalId: event.agentExternalId,
+          parentAgentExternalId: event.parentAgentExternalId,
+          agentName: event.agentName,
+          eventType: event.eventType,
+          source: event.source,
+          provider: event.provider,
+          requestedModel: event.requestedModel,
+          model: event.model,
+          inputTokens: event.inputTokens,
+          outputTokens: event.outputTokens,
+          cacheReadTokens: event.cacheReadTokens,
+          cacheWriteTokens: event.cacheWriteTokens,
+          reasoningTokens: event.reasoningTokens,
+          totalTokens: event.totalTokens,
+          costMicros: event.costMicros,
+          costBasis: event.costBasis,
+          pricingSource: event.pricingSource,
+          pricingVersion: event.pricingVersion,
+          serviceTier: event.serviceTier,
+          region: event.region,
+          currency: event.currency,
+          projectId: event.projectId,
+          costCenter: event.costCenter,
+          accountingMode: event.accountingMode,
+          latencyMs: event.latencyMs,
+          timeToFirstTokenMs: event.timeToFirstTokenMs,
+          status: event.status,
+          state: event.state,
+          task: event.task,
+          traceId: event.traceId,
+          spanId: event.spanId,
+          occurredAt: event.occurredAt,
+          receivedAt: event.receivedAt,
+          schemaVersion: event.schemaVersion,
+          completeness: event.completeness,
+        })),
+      };
+    }
+    if (args.dataset === "agents") {
+      const result = await ctx.db
+        .query("agentLiveStats")
+        .withIndex("by_profileId_and_updatedAt", (q) =>
+          q.eq("profileId", profile._id),
+        )
+        .order("desc")
+        .paginate(args.paginationOpts);
+      return {
+        ...result,
+        page: result.page.map((agent) => ({
+          externalId: agent.externalId,
+          parentExternalId: agent.parentExternalId,
+          name: agent.name,
+          model: agent.model,
+          state: agent.state,
+          task: agent.task,
+          tokensPerSecond: agent.tokensPerSecond,
+          totalTokens: agent.totalTokens,
+          toolCalls: agent.toolCalls,
+          errorCount: agent.errorCount,
+          sessionStartedAt: agent.sessionStartedAt,
+          updatedAt: agent.updatedAt,
+          expiresAt: agent.expiresAt,
+          traceId: agent.traceId,
+        })),
+      };
+    }
+    if (args.dataset === "outcomes") {
+      const result = await ctx.db
+        .query("outcomes")
+        .withIndex("by_profileId_and_occurredAt", (q) =>
+          q.eq("profileId", profile._id),
+        )
+        .order("desc")
+        .paginate(args.paginationOpts);
+      return {
+        ...result,
+        page: result.page.map((outcome) => ({
+          eventKey: outcome.eventKey,
+          logicalRequestId: outcome.logicalRequestId,
+          outcome: outcome.outcome,
+          occurredAt: outcome.occurredAt,
+          createdAt: outcome.createdAt,
+        })),
+      };
+    }
     return await ctx.db
       .query("dailyUsage")
       .withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id))

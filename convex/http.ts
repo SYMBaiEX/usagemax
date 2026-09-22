@@ -813,9 +813,15 @@ const stripeWebhook = httpAction(async (ctx, request) => {
   }
   const eventId = optionalText(envelope.id, 120);
   const eventType = optionalText(envelope.type, 120);
+  const eventCreatedAt = typeof envelope.created === "number" &&
+      Number.isSafeInteger(envelope.created) &&
+      envelope.created > 0 &&
+      Number.isSafeInteger(envelope.created * 1000)
+    ? envelope.created * 1000
+    : undefined;
   const data = object(envelope.data);
   const eventObject = object(data?.object);
-  if (!eventId || !eventType || !eventObject)
+  if (!eventId || !eventType || !eventObject || eventCreatedAt === undefined)
     return jsonResponse({ error: "invalid_event" }, 400);
 
   const metadata = object(eventObject.metadata);
@@ -851,6 +857,7 @@ const stripeWebhook = httpAction(async (ctx, request) => {
   await ctx.scheduler.runAfter(0, internal.billing.applyStripeEvent, {
     eventId,
     eventType,
+    eventCreatedAt,
     customerId,
     subscriptionId,
     priceId: optionalText(price?.id, 100),

@@ -153,6 +153,7 @@ export const setCustomer = mutation({
 type StripeEventArgs = {
   eventId: string;
   eventType: string;
+  eventCreatedAt: number;
   workspaceId?: Id<"workspaces">;
   customerId?: string;
   subscriptionId?: string;
@@ -169,6 +170,7 @@ export const applyStripeEvent = internalMutation({
   args: {
     eventId: v.string(),
     eventType: v.string(),
+    eventCreatedAt: v.number(),
     workspaceId: v.optional(v.id("workspaces")),
     customerId: v.optional(v.string()),
     subscriptionId: v.optional(v.string()),
@@ -186,6 +188,9 @@ export const applyStripeEvent = internalMutation({
       .withIndex("by_eventId", (q) => q.eq("eventId", args.eventId))
       .unique();
     if (prior) return { replay: true, ignored: false };
+
+    if (!Number.isSafeInteger(args.eventCreatedAt) || args.eventCreatedAt <= 0)
+      throw new ConvexError("INVALID_STRIPE_EVENT_TIME");
 
     let billing = args.workspaceId
       ? (
@@ -212,6 +217,24 @@ export const applyStripeEvent = internalMutation({
         )
         .unique() ?? undefined;
 
+    // Stripe retries can arrive out of order. Persist and compare Stripe's
+    // event time, with event ID as a stable tie-break for same-second events.
+    if (billing?.lastStripeEventCreatedAt !== undefined) {
+      const stale = args.eventCreatedAt < billing.lastStripeEventCreatedAt ||
+        (args.eventCreatedAt === billing.lastStripeEventCreatedAt &&
+          args.eventId <= (billing.lastStripeEventId ?? ""));
+      if (stale) {
+        await ctx.db.insert("billingEvents", {
+          eventId: args.eventId,
+          type: args.eventType,
+          workspaceId: billing.workspaceId,
+          providerCreatedAt: args.eventCreatedAt,
+          createdAt: Date.now(),
+        });
+        return { replay: false, ignored: true, stale: true };
+      }
+    }
+
     const tier = tierValue(args.tier) ?? billing?.tier ?? "team";
     const status = statusValue(args.status);
     if (!billing && args.workspaceId && args.customerId && validCustomer(args.customerId)) {
@@ -229,6 +252,8 @@ export const applyStripeEvent = internalMutation({
         currentPeriodEnd: args.currentPeriodEnd,
         cancelAtPeriodEnd: args.cancelAtPeriodEnd,
         lastInvoiceId: args.invoiceId,
+        lastStripeEventCreatedAt: args.eventCreatedAt,
+        lastStripeEventId: args.eventId,
         createdAt: now,
         updatedAt: now,
       });
@@ -246,6 +271,8 @@ export const applyStripeEvent = internalMutation({
       if (args.currentPeriodEnd !== undefined) patch.currentPeriodEnd = args.currentPeriodEnd;
       if (args.cancelAtPeriodEnd !== undefined) patch.cancelAtPeriodEnd = args.cancelAtPeriodEnd;
       if (args.invoiceId) patch.lastInvoiceId = args.invoiceId;
+      patch.lastStripeEventCreatedAt = args.eventCreatedAt;
+      patch.lastStripeEventId = args.eventId;
       await ctx.db.patch(billing._id, patch);
       billing = (await ctx.db.get(billing._id)) ?? undefined;
     }
@@ -267,6 +294,7 @@ export const applyStripeEvent = internalMutation({
       eventId: args.eventId,
       type: args.eventType,
       workspaceId: billing?.workspaceId ?? args.workspaceId,
+      providerCreatedAt: args.eventCreatedAt,
       createdAt: Date.now(),
     });
     return { replay: false, ignored: !billing };

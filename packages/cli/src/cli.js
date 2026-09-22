@@ -18,7 +18,7 @@ import { intervalMinutes, manageService, runScheduledSync } from "./service.js";
 import { collectorCanWrite, collectorStatusView, requestCollectorStatus, requestSnapshot, requestTelemetrySmokeTest } from "./transport.js";
 import { resumeUpload, restartExpiredUpload, withConfigLock } from "./resume.js";
 import { CCUSAGE_VERSION, ccusageEnvironment, ccusageHome, discoverProviderArchives, SOURCE_INVENTORY_VERSION, sourceInventory, SUPPORTED_SOURCES } from "./sources.js";
-import { checkForUpdate, packageManagerFor, runLatest, updateGlobal } from "./updates.js";
+import { checkForUpdate, packageManagerFor, runLatest, updateCommandWillRun, updateGlobal, updateRequest } from "./updates.js";
 
 // Make the short-lived collector recognizable in Activity Monitor and `ps`.
 // Windows may still display the underlying node.exe image name in Task Manager.
@@ -722,32 +722,64 @@ async function report(args) {
 }
 
 async function update(args = []) {
-  const json = args.includes("--json");
-  const checkOnly = args.includes("--check") || args.includes("--no-install");
-  const commandArgs = args.filter((arg) => !["--check", "--no-install", "--json"].includes(arg));
-  const handoffArgs = commandArgs.length ? [...commandArgs, ...(json ? ["--json"] : [])] : [];
+  const { json, checkOnly, commandArgs, handoffArgs } = updateRequest(args);
   const check = await checkForUpdate(configDirectory(), VERSION, { force: true });
+  const commandWillRun = updateCommandWillRun({ latest: check.latest, checkOnly, commandArgs });
   if (!check.latest) {
-    const result = { version: VERSION, latest: null, newer: false, status: "unavailable" };
+    const result = {
+      version: VERSION,
+      latest: null,
+      newer: false,
+      status: "unavailable",
+      ...(commandArgs.length ? { command: `usagemax ${commandArgs.join(" ")}`, commandWillRun: false } : {}),
+    };
     process.stdout.write(json ? `${JSON.stringify(result)}\n` : `UsageMax CLI ${VERSION} · update check unavailable.\n`);
+    if (!json && commandArgs.length) process.stdout.write(`The requested command was not run because no release could be verified: \`usagemax ${commandArgs.join(" ")}\`.\n`);
     return;
   }
   if (!check.newer) {
-    const result = { version: VERSION, latest: check.latest, newer: false, status: "current" };
+    const result = {
+      version: VERSION,
+      latest: check.latest,
+      newer: false,
+      status: "current",
+      ...(commandArgs.length ? { command: `usagemax ${commandArgs.join(" ")}`, commandWillRun } : {}),
+    };
     process.stdout.write(json ? `${JSON.stringify(result)}\n` : `UsageMax CLI ${VERSION} is current.\n`);
+    if (commandWillRun) {
+      if (!json) process.stdout.write(`Launching UsageMax ${check.latest}…\n`);
+      return runLatest(handoffArgs);
+    }
+    if (!json && commandArgs.length) process.stdout.write(`Check-only: the requested command was not run: \`usagemax ${commandArgs.join(" ")}\`.\n`);
     return;
   }
   if (handoffArgs.length) {
-    const result = { version: VERSION, latest: check.latest, newer: true, status: "available", command: `usagemax update ${commandArgs.join(" ")}` };
+    const result = {
+      version: VERSION,
+      latest: check.latest,
+      newer: true,
+      status: "available",
+      command: `usagemax ${commandArgs.join(" ")}`,
+      commandWillRun: true,
+    };
     process.stdout.write(json ? `${JSON.stringify(result)}\n` : `UsageMax CLI ${check.latest} is available (current ${VERSION}).\n`);
     if (!json) process.stdout.write(`Launching UsageMax ${check.latest}…\n`);
     return runLatest(handoffArgs);
   }
   const manager = packageManagerFor({ cliPath: process.argv[1], runtime: process.versions, env: process.env });
   const installCommand = manager === "bun" ? "bun add --global usagemax@latest" : "npm install --global usagemax@latest";
-  const available = { version: VERSION, latest: check.latest, newer: true, status: "available", manager, installCommand };
+  const available = {
+    version: VERSION,
+    latest: check.latest,
+    newer: true,
+    status: "available",
+    manager,
+    installCommand,
+    ...(commandArgs.length ? { command: `usagemax ${commandArgs.join(" ")}`, commandWillRun: false } : {}),
+  };
   if (checkOnly) {
     process.stdout.write(json ? `${JSON.stringify(available)}\n` : `UsageMax CLI ${check.latest} is available (current ${VERSION}). Run \`${installCommand}\`.\n`);
+    if (!json && commandArgs.length) process.stdout.write(`Check-only: the requested command was not run. After installing, run \`usagemax ${commandArgs.join(" ")}\`.\n`);
     return;
   }
   if (!json) process.stdout.write(`Updating UsageMax ${VERSION} → ${check.latest} via ${manager}…\n`);

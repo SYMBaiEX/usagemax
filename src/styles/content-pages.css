@@ -55,8 +55,13 @@
 .legal-meta { width: fit-content; padding: 12px 16px; border-radius: 12px; background: var(--surface-tint); }
 .legal-section h2 { font-family: var(--font-sans); font-weight: 600; font-size: 24px; }
 .legal-index > a { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-micro); color: var(--ink-faint); }
-.pricing-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-.pricing-grid .detail-card { min-height: 100%; }
+.pricing-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+.pricing-grid .detail-card { grid-template-columns: minmax(0, 1fr); align-content: start; gap: 14px; min-width: 0; min-height: 100%; }
+.pricing-grid .detail-card-top { grid-column: 1; flex-direction: row; justify-content: space-between; align-items: center; gap: 12px; min-width: 0; }
+.pricing-grid .detail-card-top > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.pricing-grid .detail-card h3, .pricing-grid .detail-card-copy { grid-column: 1; min-width: 0; }
+.pricing-grid .detail-card-copy { display: flex; flex-direction: column; align-items: flex-start; }
+.pricing-grid .detail-card-copy .text-link { margin-top: auto; padding-top: 8px; }
 .pricing-list { display: grid; gap: 10px; margin: 20px 0 24px; padding: 0; list-style: none; }
 .pricing-list li { display: flex; align-items: flex-start; gap: 9px; color: var(--ink-soft); font-size: 12px; line-height: 1.45; }
 .pricing-list svg { flex: 0 0 auto; color: var(--orange); margin-top: 1px; }
@@ -65,6 +70,7 @@
 .pricing-next { display: flex; align-items: center; gap: 28px; color: var(--ink-faint); font-size: 12px; }
 .pricing-next .text-link { margin-left: auto; }
 .pricing-next .text-link + .text-link { margin-left: 0; }
+@media (max-width: 1200px) { .pricing-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 /* Each page has its own composition, while controls and data stay consistent. */
 .enterprise-page .page-intro { width: calc(100% - 40px); max-width: 1320px; padding: 28px max(28px, calc((100vw - 1184px)/2 - 20px)); margin: 8px auto 32px; background: #383634; border-radius: 16px; color: #f5f3f1; }

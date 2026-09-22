@@ -8,6 +8,17 @@ import { Workspace, Ledger, Teams, Budgets } from "./workspace-view";
 
 const fixture = vi.hoisted(() => ({
   enterprise: false,
+  candidateStatus: "Exhausted" as "Exhausted" | "CanLoadMore" | "LoadingFirstPage",
+  candidateResults: [] as { userId: string; name: string; email: string }[],
+  projectStatus: "Exhausted" as "Exhausted" | "CanLoadMore" | "LoadingFirstPage",
+  projectResults: [] as {
+    _id: string;
+    name: string;
+    key: string;
+    costCenter: string;
+    teamId?: string;
+    archivedAt?: number;
+  }[],
   overview: {
     workspace: {
       id: "workspace_fixture",
@@ -202,28 +213,134 @@ vi.mock("convex/react", () => ({
                 },
               ]
             : [];
-    return { results, status: "Exhausted", loadMore: vi.fn() };
+    return {
+      results:
+        name === "workspaces:teamCandidates"
+          ? fixture.candidateResults
+          : name === "workspaces:projects"
+            ? fixture.projectResults
+            : results,
+      status:
+        name === "workspaces:teamCandidates"
+          ? fixture.candidateStatus
+          : name === "workspaces:projects"
+            ? fixture.projectStatus
+            : "Exhausted",
+      loadMore: vi.fn(),
+    };
   },
 }));
 
 describe("workspace product surfaces", () => {
-  test("free workspace exposes personal features without showing paid connections", () => {
+  test("free workspace opens the overview without showing paid connections", () => {
     fixture.enterprise = false;
     const html = renderToStaticMarkup(<Workspace />);
     expect(html).toContain("Free workspace");
+    expect(html).toContain('aria-label="Your usage summary"');
     expect(html).toContain("104.88B");
     expect(html).toContain("not an invoice");
-    expect(html).toContain("Export all history");
+    expect(html).toContain("Usage reports");
+    expect(html).toContain('aria-current="page"');
     expect(html).toContain("Personal workspace");
     expect(html).not.toContain(">Connections</button>");
     expect(html).not.toContain("credential");
   });
   test("enterprise exposes its connections tab and form labels", () => {
     fixture.enterprise = true;
-    const html = renderToStaticMarkup(<Workspace />);
+    const overview = fixture.overview as unknown as Parameters<
+      typeof Teams
+    >[0]["overview"];
+    const html = renderToStaticMarkup(
+      <>
+        <Workspace />
+        <Teams overview={overview} />
+      </>,
+    );
     expect(html).toContain(">Connections</button>");
     expect(html).toContain('aria-label="Workspace sections"');
     expect(html).toContain('scope="col"');
+  });
+  test("team management opens the active team and explains empty membership states", () => {
+    const overview = fixture.overview as unknown as Parameters<
+      typeof Teams
+    >[0]["overview"];
+    const html = renderToStaticMarkup(<Teams overview={overview} />);
+    expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain("Edit team settings");
+    expect(html).toContain("This team has no active members yet.");
+    expect(html).toContain("Invitations will appear here after you send one.");
+    expect(html).toContain("Projects &amp; cost centers");
+  });
+  test("team assignment controls follow the team's management capabilities", () => {
+    const overview = {
+      ...fixture.overview,
+      capabilities: {
+        ...fixture.overview.capabilities,
+        "teams:manage": false,
+      },
+    } as unknown as Parameters<typeof Teams>[0]["overview"];
+    const html = renderToStaticMarkup(<Teams overview={overview} />);
+    expect(html).not.toContain("Add to team");
+
+    const managerOnly = {
+      ...fixture.overview,
+      capabilities: {
+        ...fixture.overview.capabilities,
+        "members:manage": false,
+        "teams:manage": true,
+      },
+    } as unknown as Parameters<typeof Teams>[0]["overview"];
+    fixture.candidateResults = [
+      {
+        userId: "user_candidate",
+        name: "Priya Shah",
+        email: "priya@example.com",
+      },
+    ];
+    const managerHtml = renderToStaticMarkup(<Teams overview={managerOnly} />);
+    expect(managerHtml).toContain("Add to team");
+    expect(managerHtml).not.toContain("Team manager");
+    expect(managerHtml).toContain("Priya Shah · priya@example.com");
+    fixture.candidateResults = [];
+  });
+  test("project pages and sparse team-candidate pages keep pagination available", () => {
+    fixture.projectStatus = "CanLoadMore";
+    fixture.projectResults = [
+      {
+        _id: "project_research",
+        name: "Research portal",
+        key: "research",
+        costCenter: "R&D",
+        teamId: "team_platform",
+      },
+    ];
+    fixture.candidateStatus = "CanLoadMore";
+    fixture.candidateResults = [];
+    const overview = fixture.overview as unknown as Parameters<
+      typeof Teams
+    >[0]["overview"];
+    const html = renderToStaticMarkup(<Teams overview={overview} />);
+    expect(html).toContain("Research portal");
+    expect(html).toContain("No eligible members on this page; load more below");
+    expect(html.match(/>Load more<\/button>/g)).toHaveLength(2);
+    fixture.projectStatus = "Exhausted";
+    fixture.projectResults = [];
+    fixture.candidateStatus = "Exhausted";
+  });
+  test("project and candidate initial loading states do not look empty", () => {
+    fixture.projectStatus = "LoadingFirstPage";
+    fixture.candidateStatus = "LoadingFirstPage";
+    const overview = fixture.overview as unknown as Parameters<
+      typeof Teams
+    >[0]["overview"];
+    const html = renderToStaticMarkup(<Teams overview={overview} />);
+    expect(html).toContain("Loading projects…");
+    expect(html).toContain("Loading eligible members…");
+    expect(html).not.toContain(
+      "Add a project to connect teams with cost centers.",
+    );
+    fixture.projectStatus = "Exhausted";
+    fixture.candidateStatus = "Exhausted";
   });
   test("renders representative light/dark layout fixtures when explicitly requested", () => {
     const directory = process.env.USAGEMAX_VISUAL_DIR;

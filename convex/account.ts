@@ -983,13 +983,16 @@ export const renameCollector = mutation({
 });
 
 async function buildAccountExport(ctx: QueryCtx, user: Doc<"users">, profile: Doc<"profiles">) {
-  const [workspace, stats, collectors, daily, models, auditLog] = await Promise.all([
+  const [workspace, stats, collectors, daily, models, auditLog, telemetry, agents, outcomes] = await Promise.all([
     ctx.db.get(profile.workspaceId),
     ctx.db.query("profileStats").withIndex("by_profileId", (q) => q.eq("profileId", profile._id)).unique(),
     ctx.db.query("collectors").withIndex("by_workspaceId", (q) => q.eq("workspaceId", profile.workspaceId)).take(5001),
     ctx.db.query("profileDailyTotals").withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id)).order("desc").take(730),
     ctx.db.query("modelTotals").withIndex("by_profileId_and_totalTokens", (q) => q.eq("profileId", profile._id)).order("desc").take(500),
     ctx.db.query("auditEvents").withIndex("by_workspaceId_and_createdAt", (q) => q.eq("workspaceId", profile.workspaceId)).order("desc").take(500),
+    ctx.db.query("telemetryEvents").withIndex("by_profileId_and_occurredAt", (q) => q.eq("profileId", profile._id)).order("desc").take(201),
+    ctx.db.query("agentLiveStats").withIndex("by_profileId_and_updatedAt", (q) => q.eq("profileId", profile._id)).order("desc").take(201),
+    ctx.db.query("outcomes").withIndex("by_profileId_and_occurredAt", (q) => q.eq("profileId", profile._id)).order("desc").take(201),
   ]);
   if (collectors.length > 5000) throw new ConvexError("ACCOUNT_EXPORT_TOO_LARGE");
   return {
@@ -1015,6 +1018,57 @@ async function buildAccountExport(ctx: QueryCtx, user: Doc<"users">, profile: Do
     daily,
     models,
     auditLog,
+    recentDetail: {
+      telemetry: telemetry.slice(0, 200).map((event) => ({
+        eventKey: event.eventKey,
+        logicalRequestId: event.logicalRequestId,
+        sessionId: event.sessionId,
+        agentName: event.agentName,
+        eventType: event.eventType,
+        source: event.source,
+        provider: event.provider,
+        model: event.model,
+        totalTokens: event.totalTokens,
+        costMicros: event.costMicros,
+        latencyMs: event.latencyMs,
+        status: event.status,
+        state: event.state,
+        task: event.task,
+        traceId: event.traceId,
+        spanId: event.spanId,
+        occurredAt: event.occurredAt,
+        receivedAt: event.receivedAt,
+      })),
+      agents: agents.slice(0, 200).map((agent) => ({
+        externalId: agent.externalId,
+        parentExternalId: agent.parentExternalId,
+        name: agent.name,
+        model: agent.model,
+        state: agent.state,
+        task: agent.task,
+        totalTokens: agent.totalTokens,
+        toolCalls: agent.toolCalls,
+        errorCount: agent.errorCount,
+        sessionStartedAt: agent.sessionStartedAt,
+        updatedAt: agent.updatedAt,
+        expiresAt: agent.expiresAt,
+      })),
+      outcomes: outcomes.slice(0, 200).map((outcome) => ({
+        eventKey: outcome.eventKey,
+        logicalRequestId: outcome.logicalRequestId,
+        outcome: outcome.outcome,
+        occurredAt: outcome.occurredAt,
+        createdAt: outcome.createdAt,
+      })),
+      limits: {
+        telemetry: 200,
+        agents: 200,
+        outcomes: 200,
+        telemetryTruncated: telemetry.length > 200,
+        agentsTruncated: agents.length > 200,
+        outcomesTruncated: outcomes.length > 200,
+      },
+    },
     limits: { dailyDays: 730, models: 500, auditEvents: 500 },
   };
 }
@@ -1025,6 +1079,7 @@ export const readAccountExport = internalQuery({
   args: { access: accessReferenceValidator },
   handler: async (ctx, args): Promise<AccountExport> => {
     const { user, profile } = await requireWorkspaceAccessForReference(ctx, args.access, "data:export");
+    await requireWorkspaceAccessForReference(ctx, args.access, "finance:read");
     return await buildAccountExport(ctx, user, profile);
   },
 });

@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { convexTest } from "convex-test";
 
 import schema from "./schema";
@@ -13,6 +13,7 @@ describe("WorkOS lifecycle events", () => {
   beforeEach(() => {
     t = convexTest(schema, modules);
   });
+  afterEach(() => vi.useRealTimers());
 
   test("deactivates and reactivates an organization membership idempotently", async () => {
     const admin = t.withIdentity({
@@ -136,6 +137,7 @@ describe("WorkOS lifecycle events", () => {
   });
 
   test("projects Directory Sync users and deactivates them on lifecycle changes", async () => {
+    vi.useFakeTimers();
     const admin = t.withIdentity({
       subject: "user_01DIRECTORYADMIN",
       issuer: "https://api.workos.com/",
@@ -227,7 +229,78 @@ describe("WorkOS lifecycle events", () => {
       roleSlugs: [],
       occurredAt: 1_800_000_000_002,
       now: 1_800_000_000_002,
-    })).resolves.toEqual({ replay: false, outcome: "directory_deactivated" });
+    })).resolves.toEqual({ replay: false, outcome: "directory_deactivation_scheduled" });
+    await expect(t.mutation(internal.workos.applyDirectoryEvent, {
+      eventId: "directory_user_old_active",
+      eventName: "dsync.user.updated",
+      organizationId: "org_01DIRECTORY",
+      directoryId: "directory_01DIRECTORY",
+      directoryUserId: "directory_user_01",
+      email: "member@example.com",
+      state: "active",
+      roleSlugs: ["admin"],
+      occurredAt: 1_800_000_000_001,
+      now: 1_800_000_000_003,
+    })).resolves.toEqual({ replay: false, outcome: "ignored_stale_event" });
+    await expect(t.mutation(internal.workos.applyDirectoryEvent, {
+      eventId: "directory_user_active_after_delete",
+      eventName: "dsync.user.updated",
+      organizationId: "org_01DIRECTORY",
+      directoryId: "directory_01DIRECTORY",
+      directoryUserId: "directory_user_01",
+      email: "member@example.com",
+      state: "active",
+      roleSlugs: ["admin"],
+      occurredAt: 1_800_000_000_003,
+      now: 1_800_000_000_004,
+    })).resolves.toEqual({ replay: false, outcome: "ignored_stale_event" });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const deactivated = await t.run(async (ctx) => {
+      const user = (await ctx.db.query("users").collect()).find((row) => row.email === "member@example.com");
+      const workspace = (await ctx.db.query("workspaces").collect()).find((row) => row.workosOrganizationId === "org_01DIRECTORY");
+      const membership = user && workspace ? (await ctx.db.query("workspaceMemberships").collect()).find((row) => row.userId === user._id && row.workspaceId === workspace._id) : null;
+      return { membership };
+    });
+    expect(deactivated.membership?.status).toBe("deactivated");
+  });
+
+  test("directory removal resumes through bounded pages beyond one batch", async () => {
+    vi.useFakeTimers();
+    const admin = t.withIdentity({
+      subject: "user_01DIRECTORYBATCHADMIN",
+      issuer: "https://api.workos.com/",
+      tokenIdentifier: "https://api.workos.com/|user_01DIRECTORYBATCHADMIN",
+      org_id: "org_01DIRECTORYBATCH",
+      role: "admin",
+    });
+    await admin.mutation(api.account.ensureProfile, { handle: "directory-batch" });
+    const { workspaceId } = await t.run(async (ctx) => {
+      const workspace = (await ctx.db.query("workspaces").collect()).find((row) => row.workosOrganizationId === "org_01DIRECTORYBATCH");
+      if (!workspace) throw new Error("workspace missing");
+      const now = 1_800_000_000_000;
+      await ctx.db.insert("directories", { workspaceId: workspace._id, organizationId: "org_01DIRECTORYBATCH", directoryId: "directory_batch", state: "active", createdAt: now, updatedAt: now });
+      for (let i = 0; i < 205; i++) {
+        const userId = await ctx.db.insert("users", { workosUserId: `user_batch_${i}`, email: `batch-${i}@example.com`, createdAt: now, updatedAt: now, lastSeenAt: now });
+        await ctx.db.insert("directoryUsers", { workspaceId: workspace._id, directoryId: "directory_batch", directoryUserId: `dir-user-${i}`, email: `batch-${i}@example.com`, state: "active", roles: ["member"], lastSyncedAt: now, updatedAt: now });
+        await ctx.db.insert("workspaceMemberships", { workspaceId: workspace._id, userId, directoryId: "directory_batch", role: "member", roles: ["member"], source: "directory", status: "active", createdAt: now, updatedAt: now });
+      }
+      return { workspaceId: workspace._id };
+    });
+    await expect(t.mutation(internal.workos.applyDirectoryEvent, {
+      eventId: "directory_batch_deleted",
+      eventName: "dsync.deleted",
+      organizationId: "org_01DIRECTORYBATCH",
+      directoryId: "directory_batch",
+      roleSlugs: [],
+      occurredAt: 1_800_000_000_001,
+      now: 1_800_000_000_002,
+    })).resolves.toMatchObject({ replay: false, outcome: "directory_deactivation_scheduled" });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const counts = await t.run(async (ctx) => ({
+      active: (await ctx.db.query("workspaceMemberships").collect()).filter((row) => row.workspaceId === workspaceId && row.directoryId === "directory_batch" && row.status === "active").length,
+      undeleted: (await ctx.db.query("directoryUsers").collect()).filter((row) => row.directoryId === "directory_batch" && row.workspaceId === workspaceId && row.state !== "deleted").length,
+    }));
+    expect(counts).toEqual({ active: 0, undeleted: 0 });
   });
 
   test("rejects unsigned lifecycle HTTP requests and accepts a valid WorkOS signature", async () => {

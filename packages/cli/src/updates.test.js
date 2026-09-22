@@ -5,13 +5,43 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { checkForUpdate, compareVersions, packageManagerFor, REGISTRY_URL, updateGlobal } from "./updates.js";
+import { checkForUpdate, compareVersions, packageManagerFor, REGISTRY_URL, runLatest, updateCommandWillRun, updateGlobal, updateRequest } from "./updates.js";
 
 test("compares strict semantic versions", () => {
   assert.equal(compareVersions("0.3.7", "0.3.6"), 1);
   assert.equal(compareVersions("0.3.6", "0.3.6"), 0);
   assert.equal(compareVersions("0.3.5", "0.3.6"), -1);
   assert.equal(compareVersions("latest", "0.3.6"), 0);
+});
+
+test("update check-only options never create a command handoff", () => {
+  assert.deepEqual(updateRequest(["sync"]), {
+    json: false,
+    checkOnly: false,
+    commandArgs: ["sync"],
+    handoffArgs: ["sync"],
+  });
+  assert.deepEqual(updateRequest(["--check", "sync", "--json"]), {
+    json: true,
+    checkOnly: true,
+    commandArgs: ["sync"],
+    handoffArgs: [],
+  });
+  assert.deepEqual(updateRequest(["token", "status", "--no-install"]), {
+    json: false,
+    checkOnly: true,
+    commandArgs: ["token", "status"],
+    handoffArgs: [],
+  });
+});
+
+test("verified current and newer releases run suffixes; check-only and unavailable checks do not", () => {
+  const commandArgs = ["sync"];
+  assert.equal(updateCommandWillRun({ latest: "0.3.10", checkOnly: false, commandArgs }), true);
+  assert.equal(updateCommandWillRun({ latest: "0.3.11", checkOnly: false, commandArgs }), true);
+  assert.equal(updateCommandWillRun({ latest: "0.3.11", checkOnly: true, commandArgs }), false);
+  assert.equal(updateCommandWillRun({ latest: null, checkOnly: false, commandArgs }), false);
+  assert.equal(updateCommandWillRun({ latest: "0.3.10", checkOnly: false }), false);
 });
 test("caches the npm check and reports a newer release", async () => {
   const directory = await mkdtemp(join(tmpdir(), "usagemax-updates-"));
@@ -101,4 +131,44 @@ test("quiet JSON updates discard child output instead of leaving pipes undrained
   });
   await result;
   assert.equal(options.stdio, "ignore");
+});
+
+test("latest command handoff chooses npm exec for an npm-global installation", async () => {
+  const child = new EventEmitter();
+  let invocation;
+  await runLatest(["sync", "--json"], {
+    cliPath: "/usr/local/lib/node_modules/usagemax/src/cli.js",
+    runtime: {},
+    env: { PATH: "/usr/bin", npm_execpath: undefined },
+    platform: "linux",
+    spawnImpl: (command, args, options) => {
+      invocation = { command, args, options };
+      queueMicrotask(() => child.emit("exit", 0));
+      return child;
+    },
+  });
+  assert.equal(invocation.command, "npm");
+  assert.deepEqual(invocation.args, ["exec", "--yes", "usagemax@latest", "--", "sync", "--json"]);
+  assert.equal(invocation.options.env.USAGEMAX_UPDATE_HANDOFF, "1");
+  assert.equal(invocation.options.stdio, "inherit");
+});
+
+test("latest command handoff uses bunx for a Bun-global installation", async () => {
+  const child = new EventEmitter();
+  let invocation;
+  await runLatest(["sync", "--json"], {
+    cliPath: "/Users/a/.bun/install/global/node_modules/usagemax/src/cli.js",
+    runtime: {},
+    env: { PATH: "/bin" },
+    platform: "linux",
+    spawnImpl: (command, args, options) => {
+      invocation = { command, args, options };
+      queueMicrotask(() => child.emit("exit", 0));
+      return child;
+    },
+  });
+  assert.equal(invocation.command, "bunx");
+  assert.deepEqual(invocation.args, ["--bun", "usagemax@latest", "--", "sync", "--json"]);
+  assert.equal(invocation.options.env.USAGEMAX_UPDATE_HANDOFF, "1");
+  assert.equal(invocation.options.stdio, "inherit");
 });

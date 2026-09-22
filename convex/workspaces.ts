@@ -233,6 +233,24 @@ export const overview = query({
   },
 });
 
+export const projects = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const access = await requireWorkspaceMembership(ctx);
+    if (
+      !hasWorkspacePermission(access, access.reference, "members:manage") &&
+      !hasWorkspacePermission(access, access.reference, "finance:read")
+    )
+      throw new ConvexError("FORBIDDEN");
+    return await ctx.db
+      .query("projects")
+      .withIndex("by_workspaceId_and_key", (q) =>
+        q.eq("workspaceId", access.workspace._id),
+      )
+      .paginate(args.paginationOpts);
+  },
+});
+
 export const members = query({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
@@ -485,6 +503,46 @@ export const teamMembers = query({
         })),
       ),
     };
+  },
+});
+
+export const teamCandidates = query({
+  args: { teamId: v.id("teams"), paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const access = await requireWorkspaceMembership(ctx);
+    const team = await ctx.db.get(args.teamId);
+    if (team?.workspaceId !== access.workspace._id || team.archivedAt)
+      throw new ConvexError("TEAM_NOT_FOUND");
+    if (!hasWorkspacePermission(access, access.reference, "members:manage")) {
+      const own = await ctx.db
+        .query("teamMembers")
+        .withIndex("by_teamId_and_userId_and_leftAt", (q) =>
+          q
+            .eq("teamId", team._id)
+            .eq("userId", access.user._id)
+            .eq("leftAt", undefined),
+        )
+        .unique();
+      if (!own?.manager) throw new ConvexError("FORBIDDEN");
+    }
+    const rows = await ctx.db
+      .query("workspaceMemberships")
+      .withIndex("by_workspaceId_and_status", (q) =>
+        q.eq("workspaceId", access.workspace._id).eq("status", "active"),
+      )
+      .paginate(args.paginationOpts);
+    const candidates = await Promise.all(rows.page.map(async (member) => {
+      const [user, existing] = await Promise.all([
+        ctx.db.get(member.userId),
+        ctx.db.query("teamMembers").withIndex("by_teamId_and_userId_and_leftAt", (q) =>
+          q.eq("teamId", team._id).eq("userId", member.userId).eq("leftAt", undefined),
+        ).unique(),
+      ]);
+      return !existing && user
+        ? { userId: member.userId, name: user.name ?? "Member", email: user.email ?? "" }
+        : null;
+    }));
+    return { ...rows, page: candidates.filter((candidate) => candidate !== null) };
   },
 });
 

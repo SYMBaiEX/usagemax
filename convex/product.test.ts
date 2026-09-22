@@ -358,6 +358,56 @@ describe("free personal and enterprise controls", () => {
       await t.run((ctx) => ctx.db.query("teamMembers").first()),
     ).toHaveProperty("leftAt");
   });
+  test("team managers can page only unassigned active workspace candidates", async () => {
+    const admin = await owner("team-admin", "org_team_candidates");
+    const manager = t.withIdentity(identity("team-manager", "org_team_candidates", "manager"));
+    const candidate = t.withIdentity(identity("team-candidate", "org_team_candidates", "member"));
+    await manager.mutation(api.workspaces.bootstrap, {});
+    await candidate.mutation(api.workspaces.bootstrap, {});
+    const teamId = await admin.mutation(api.workspaces.createTeam, {
+      name: "Platform",
+      description: "",
+    });
+    const managerId = (await manager.query(api.workspaces.overview, {})).userId;
+    const candidateId = (await candidate.query(api.workspaces.overview, {})).userId;
+    await admin.mutation(api.workspaces.setTeamMember, {
+      teamId,
+      memberUserId: managerId,
+      manager: true,
+      remove: false,
+    });
+    const assignedTeam = await admin.mutation(api.workspaces.createTeam, {
+      name: "Assigned",
+      description: "",
+    });
+    const unrelatedTeam = await admin.mutation(api.workspaces.createTeam, {
+      name: "Unrelated",
+      description: "",
+    });
+    await admin.mutation(api.workspaces.setTeamMember, {
+      teamId: assignedTeam,
+      memberUserId: candidateId,
+      manager: false,
+      remove: false,
+    });
+
+    const result = await manager.query(api.workspaces.teamCandidates, {
+      teamId,
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+    expect(result.page).toEqual([
+      expect.objectContaining({ userId: candidateId, email: "team-candidate@example.com" }),
+    ]);
+    await expect(manager.query(api.workspaces.teamCandidates, {
+      teamId: unrelatedTeam,
+      paginationOpts: { numItems: 10, cursor: null },
+    })).rejects.toThrow("FORBIDDEN");
+    expect((await admin.query(api.workspaces.teamCandidates, {
+      teamId: unrelatedTeam,
+      paginationOpts: { numItems: 10, cursor: null },
+    })).page.length).toBeGreaterThan(0);
+    await expect(manager.query(api.workspaces.members, { paginationOpts: page })).rejects.toThrow("FORBIDDEN");
+  });
   test("enterprise feature checks cannot be bypassed by client plan labels", async () => {
     const session = await owner();
     await expect(session.query(api.connections.list, {})).rejects.toThrow(
@@ -434,6 +484,75 @@ describe("free personal and enterprise controls", () => {
       done = result.isDone;
     }
     expect(count).toBe(550);
+  });
+  test("paged detail exports include retained events without internal tenancy fields", async () => {
+    const session = await owner("detail-export");
+    await t.run(async (ctx) => {
+      const user = (await ctx.db.query("users").collect()).find((row) => row.email === "detail-export@example.com");
+      if (!user) throw new Error("user missing");
+      const workspace = (await ctx.db.query("workspaces").collect()).find((row) => row.ownerId === user._id);
+      if (!workspace) throw new Error("workspace missing");
+      const profile = (await ctx.db.query("profiles").collect()).find((row) => row.workspaceId === workspace._id);
+      if (!profile) throw new Error("profile missing");
+      const now = Date.now();
+      await ctx.db.insert("telemetryEvents", {
+        workspaceId: workspace._id,
+        profileId: profile._id,
+        eventKey: "private-event-key",
+        eventHash: "private-event-hash",
+        eventType: "model_request",
+        source: "test",
+        provider: "openai",
+        model: "private-model",
+        inputTokens: 12,
+        outputTokens: 3,
+        cacheReadTokens: 0,
+        reasoningTokens: 0,
+        totalTokens: 15,
+        costMicros: 24,
+        status: "ok",
+        task: "private task details",
+        occurredAt: now,
+        receivedAt: now,
+        schemaVersion: 1,
+        completeness: "reported",
+      });
+      await ctx.db.insert("agentLiveStats", {
+        workspaceId: workspace._id,
+        profileId: profile._id,
+        externalId: "agent-private",
+        name: "Private agent",
+        model: "private-model",
+        state: "running",
+        tokensPerSecond: 2,
+        totalTokens: 15,
+        toolCalls: 1,
+        errorCount: 0,
+        sessionStartedAt: now,
+        updatedAt: now,
+        expiresAt: now + 60_000,
+      });
+      await ctx.db.insert("outcomes", {
+        workspaceId: workspace._id,
+        profileId: profile._id,
+        eventKey: "private-outcome-key",
+        logicalRequestId: "private-request-id",
+        outcome: "accepted",
+        occurredAt: now,
+        createdAt: now,
+      });
+    });
+
+    const telemetry = await session.query(api.personal.exportPage, { dataset: "telemetry", paginationOpts: page });
+    const agents = await session.query(api.personal.exportPage, { dataset: "agents", paginationOpts: page });
+    const outcomes = await session.query(api.personal.exportPage, { dataset: "outcomes", paginationOpts: page });
+    expect(telemetry.page[0]).toMatchObject({ eventType: "model_request", task: "private task details", totalTokens: 15 });
+    expect(telemetry.page[0]).not.toHaveProperty("workspaceId");
+    expect(telemetry.page[0]).not.toHaveProperty("eventHash");
+    expect(agents.page[0]).toMatchObject({ externalId: "agent-private", name: "Private agent" });
+    expect(agents.page[0]).not.toHaveProperty("profileId");
+    expect(outcomes.page[0]).toMatchObject({ outcome: "accepted", logicalRequestId: "private-request-id" });
+    expect(outcomes.page[0]).not.toHaveProperty("workspaceId");
   });
 });
 
