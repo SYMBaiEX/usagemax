@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
 import test from "node:test";
+import { ccusageDailyArgs } from "./ccusage.js";
 import { reportDateArgs } from "./core.js";
 const require = createRequire(import.meta.url);
 test("incremental date bounds reconcile UTC rollover without incompatible --last", () => {
@@ -20,9 +21,10 @@ test("installed ccusage accepts production combined-section incremental argument
   // Use an empty home so this contract test does not scan the developer's local
   // provider histories (which can make a parser-only check take minutes).
   const home = await mkdtemp(join(tmpdir(), "usagemax-ccusage-contract-"));
-  const bounds = reportDateArgs({ lastSyncAt: 1 }, { now: Date.parse("2099-01-02T00:00:00Z") });
+  const args = ccusageDailyArgs({ lastSyncAt: 1 }, { now: Date.parse("2099-01-02T00:00:00Z") });
+  assert.ok(args.includes("--breakdown"), "model-level detail must be explicitly requested from ccusage");
   try {
-    const { stdout } = await promisify(execFile)(process.execPath, [entry, "daily", "--json", "--offline", "--mode", "calculate", "--timezone", "UTC", "--by-agent", "--order", "asc", "--sections", "daily,session", ...bounds], {
+    const { stdout } = await promisify(execFile)(process.execPath, [entry, ...args], {
       env: { ...process.env, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: join(home, "config"), CODEX_HOME: join(home, ".codex") },
       timeout: 30_000,
       maxBuffer: 1024 * 1024,

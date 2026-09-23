@@ -11,7 +11,8 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 import { prepareArchiveRecovery } from "./archives.js";
-import { buildSessionPlan, buildSnapshotPlan, normalizeLinkCode, reportDateArgs, scanPolicy, sourceSummary, validHttpsUrl } from "./core.js";
+import { buildSessionPlan, buildSnapshotPlan, normalizeLinkCode, scanPolicy, sourceSummary, validHttpsUrl } from "./core.js";
+import { ccusageDailyArgs } from "./ccusage.js";
 import { stableInstallationId } from "./installation.js";
 import { createProgress } from "./progress.js";
 import { intervalMinutes, manageService, runScheduledSync } from "./service.js";
@@ -205,12 +206,10 @@ function ccusageCliPath() {
 }
 
 async function ccusageJson(config, { full = false, env } = {}) {
-  const args = [ccusageCliPath(), "daily", "--json", "--offline", "--mode", "calculate", "--timezone", "UTC", "--by-agent", "--order", "asc"];
-  args.push("--sections", "daily,session");
+  const args = [ccusageCliPath(), ...ccusageDailyArgs(config, { full })];
   // Reconcile yesterday once after the UTC date changes. All other incremental
   // scans parse only today; a metadata fingerprint avoids invoking ccusage when
   // no supported local source changed at all.
-  args.push(...reportDateArgs(config, { full }));
   const { stdout } = await executeFile(process.execPath, args, {
     encoding: "utf8",
     maxBuffer: MAX_REPORT_BYTES,

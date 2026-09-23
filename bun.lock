@@ -36,12 +36,12 @@
     },
     "packages/cli": {
       "name": "usagemax",
-      "version": "0.3.9",
+      "version": "0.3.10",
       "bin": {
         "usagemax": "src/cli.js",
       },
       "dependencies": {
-        "ccusage": "20.0.23",
+        "ccusage": "20.0.24",
       },
     },
   },
@@ -88,17 +88,17 @@
 
     "@cacheable/utils": ["@cacheable/utils@2.5.0", "", { "dependencies": { "hashery": "^1.5.1", "keyv": "^5.6.0" } }, "sha512-buipgOVDkkPXNR5+xBpDw7Zk2n1EvU7qBJCNUcL7rhQ//kfpOXPAvQ511Os0vpLYJ1pZnvudNytkQt2hst3wqA=="],
 
-    "@ccusage/ccusage-darwin-arm64": ["@ccusage/ccusage-darwin-arm64@20.0.23", "", { "os": "darwin", "cpu": "arm64" }, "sha512-nNab2ZG5RfGAIlnNXkbc5qVxIYLazJpwVA2+12ISEG2jso+yQGjUVtxWQc8Ygr0s4HSoXE8Ulvku/tfYN6dlcg=="],
+    "@ccusage/ccusage-darwin-arm64": ["@ccusage/ccusage-darwin-arm64@20.0.24", "", { "os": "darwin", "cpu": "arm64" }, "sha512-jdJP78y2SYRSoGcakANRYeqAbwG2FBw5dzyb6bakIM3S08G2LNrBFQVbsQvNB/f2OXbUtQpJzofHJvoDIyVW1Q=="],
 
-    "@ccusage/ccusage-darwin-x64": ["@ccusage/ccusage-darwin-x64@20.0.23", "", { "os": "darwin", "cpu": "x64" }, "sha512-R5IA7nCg4Ery4r3gbWN2ALxZsp3waryohhlCNsPXREAiIP0cGwpOzYo4JDsnaxqXb4OY4rRr7NZWTiiPtGop0g=="],
+    "@ccusage/ccusage-darwin-x64": ["@ccusage/ccusage-darwin-x64@20.0.24", "", { "os": "darwin", "cpu": "x64" }, "sha512-iCko1HCk7fVLrs7TYyztMUv9Ze6iQDp6IhyeIzNfh9QJUUssxoNh9t7AkUgZL0EkiRbBBdsBrdYrAZ2WmkHpkQ=="],
 
-    "@ccusage/ccusage-linux-arm64": ["@ccusage/ccusage-linux-arm64@20.0.23", "", { "os": "linux", "cpu": "arm64" }, "sha512-w2P2fjvH2uAbEInHTBtqNf+uE80kOwsXJS0jhzlXLDw0TRMA6s7F292tK/Knc24MfIy1gHy/qjaQbZiO875HVg=="],
+    "@ccusage/ccusage-linux-arm64": ["@ccusage/ccusage-linux-arm64@20.0.24", "", { "os": "linux", "cpu": "arm64" }, "sha512-P3tkw7vIv78MKx9Xycqt6RE+cBv4wpZbmWFP81w5MYngYB9s1c8RqS24F/6a+B439WXLQ2051bqAqh96hTe0lw=="],
 
-    "@ccusage/ccusage-linux-x64": ["@ccusage/ccusage-linux-x64@20.0.23", "", { "os": "linux", "cpu": "x64" }, "sha512-ueWwPu5Me+7MlrtwouwbQvv5Xqk5Qx2OvUsT/izt8Maamc0uc5neBimEOn5bAcw8rOYLuyrCZXtIGqdL8WXxEA=="],
+    "@ccusage/ccusage-linux-x64": ["@ccusage/ccusage-linux-x64@20.0.24", "", { "os": "linux", "cpu": "x64" }, "sha512-ydXM6AEUTO/T5dZK04GFGy6ePYBOjv3euQmJt0mDNg+/8SJDLWpg5GCtF9pnBrRR2GVA6b4PGouHe+ObLokBIw=="],
 
-    "@ccusage/ccusage-win32-arm64": ["@ccusage/ccusage-win32-arm64@20.0.23", "", { "os": "win32", "cpu": "arm64" }, "sha512-CTpYR4p6qdr/OHXHERYrG/pmJAdjDEOTF0LWurUgWwIXVohBAucIs3H5vFKyrjssqXVcN2Dszu+8rULQNJwB4w=="],
+    "@ccusage/ccusage-win32-arm64": ["@ccusage/ccusage-win32-arm64@20.0.24", "", { "os": "win32", "cpu": "arm64" }, "sha512-BDPgaqNPSlVM2dHGJRW1uRj53AOK1C+ih/1Ik5vUC8TOzr4t2Glb9abtnt0Jq0lUyr8qTQ5k0ow6p6LQyUa9AQ=="],
 
-    "@ccusage/ccusage-win32-x64": ["@ccusage/ccusage-win32-x64@20.0.23", "", { "os": "win32", "cpu": "x64" }, "sha512-i5aHoXaEF4VsneBgISJfoOrIQqvrvV9r7V9/vS0lstBz5pe8MVb5R5Of215cmNmRRHdReySFtoJCEoXCgX68HA=="],
+    "@ccusage/ccusage-win32-x64": ["@ccusage/ccusage-win32-x64@20.0.24", "", { "os": "win32", "cpu": "x64" }, "sha512-Pxb7rcHEoB4EByJKRQBaoPJcIvXxeRZZDK8aSHvX4Ah3VmuKJJoGGGqZ5pKnYuBTSmrpBo2EzRQ7fCGiFcv5+g=="],
 
     "@convex-dev/batch-worker": ["@convex-dev/batch-worker@0.3.4", "", { "dependencies": { "convex-helpers": "^0.1.119" }, "peerDependencies": { "convex": "^1.43.0" } }, "sha512-CKeOrPFsPoIKozMNP/qKExSwE6vd63QDKbZIbchK+P3S7fyGuFjRLbTg6+QmC/mzOjn6I5N8zo+k/SdXqeaA2g=="],
 
@@ -578,7 +578,7 @@
 
     "caniuse-lite": ["caniuse-lite@1.0.30001810", "", {}, "sha512-TITQPUkaz+aVk5GL6NhOdwk1aEaNTSDPsGFWrTuhKGtjTF70jL/Oht2W4c6rXUe5fu7Ie19VIahAXHIIiWWNeg=="],
 
-    "ccusage": ["ccusage@20.0.23", "", { "optionalDependencies": { "@ccusage/ccusage-darwin-arm64": "20.0.23", "@ccusage/ccusage-darwin-x64": "20.0.23", "@ccusage/ccusage-linux-arm64": "20.0.23", "@ccusage/ccusage-linux-x64": "20.0.23", "@ccusage/ccusage-win32-arm64": "20.0.23", "@ccusage/ccusage-win32-x64": "20.0.23" }, "bin": { "ccusage": "./src/cli.js" } }, "sha512-hOyGMpcX3alt9yq6xT+3VU8fp2B5eYuaew3kyOZgBxLkkf6Sa/LSDdA8+72uPQeFd6x+bzN5Sbw7lywMuLtZJw=="],
+    "ccusage": ["ccusage@20.0.24", "", { "optionalDependencies": { "@ccusage/ccusage-darwin-arm64": "20.0.24", "@ccusage/ccusage-darwin-x64": "20.0.24", "@ccusage/ccusage-linux-arm64": "20.0.24", "@ccusage/ccusage-linux-x64": "20.0.24", "@ccusage/ccusage-win32-arm64": "20.0.24", "@ccusage/ccusage-win32-x64": "20.0.24" }, "bin": { "ccusage": "./src/cli.js" } }, "sha512-sHq7axM0ucbFS4m5xFzS7NxYSmOP1+PSDup3nVb+pitI3eEuwEiGObhsXvu47DSvB2hHpEts/quA3/0EE5i1Zw=="],
 
     "chai": ["chai@6.2.2", "", {}, "sha512-NUPRluOfOiTKBKvWPtSD4PhFvWCqOi0BGStNWs57X9js7XGTprSmFoz5F0tWhR4WPjNeR9jXqdC7/UpSJTnlRg=="],
 

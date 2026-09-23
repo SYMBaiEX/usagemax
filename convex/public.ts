@@ -65,7 +65,7 @@ export const profileSnapshot = query({
     const dayLimit = Math.min(365, Math.max(30, Math.round(args.days ?? 365)));
     const [stats, models, aggregateDays, agents, events] = await Promise.all([
       ctx.db.query("profileStats").withIndex("by_profileId", (q) => q.eq("profileId", profile._id)).unique(),
-      ctx.db.query("modelTotals").withIndex("by_profileId_and_costMicros", (q) => q.eq("profileId", profile._id)).order("desc").take(12),
+      ctx.db.query("modelTotals").withIndex("by_profileId_and_costMicros", (q) => q.eq("profileId", profile._id)).order("desc").take(101),
       ctx.db.query("profileDailyTotals").withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id)).order("desc").take(dayLimit),
       args.includeLive === false ? Promise.resolve([]) : ctx.db.query("agentLiveStats").withIndex("by_profileId_and_updatedAt", (q) => q.eq("profileId", profile._id)).order("desc").take(Math.min(50, Math.max(1, Math.round(args.agentLimit ?? 12)))),
       args.includeLive === false ? Promise.resolve([]) : ctx.db.query("telemetryEvents").withIndex("by_profileId_and_occurredAt", (q) => q.eq("profileId", profile._id)).order("desc").take(Math.min(50, Math.max(1, Math.round(args.eventLimit ?? 24)))),
@@ -170,7 +170,8 @@ export const profileSnapshot = query({
     return {
       profile,
       stats,
-      models,
+      models: models.slice(0, 100),
+      moreModels: models.length > 100,
       daily,
       coverage,
       dailyModels: [...dailyModelMap.values()].sort((left, right) => left.date === right.date ? right.totalTokens - left.totalTokens : left.date.localeCompare(right.date)),

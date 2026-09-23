@@ -33,6 +33,7 @@
   },
   "files": [
     "src/archives.js",
+    "src/ccusage.js",
     "src/cli.js",
     "src/core.js",
     "src/installation.js",
@@ -57,6 +58,6 @@
     "prepublishOnly": "npm test"
   },
   "dependencies": {
-    "ccusage": "20.0.23"
+    "ccusage": "20.0.24"
   }
 }

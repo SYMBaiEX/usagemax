@@ -3,8 +3,10 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 
-export const CCUSAGE_VERSION = "20.0.23";
-export const SOURCE_INVENTORY_VERSION = 3;
+export const CCUSAGE_VERSION = "20.0.24";
+// Reconcile retained history when the collector output contract changes, not
+// just when a source path is added. v4 enables explicit per-model breakdowns.
+export const SOURCE_INVENTORY_VERSION = 4;
 export const SUPPORTED_SOURCES = [
   "amp",
   "claude",

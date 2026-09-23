@@ -29,7 +29,7 @@ test("validates one-use link code and secure endpoints", () => {
 });
 
 test("creates additive, idempotent usage deltas without content fields", () => {
-  const first = buildDeltaPlan(report, {}, "device-1", "ccusage@20.0.23");
+  const first = buildDeltaPlan(report, {}, "device-1", "ccusage@20.0.24");
   assert.equal(first.plan.length, 1);
   assert.deepEqual(first.plan[0].event, {
     eventKey: first.plan[0].event.eventKey,
@@ -47,7 +47,7 @@ test("creates additive, idempotent usage deltas without content fields", () => {
     costMicros: 750000,
     costBasis: "estimated",
     pricingSource: "ccusage / LiteLLM",
-    pricingVersion: "ccusage@20.0.23",
+    pricingVersion: "ccusage@20.0.24",
     status: "ok",
     state: "synced",
     occurredAt: "2026-09-14T00:00:00.000Z",
@@ -143,6 +143,48 @@ test("classifies prefixed and bracketed model providers without changing model i
   assert.equal(events.find((event) => event.model === "[openclaw] qwen3-coder")?.provider, "alibaba");
   assert.equal(events.find((event) => event.model.startsWith("openrouter/"))?.provider, "openrouter");
   assert.equal(events.find((event) => event.model === "kimi-k2.5")?.provider, "moonshot");
+});
+
+test("keeps current OpenAI and Anthropic model IDs separate in deltas and snapshots", () => {
+  const models = [
+    ...["gpt-6-luna", "gpt-6-sol", "gpt-6-astra"].map((modelName) => ({ agent: "codex", modelName, provider: "openai" })),
+    ...[
+      "claude-fable-5",
+      "claude-mythos-5",
+      "claude-opus-5",
+      "claude-opus-4-8",
+      "claude-opus-4-7",
+      "claude-sonnet-5",
+      "claude-sonnet-4-6",
+    ].map((modelName) => ({ agent: "claude", modelName, provider: "anthropic" })),
+  ];
+  const fixture = {
+    daily: [{
+      agent: "all",
+      period: "2026-09-22",
+      agents: ["codex", "claude"].map((agent) => ({
+        agent,
+        modelBreakdowns: models.filter((item) => item.agent === agent).map(({ modelName }) => ({
+          modelName,
+          inputTokens: 11,
+          outputTokens: 7,
+          cacheCreationTokens: 3,
+          cacheReadTokens: 5,
+          cost: 0.0001,
+        })),
+      })),
+    }],
+  };
+
+  const events = buildDeltaPlan(fixture, {}, "device-1").plan.map((item) => item.event);
+  assert.deepEqual(events.map(({ model }) => model).sort(), models.map(({ modelName }) => modelName).sort());
+  for (const { modelName, provider } of models) {
+    assert.equal(events.find((event) => event.model === modelName)?.provider, provider, modelName);
+  }
+
+  const snapshots = buildSnapshotPlan(fixture, {}, { full: true });
+  const snapshotRows = snapshots.partitions.flatMap((partition) => partition.rows);
+  assert.deepEqual(snapshotRows.map(({ model }) => model).sort(), models.map(({ modelName }) => modelName).sort());
 });
 
 test("builds authoritative partitions for decreases, deletions, and provider identity", () => {
@@ -286,4 +328,5 @@ test("repeated partial scans can no-op without bootstrapping or claiming deletio
   }
   assert.equal(scanPolicy({ ...config, snapshotProtocolVersion: 1 }, inventory, options).bootstrap, true);
   assert.equal(scanPolicy(config, { ...inventory, sources: ["codex", "claude"] }, options).full, true);
+  assert.equal(scanPolicy(config, inventory, { ...options, inventoryVersion: 4 }).full, true);
 });

@@ -34,6 +34,21 @@ describe("public usage dimensions", () => {
         verification: "collector",
         createdAt: now,
       });
+      for (let index = 0; index < 101; index += 1) {
+        await ctx.db.insert("modelTotals", {
+          workspaceId,
+          profileId,
+          provider: index % 2 ? "anthropic" : "openai",
+          model: `model-${String(index).padStart(3, "0")}`,
+          totalTokens: index + 1,
+          inputTokens: index + 1,
+          outputTokens: 0,
+          costMicros: index + 1,
+          requests: 1,
+          errors: 0,
+          lastUsedAt: now,
+        });
+      }
       await ctx.db.insert("profileDailyTotals", {
         workspaceId,
         profileId,
@@ -81,12 +96,16 @@ describe("public usage dimensions", () => {
     expect(JSON.stringify(rows)).not.toContain("salted-device-hash");
 
     const snapshot = await t.query(api.public.profileSnapshot, { handle: "privacy-builder", days: 365 });
+    if (!snapshot) throw new Error("Expected the public profile snapshot");
     expect(snapshot).toMatchObject({
       profile: { handle: "privacy-builder" },
       daily: [expect.objectContaining({ date: "2026-09-14", totalTokens: 120 })],
       breakdowns: { devices: [expect.objectContaining({ key: "Device 1", totalTokens: 120 })] },
       live: { agents: [], events: [] },
     });
+    expect(snapshot.models).toHaveLength(100);
+    expect(snapshot.moreModels).toBe(true);
+    expect(snapshot.models[0].model).toBe("model-100");
   });
 
   test("quarantines retired imported profiles from every public aggregate", async () => {

@@ -109,11 +109,17 @@ bunx usagemax unlink --json                # safe automation result; no secret o
 
 ## Sources and coverage
 
-UsageMax pins [ccusage v20.0.23](https://github.com/ccusage/ccusage/releases/tag/v20.0.23)
+UsageMax pins [ccusage v20.0.24](https://github.com/ccusage/ccusage/releases/tag/v20.0.24)
 and supports its 16 adapters: Amp, Claude Code, Codebuff, Codex, GitHub Copilot
 CLI, Factory Droid, Gemini CLI, Goose, Grok Build, Hermes, Kilo Code, Kimi CLI,
 OpenClaw, OpenCode, Pi, and Qwen Code. Named Pi-format stores are discovered as
 well.
+
+The collector explicitly requests ccusage's per-model breakdown so models used
+on the same day remain individually attributed instead of collapsing into a
+generic `mixed` row. This collector update triggers one full reconciliation of
+retained history from 2024-01-01 on the next sync; subsequent runs return to the
+normal incremental schedule.
 
 The collector follows the supported provider environment overrides and bounded
 home locations. It recognizes Claude Desktop sessions, `.cc-mirror`, renamed
