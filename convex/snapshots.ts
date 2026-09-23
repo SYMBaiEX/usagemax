@@ -172,6 +172,7 @@ export const inspectRun = internalQuery({
       inventoryComplete: run.inventoryComplete,
       inventoryErrors: run.inventoryErrors,
       inventoryTruncated: run.inventoryTruncated,
+      parserCoverageCertified: run.parserCoverageCertified ?? false,
       coverageStartDay: run.coverageStartDay ?? null,
       coverageEndDay: run.coverageEndDay ?? null,
       failureCode: run.failureCode ?? null,
@@ -241,6 +242,7 @@ export const beginRun = internalMutation({
     inventoryComplete: v.boolean(),
     inventoryErrors: v.number(),
     inventoryTruncated: v.boolean(),
+    parserCoverageCertified: v.optional(v.boolean()),
     coverageStartDay: v.optional(v.string()),
     coverageEndDay: v.optional(v.string()),
     now: v.number(),
@@ -275,6 +277,7 @@ export const beginRun = internalMutation({
       inventoryComplete: args.inventoryComplete,
       inventoryErrors: Math.max(0, Math.round(args.inventoryErrors)),
       inventoryTruncated: args.inventoryTruncated,
+      parserCoverageCertified: args.parserCoverageCertified ?? false,
       coverageStartDay: args.coverageStartDay,
       coverageEndDay: args.coverageEndDay,
       startedAt: args.now,
@@ -373,6 +376,7 @@ export const commitPartition = internalMutation({
     const cleaning = args.cleanupCursor !== undefined;
     let group = chunked || cleaning ? await ctx.db.query("snapshotChunkGroups")
       .withIndex("by_collectorId_and_runId_and_source_and_day", q => q.eq("collectorId", collector._id).eq("runId", args.runId).eq("source", args.source).eq("day", args.day)).unique() : null;
+    if (run.parserCoverageCertified && !args.complete) throw new ConvexError("PARSER_CERTIFIED_PARTITION_INCOMPLETE");
     if (chunked && !cleaning) {
       if (!Number.isSafeInteger(args.chunkCount) || !Number.isSafeInteger(args.chunkIndex)
         || args.chunkCount! < 1 || args.chunkCount! > 10000 || args.chunkIndex! < 0 || args.chunkIndex! >= args.chunkCount!) throw new ConvexError("INVALID_SNAPSHOT_CHUNK");
@@ -432,7 +436,7 @@ export const commitPartition = internalMutation({
           ? Object.fromEntries(counterFields.map((field) => [field, prior[field]])) as Counters
           : row.previous;
       // A partial scan is not authoritative evidence for any downward correction.
-      if ((!args.complete || !run.inventoryComplete || run.inventoryErrors > 0 || run.inventoryTruncated)
+      if ((!args.complete || !run.parserCoverageCertified || !run.inventoryComplete || run.inventoryErrors > 0 || run.inventoryTruncated)
         && counterFields.some(field => row.current[field] < base[field])) continue;
       changes.push({
         provider: row.provider,
@@ -445,7 +449,8 @@ export const commitPartition = internalMutation({
         prior,
       });
     }
-    if (args.complete && (!chunked || cleaning) && run.inventoryComplete && run.inventoryErrors === 0 && !run.inventoryTruncated) {
+    if (args.complete && run.parserCoverageCertified && (!chunked || cleaning)
+      && run.inventoryComplete && run.inventoryErrors === 0 && !run.inventoryTruncated) {
       for (const prior of priorSnapshots) {
         if (uniqueRows.has(`${prior.provider}\u001f${prior.model}`)) continue;
         const current = zeroCounters();
@@ -675,7 +680,8 @@ export const commitPartition = internalMutation({
       correctionRows,
       createdAt: args.now,
     });
-    const cleanupNeeded = args.complete && run.inventoryComplete && run.inventoryErrors === 0 && !run.inventoryTruncated;
+    const cleanupNeeded = args.complete && run.parserCoverageCertified
+      && run.inventoryComplete && run.inventoryErrors === 0 && !run.inventoryTruncated;
     const lastChunk = chunked && !cleaning && args.chunkIndex! + 1 === args.chunkCount;
     await ctx.db.patch(run._id, {
       acceptedPartitions: run.acceptedPartitions + (cleaning ? 0 : 1),
@@ -802,10 +808,10 @@ export const completeRun = internalMutation({
     } else {
       await refreshProfileSummary(ctx, collector.profileId, args.now);
     }
-    await ctx.db.patch(stats._id, { lastSyncAt: args.now, sessionCoverage: run.mode === "full" && run.inventoryComplete ? "complete" : "partial" });
-    const coverageStatus = run.mode === "full" && run.inventoryComplete && !run.inventoryTruncated && run.inventoryErrors === 0
-      ? "complete" as const
-      : "partial" as const;
+    const coverageStatus = run.mode !== "full" || !run.inventoryComplete || run.inventoryTruncated || run.inventoryErrors > 0
+      ? "partial" as const
+      : run.parserCoverageCertified ? "complete" as const : "unverified" as const;
+    await ctx.db.patch(stats._id, { lastSyncAt: args.now, sessionCoverage: coverageStatus === "complete" ? "complete" : "partial" });
     await ctx.db.patch(run._id, { status: "complete", completedAt: args.now, updatedAt: args.now });
     await ctx.db.patch(collector._id, {
       lastSeenAt: args.now,
@@ -814,6 +820,7 @@ export const completeRun = internalMutation({
       lastSyncPhase: "complete",
       lastFullSyncAt: run.mode === "full" || run.mode === "archives" ? args.now : collector.lastFullSyncAt,
       coverageStatus,
+      parserCoverageCertified: run.parserCoverageCertified ?? false,
       coverageStartDay: run.coverageStartDay,
       coverageEndDay: run.coverageEndDay,
       inventoryComplete: run.inventoryComplete,

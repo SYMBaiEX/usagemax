@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, open, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { ccusageEnvironment, ccusageHome, discoverProviderArchives, discoverWslWindowsHomeStatus, sourceDefinitions, sourceInventory, SUPPORTED_SOURCES } from "./sources.js";
+import { ccusageEnvironment, ccusageHome, discoverProviderArchives, discoverWslWindowsHomeStatus, LARGE_JSONL_WARNING_BYTES, sourceDefinitions, sourceInventory, SUPPORTED_SOURCES } from "./sources.js";
 
 test("matches ccusage home precedence on Windows and POSIX", () => {
   assert.equal(ccusageHome({ HOME: "/linux", USERPROFILE: "C:\\Users\\me" }), "/linux");
@@ -197,4 +197,19 @@ test("never treats a truncated inventory as a no-change certificate", async () =
   const inventory = await sourceInventory({ env: { HOME: root }, home: root, cwd: root, maxFiles: 1 });
   assert.equal(inventory.truncated, true);
   assert.equal(inventory.complete, false);
+});
+
+test("reports only aggregate metadata for unusually large JSONL inputs", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "usagemax-large-log-"));
+  const file = path.join(root, ".codex", "sessions", "large.jsonl");
+  await mkdir(path.dirname(file), { recursive: true });
+  const handle = await open(file, "w");
+  try { await handle.truncate(LARGE_JSONL_WARNING_BYTES + 1); } finally { await handle.close(); }
+
+  const inventory = await sourceInventory({ env: { HOME: root }, home: root, cwd: root });
+  assert.equal(inventory.largeJsonlFiles.thresholdBytes, LARGE_JSONL_WARNING_BYTES);
+  assert.equal(inventory.largeJsonlFiles.count, 1);
+  assert.equal(inventory.largeJsonlFiles.bytes, LARGE_JSONL_WARNING_BYTES + 1);
+  assert.deepEqual(inventory.largeJsonlFiles.bySource, [{ source: "codex", count: 1, bytes: LARGE_JSONL_WARNING_BYTES + 1 }]);
+  assert.equal(JSON.stringify(inventory.largeJsonlFiles).includes("large.jsonl"), false);
 });

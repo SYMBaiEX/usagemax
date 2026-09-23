@@ -37,11 +37,11 @@ test("update check-only options never create a command handoff", () => {
 
 test("verified current and newer releases run suffixes; check-only and unavailable checks do not", () => {
   const commandArgs = ["sync"];
-  assert.equal(updateCommandWillRun({ latest: "0.3.10", checkOnly: false, commandArgs }), true);
+  assert.equal(updateCommandWillRun({ latest: "0.3.11", checkOnly: false, commandArgs }), true);
   assert.equal(updateCommandWillRun({ latest: "0.3.11", checkOnly: false, commandArgs }), true);
   assert.equal(updateCommandWillRun({ latest: "0.3.11", checkOnly: true, commandArgs }), false);
   assert.equal(updateCommandWillRun({ latest: null, checkOnly: false, commandArgs }), false);
-  assert.equal(updateCommandWillRun({ latest: "0.3.10", checkOnly: false }), false);
+  assert.equal(updateCommandWillRun({ latest: "0.3.11", checkOnly: false }), false);
 });
 test("caches the npm check and reports a newer release", async () => {
   const directory = await mkdtemp(join(tmpdir(), "usagemax-updates-"));
@@ -120,7 +120,7 @@ test("quiet JSON updates discard child output instead of leaving pipes undrained
   const child = new EventEmitter();
   let options;
   const result = updateGlobal({
-    latest: "0.3.10",
+    latest: "0.3.11",
     manager: "npm",
     quiet: true,
     spawnImpl: (_command, _args, spawnOptions) => {

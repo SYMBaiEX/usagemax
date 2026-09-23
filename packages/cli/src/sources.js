@@ -7,6 +7,7 @@ export const CCUSAGE_VERSION = "20.0.24";
 // Reconcile retained history when the collector output contract changes, not
 // just when a source path is added. v4 enables explicit per-model breakdowns.
 export const SOURCE_INVENTORY_VERSION = 4;
+export const LARGE_JSONL_WARNING_BYTES = 64 * 1024 * 1024;
 export const SUPPORTED_SOURCES = [
   "amp",
   "claude",
@@ -445,6 +446,7 @@ export async function sourceInventory({ env = process.env, cwd = process.cwd(), 
   let truncated = false;
   let complete = true;
   let errors = 0;
+  const largeJsonlBySource = new Map();
 
   async function addFile(definition, filePath) {
     const identity = `${definition.source}\u0000${filePath}`;
@@ -459,6 +461,12 @@ export async function sourceInventory({ env = process.env, cwd = process.cwd(), 
       if (!metadata.isFile()) return;
       seenFiles.add(identity);
       hash.update(fileIdentity(definition.source, filePath, metadata));
+      if (filePath.toLowerCase().endsWith(".jsonl") && metadata.size >= LARGE_JSONL_WARNING_BYTES) {
+        const stats = largeJsonlBySource.get(definition.source) ?? { source: definition.source, count: 0, bytes: 0 };
+        stats.count += 1;
+        stats.bytes += metadata.size;
+        largeJsonlBySource.set(definition.source, stats);
+      }
       if (definition.source === "ccusage-config") {
         try {
           hash.update(await readFile(filePath));
@@ -526,6 +534,12 @@ export async function sourceInventory({ env = process.env, cwd = process.cwd(), 
     files,
     fingerprint: hash.digest("hex"),
     sources: [...sources].sort(),
+    largeJsonlFiles: {
+      thresholdBytes: LARGE_JSONL_WARNING_BYTES,
+      count: [...largeJsonlBySource.values()].reduce((sum, stats) => sum + stats.count, 0),
+      bytes: [...largeJsonlBySource.values()].reduce((sum, stats) => sum + stats.bytes, 0),
+      bySource: [...largeJsonlBySource.values()].sort((left, right) => left.source.localeCompare(right.source)),
+    },
     supportedSources: SUPPORTED_SOURCES,
     truncated,
     version: SOURCE_INVENTORY_VERSION,

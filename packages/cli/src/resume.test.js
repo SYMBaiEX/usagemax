@@ -39,12 +39,14 @@ test("lost response resumes exact pending request and does not advance baseline 
   assert.equal(disk.pendingSync.cursor, 2);
   assert.equal(disk.snapshots.old.totalTokens, 100);
   const config = structuredClone(disk);
-  await resumeUpload(config, { save, request: async (_, operation, payload) => { sent.push({ operation, payload }); return { ok: true }; } });
+  const resumed = await resumeUpload(config, { save, request: async (_, operation, payload) => { sent.push({ operation, payload }); return { ok: true }; } });
   assert.deepEqual(sent[2], sent[3]);
   assert.deepEqual(sent.map((s) => s.operation), ["begin", "sessions", "partitions", "partitions", "complete"]);
   assert.equal(disk.snapshots.old.totalTokens, 120);
   assert.equal(disk.pendingSync, undefined);
   assert.equal(config.pendingSync, undefined);
+  assert.equal(resumed.uploadMetrics.operationsAcknowledged, 2);
+  assert.equal(resumed.uploadMetrics.checkpointWrites, 3);
 });
 test("local write failure after complete replays completion and retains old baseline", async () => {
   let disk = fixture();

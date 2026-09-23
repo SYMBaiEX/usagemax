@@ -209,6 +209,7 @@ test("builds authoritative partitions for decreases, deletions, and provider ide
   changed.daily[0].modelBreakdowns[0].cost = 0.5;
   const second = buildSnapshotPlan(changed, previous, { full: true, runId: "run-2", revision: 2 });
   assert.equal(second.regressions.length, 1);
+  assert.deepEqual(second.regressionDetails, [{ source: "codex", day: "2026-09-14", provider: "openai", model: "gpt-5.6" }]);
   const corrected = second.partitions[0].rows.find((row) => row.model === "gpt-5.6");
   assert.equal(corrected.previous.inputTokens, 100);
   assert.equal(corrected.current.inputTokens, 80);

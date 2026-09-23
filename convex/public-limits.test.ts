@@ -9,7 +9,8 @@ const day = "2026-09-14";
 test("collector release preflight advertises chunk protocol", async () => {
   const t = convexTest(schema, modules);
   expect(await t.query(api.public.collectorCapabilities, {})).toEqual({
-    snapshotProtocol: 2, snapshotChunks: true, maxChunkRows: 100, recommendedCliVersion: "0.3.10",
+    snapshotProtocol: 2, snapshotChunks: true, maxChunkRows: 100,
+    maxSessionsPerRequest: 250, maxPartitionsPerRequest: 20, recommendedCliVersion: "0.3.11",
   });
 });
 async function fixture(rollup = true) {

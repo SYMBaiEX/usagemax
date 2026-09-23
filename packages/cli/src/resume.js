@@ -7,22 +7,34 @@ export async function resumeUpload(config, { save, request, warn = () => {}, onP
     throw new Error("Invalid saved sync; preserve the config for recovery.");
   }
   try {
+    // Counts logical snapshot operations acknowledged by the server. A single
+    // operation can include transport retries inside the request function.
+    const uploadMetrics = { operationsAcknowledged: 0, operationMs: 0, checkpointWrites: 0, checkpointMs: 0 };
     for (let index = pending.cursor; index < pending.requests.length; index += 1) {
       const { operation, payload } = pending.requests[index];
       onProgress({ index: index + 1, total: pending.requests.length, operation });
+      const requestStarted = Date.now();
       const response = await request(config, operation, payload, operation === "partitions" ? 60_000 : 30_000);
+      uploadMetrics.operationsAcknowledged += 1;
+      uploadMetrics.operationMs += Date.now() - requestStarted;
       warn(response);
       pending.cursor = index + 1;
+      const checkpointStarted = Date.now();
       await save(config);
+      uploadMetrics.checkpointWrites += 1;
+      uploadMetrics.checkpointMs += Date.now() - checkpointStarted;
       onProgress({ index: index + 1, total: pending.requests.length, operation, acknowledged: true });
     }
     // Commit local baseline and remove the journal in the same atomic write.
     const next = { ...config, ...pending.checkpoint };
     delete next.pendingSync;
+    const finalCheckpointStarted = Date.now();
     await save(next);
+    uploadMetrics.checkpointWrites += 1;
+    uploadMetrics.checkpointMs += Date.now() - finalCheckpointStarted;
     Object.assign(config, next);
     delete config.pendingSync;
-    return { ...pending.result, resumed: true };
+    return { ...pending.result, resumed: true, uploadMetrics };
   } catch (error) {
     if (error?.code === "snapshot_run_expired") {
       pending.terminalError = "snapshot_run_expired";

@@ -151,7 +151,7 @@ printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
       --json
 ```
 
-The `token status` and `telemetry test` commands are included in CLI `0.3.10`.
+The `token status` and `telemetry test` commands are included in CLI `0.3.11`.
 If a fresh environment still has an older npm tag, run `usagemax update token status` or
 `node packages/cli/src/cli.js token status` from this repository until the new
 package is published.
@@ -209,8 +209,26 @@ paths, tool payloads, or provider credentials.
 
 Every sync is one-shot. A complete unchanged inventory can skip parsing and
 uploading; date rollover, new sources, a weekly reconciliation, `--full`, or
-`--archives` triggers the appropriate bounded scan. Decreases and deletions are
-protected while coverage is incomplete.
+`--archives` triggers the appropriate bounded scan. Historical uploads use
+250 opaque sessions per request and partition batches capped at 20 items and
+1.5 MB. Partition order is preserved and each acknowledged batch is checkpointed
+so a retry can safely resume.
+
+The terminal summary reports inventory, parse, planning, and upload time. JSON
+keeps `durationMs` and adds `timingsMs`, `uploadPlan`, and `uploadMetrics`;
+upload metrics count server-acknowledged logical operations (a retry remains
+inside one operation) and local checkpoint-write time.
+`--explain` shows reported dates, discovered sources with no rows in that range,
+and a few source/day/model identifiers for lower counters held at their prior
+values. It never prints local file paths.
+
+The metadata inventory and parser coverage are separate. `doctor --deep` reports
+the dates/sources present in ccusage output, warning-line counts, and aggregate
+metadata for JSONL files at least 64 MiB (never their paths). Large files are a
+review signal, not proof of a parser error. Since ccusage currently returns
+aggregates rather than a per-file/day parse manifest, UsageMax marks parser
+coverage unverified and keeps lower/omitted counters unchanged; the data
+confidence UI does not label inventory success as parser-certified history.
 
 Optional scheduling invokes the same process at low priority:
 

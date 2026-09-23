@@ -9,7 +9,7 @@ import { verifyStripeSnapshotSignature } from "./billing";
 
 type NormalizedEvent = typeof telemetryEventValidator.type;
 type JsonObject = Record<string, unknown>;
-const RECOMMENDED_CLI_VERSION = "0.3.10";
+const RECOMMENDED_CLI_VERSION = "0.3.11";
 const PUBLIC_SNAPSHOT_STATUS_ORIGIN = "https://usagemax.com";
 
 function snapshotStatusUrl(runId: string) {
@@ -464,6 +464,7 @@ const snapshots = httpAction(async (ctx, request) => {
         inventoryComplete: body.inventoryComplete === true,
         inventoryErrors: safeCounter(body.inventoryErrors, 100_000),
         inventoryTruncated: body.inventoryTruncated === true,
+        parserCoverageCertified: body.parserCoverageCertified === true,
         coverageStartDay: optionalText(body.coverageStartDay, 10),
         coverageEndDay: optionalText(body.coverageEndDay, 10),
         now,
@@ -472,7 +473,7 @@ const snapshots = httpAction(async (ctx, request) => {
     }
     if (operation === "sessions") {
       const rawSessions = array(body.sessions);
-      if (rawSessions.length > 100) return jsonResponse({ error: "sessions_must_contain_0_to_100_items" }, 400);
+      if (rawSessions.length > 250) return jsonResponse({ error: "sessions_must_contain_0_to_250_items" }, 400);
       const sessions = rawSessions.map((value) => {
         const session = object(value);
         const source = cleanText(session?.source, "", 60);
@@ -490,7 +491,7 @@ const snapshots = httpAction(async (ctx, request) => {
     }
     if (operation === "partitions") {
       const rawPartitions = array(body.partitions);
-      if (rawPartitions.length < 1 || rawPartitions.length > 10) return jsonResponse({ error: "partitions_must_contain_1_to_10_items" }, 400);
+      if (rawPartitions.length < 1 || rawPartitions.length > 20) return jsonResponse({ error: "partitions_must_contain_1_to_20_items" }, 400);
       let changedRows = 0;
       let correctionRows = 0;
       let replays = 0;

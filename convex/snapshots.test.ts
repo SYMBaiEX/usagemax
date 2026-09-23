@@ -23,6 +23,15 @@ const counters = (totalTokens: number, costMicros = totalTokens * 10) => ({
   requests: 0,
   errors: 0,
 });
+const rowForCoverage = (model: string, totalTokens: number, now: number) => ({
+  provider: "openai",
+  model,
+  previous: counters(0),
+  current: counters(totalTokens),
+  costBasis: "estimated" as const,
+  contentHash: model,
+  lastUsedAt: now,
+});
 
 async function seed(t: ReturnType<typeof convexTest>, now: number) {
   return t.run(async (ctx) => {
@@ -60,6 +69,37 @@ describe("authoritative collector snapshots", () => {
     } finally { vi.useRealTimers(); }
   });
 
+  test("HTTP snapshot endpoint accepts bounded session and partition batches", async () => {
+    const now = Date.UTC(2026, 8, 14, 12);
+    await seed(t, now);
+    const post = (payload: unknown) => t.fetch("/v2/usage/snapshots", {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json", "x-usagemax-device-id": "01234567-89ab-4cde-8fab-0123456789ab" },
+      body: JSON.stringify(payload),
+    });
+    const sessions = Array.from({ length: 250 }, (_, index) => ({ source: "codex", sessionKey: index.toString(16).padStart(64, "0") }));
+    await post({ operation: "begin", runId: "sessions-250", mode: "incremental", partitionCount: 0, sourceCount: 1, inventoryComplete: true, inventoryErrors: 0, inventoryTruncated: false });
+    const accepted = await post({ operation: "sessions", runId: "sessions-250", sessions });
+    expect(accepted.status).toBe(202);
+    expect(await accepted.json()).toMatchObject({ ok: true, accepted: 250, duplicates: 0 });
+    expect((await post({ operation: "sessions", runId: "sessions-250", sessions: [...sessions, sessions[0]] })).status).toBe(400);
+    expect((await post({ operation: "complete", runId: "sessions-250" })).status).toBe(200);
+
+    const report = { daily: Array.from({ length: 20 }, (_, index) => ({
+      agent: "codex",
+      period: `2026-09-${String(index + 1).padStart(2, "0")}`,
+      modelBreakdowns: [{ modelName: "gpt-test", inputTokens: 1 }],
+    })) };
+    const plan = buildSnapshotPlan(report, {}, { full: true, complete: false, runId: "partitions-20", revision: now });
+    expect(plan.partitions).toHaveLength(20);
+    await post({ operation: "begin", runId: "partitions-20", mode: "full", partitionCount: 20, sourceCount: 1, inventoryComplete: false, inventoryErrors: 0, inventoryTruncated: false });
+    const committed = await post({ operation: "partitions", runId: "partitions-20", partitions: plan.partitions });
+    expect(committed.status).toBe(202);
+    expect(await committed.json()).toMatchObject({ ok: true, replays: 0 });
+    expect((await post({ operation: "partitions", runId: "partitions-20", partitions: [...plan.partitions, plan.partitions[0]] })).status).toBe(400);
+    expect((await post({ operation: "complete", runId: "partitions-20" })).status).toBe(200);
+  });
+
   test("snapshot status is read-only, installation-bound, and does not bind an advanced key", async () => {
     const now = Date.UTC(2026, 8, 14, 12);
     await seed(t, now);
@@ -94,7 +134,7 @@ describe("authoritative collector snapshots", () => {
   test("applies downward corrections and keeps provider identity", async () => {
     const now = Date.UTC(2026, 8, 14, 12);
     await seed(t, now);
-    await t.mutation(internal.snapshots.beginRun, { keyHash, runId: "run-1", mode: "full", sourceCount: 1, partitionCount: 1, inventoryComplete: true, inventoryErrors: 0, inventoryTruncated: false, coverageStartDay: "2026-09-14", coverageEndDay: "2026-09-14", now });
+    await t.mutation(internal.snapshots.beginRun, { keyHash, runId: "run-1", mode: "full", sourceCount: 1, partitionCount: 1, inventoryComplete: true, inventoryErrors: 0, inventoryTruncated: false, parserCoverageCertified: true, coverageStartDay: "2026-09-14", coverageEndDay: "2026-09-14", now });
     await t.mutation(internal.snapshots.commitPartition, {
       keyHash,
       runId: "run-1",
@@ -113,7 +153,7 @@ describe("authoritative collector snapshots", () => {
     });
     await t.mutation(internal.snapshots.completeRun, { keyHash, runId: "run-1", now });
 
-    await t.mutation(internal.snapshots.beginRun, { keyHash, runId: "run-2", mode: "full", sourceCount: 1, partitionCount: 1, inventoryComplete: true, inventoryErrors: 0, inventoryTruncated: false, coverageStartDay: "2026-09-14", coverageEndDay: "2026-09-14", now: now + 1 });
+    await t.mutation(internal.snapshots.beginRun, { keyHash, runId: "run-2", mode: "full", sourceCount: 1, partitionCount: 1, inventoryComplete: true, inventoryErrors: 0, inventoryTruncated: false, parserCoverageCertified: true, coverageStartDay: "2026-09-14", coverageEndDay: "2026-09-14", now: now + 1 });
     const correction = await t.mutation(internal.snapshots.commitPartition, {
       keyHash,
       runId: "run-2",
@@ -204,7 +244,7 @@ describe("authoritative collector snapshots", () => {
   test("incomplete scans cannot decrease explicit rows or erase omitted models", async () => {
     const now = Date.UTC(2026, 8, 14, 12);
     await seed(t, now);
-    const begin = { keyHash, mode: "full" as const, sourceCount: 1, partitionCount: 1, inventoryErrors: 0, inventoryTruncated: false, now };
+    const begin = { keyHash, mode: "full" as const, sourceCount: 1, partitionCount: 1, inventoryErrors: 0, inventoryTruncated: false, parserCoverageCertified: true, now };
     const row = (model: string, count: number) => ({ provider: "openai", model, previous: counters(0), current: counters(count), costBasis: "estimated" as const, contentHash: model, lastUsedAt: now });
     const part = { keyHash, revision: 1, source: "codex", day: "2026-09-14", complete: true, now };
     await t.mutation(internal.snapshots.beginRun, { ...begin, runId: "safe-one", inventoryComplete: true });
@@ -214,6 +254,30 @@ describe("authoritative collector snapshots", () => {
     await t.mutation(internal.snapshots.commitPartition, { ...part, revision: 2, runId: "safe-two", partitionId: "safe-two", payloadHash: "two", rows: [row("a", 0)] });
     expect((await t.query(api.public.profile, { handle: "snapshot" }))?.stats?.totalTokens).toBe(120);
     expect(await t.run(ctx => ctx.db.query("collectorUsageSnapshots").collect())).toHaveLength(2);
+  });
+
+  test("inventory success without parser certification cannot correct or delete prior totals", async () => {
+    const now = Date.UTC(2026, 8, 14, 12);
+    const { collectorId } = await seed(t, now);
+    const begin = { keyHash, mode: "full" as const, sourceCount: 1, partitionCount: 1, inventoryComplete: true, inventoryErrors: 0, inventoryTruncated: false, now };
+    await t.mutation(internal.snapshots.beginRun, { ...begin, runId: "certified", parserCoverageCertified: true });
+    await t.mutation(internal.snapshots.commitPartition, {
+      keyHash, runId: "certified", partitionId: "certified:p", payloadHash: "certified", revision: 1,
+      source: "codex", day: "2026-09-14", complete: true, rows: [rowForCoverage("kept", 100, now), rowForCoverage("also-kept", 20, now)], now,
+    });
+    await t.mutation(internal.snapshots.completeRun, { keyHash, runId: "certified", now });
+
+    await t.mutation(internal.snapshots.beginRun, { ...begin, runId: "unverified", parserCoverageCertified: false, now: now + 1 });
+    const correction = await t.mutation(internal.snapshots.commitPartition, {
+      keyHash, runId: "unverified", partitionId: "unverified:p", payloadHash: "unverified", revision: 2,
+      source: "codex", day: "2026-09-14", complete: true, rows: [rowForCoverage("kept", 80, now + 1)], now: now + 1,
+    });
+    expect(correction).toMatchObject({ correctionRows: 0 });
+    const completed = await t.mutation(internal.snapshots.completeRun, { keyHash, runId: "unverified", now: now + 1 });
+    expect(completed).toMatchObject({ coverageStatus: "unverified" });
+    expect((await t.query(api.public.profile, { handle: "snapshot" }))?.stats?.totalTokens).toBe(120);
+    expect(await t.run(ctx => ctx.db.query("collectorUsageSnapshots").collect())).toHaveLength(2);
+    expect(await t.run(ctx => ctx.db.get(collectorId))).toMatchObject({ coverageStatus: "unverified", parserCoverageCertified: false });
   });
 
   test("enterprise summary refreshes coalesce without delaying accounting totals", async () => {
@@ -244,7 +308,7 @@ describe("authoritative collector snapshots", () => {
       const now = Date.UTC(2026, 8, 14, 12);
       await seed(t, now);
       const rows = Array.from({ length: 201 }, (_, i) => ({ provider: "openai", model: `m${i}`, previous: counters(0), current: counters(1), costBasis: "estimated" as const, contentHash: `h${i}`, lastUsedAt: now }));
-      const begin = { keyHash, mode: "full" as const, sourceCount: 1, inventoryComplete: true, inventoryErrors: 0, inventoryTruncated: false, now };
+      const begin = { keyHash, mode: "full" as const, sourceCount: 1, inventoryComplete: true, inventoryErrors: 0, inventoryTruncated: false, parserCoverageCertified: true, now };
       await t.mutation(internal.snapshots.beginRun, { ...begin, runId: "chunks", partitionCount: 3 });
       const part = { keyHash, runId: "chunks", revision: 1, source: "codex", day: "2026-09-14", complete: true, chunkCount: 3, now };
       await expect(t.mutation(internal.snapshots.commitPartition, { ...part, chunkIndex: 1, partitionId: "bad-order", payloadHash: "bad", rows: rows.slice(100, 200) })).rejects.toThrow("SNAPSHOT_CHUNK_OUT_OF_ORDER");

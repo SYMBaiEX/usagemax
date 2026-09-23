@@ -18,8 +18,9 @@ import { createProgress } from "./progress.js";
 import { intervalMinutes, manageService, runScheduledSync } from "./service.js";
 import { collectorCanWrite, collectorStatusView, requestCollectorStatus, requestSnapshot, requestTelemetrySmokeTest } from "./transport.js";
 import { resumeUpload, restartExpiredUpload, withConfigLock } from "./resume.js";
-import { CCUSAGE_VERSION, ccusageEnvironment, ccusageHome, discoverProviderArchives, discoverWslWindowsHomeStatus, SOURCE_INVENTORY_VERSION, sourceInventory, SUPPORTED_SOURCES } from "./sources.js";
+import { CCUSAGE_VERSION, ccusageEnvironment, ccusageHome, discoverProviderArchives, discoverWslWindowsHomeStatus, LARGE_JSONL_WARNING_BYTES, SOURCE_INVENTORY_VERSION, sourceInventory, SUPPORTED_SOURCES } from "./sources.js";
 import { checkForUpdate, packageManagerFor, runLatest, updateCommandWillRun, updateGlobal, updateRequest } from "./updates.js";
+import { buildSnapshotUploadRequests } from "./upload.js";
 
 // Make the short-lived collector recognizable in Activity Monitor and `ps`.
 // Windows may still display the underlying node.exe image name in Task Manager.
@@ -27,7 +28,7 @@ process.title = "UsageMax";
 
 const require = createRequire(import.meta.url);
 const executeFile = promisify(execFile);
-const VERSION = "0.3.10";
+const VERSION = "0.3.11";
 const PUBLIC_API_ORIGIN = "https://usagemax.com/api";
 const DEFAULT_LINK_ENDPOINT = `${PUBLIC_API_ORIGIN}/v1/devices/link`;
 const DEFAULT_STATUS_ENDPOINT = `${PUBLIC_API_ORIGIN}/v1/devices/status`;
@@ -210,14 +211,77 @@ async function ccusageJson(config, { full = false, env } = {}) {
   // Reconcile yesterday once after the UTC date changes. All other incremental
   // scans parse only today; a metadata fingerprint avoids invoking ccusage when
   // no supported local source changed at all.
-  const { stdout } = await executeFile(process.execPath, args, {
-    encoding: "utf8",
-    maxBuffer: MAX_REPORT_BYTES,
-    timeout: 10 * 60 * 1000,
-    killSignal: "SIGKILL",
-    env: { ...(env || await ccusageEnvironment()), NO_COLOR: "1" },
-  });
-  return JSON.parse(stdout);
+  let stdout;
+  let stderr;
+  try {
+    ({ stdout, stderr } = await executeFile(process.execPath, args, {
+      encoding: "utf8",
+      maxBuffer: MAX_REPORT_BYTES,
+      timeout: 10 * 60 * 1000,
+      killSignal: "SIGKILL",
+      env: { ...(env || await ccusageEnvironment()), NO_COLOR: "1" },
+    }));
+  } catch (error) {
+    const reason = error?.killed ? "timed out" : error?.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER" ? "exceeded the report size limit" : "failed";
+    throw new Error(`ccusage ${reason}; UsageMax did not upload this scan or advance its checkpoint. Run \`usagemax doctor --deep\` for local diagnostics.`, { cause: error });
+  }
+  let report;
+  try {
+    report = JSON.parse(stdout);
+  } catch (error) {
+    throw new Error("ccusage returned an invalid report; UsageMax did not upload this scan or advance its checkpoint. Run `usagemax doctor --deep` for local diagnostics.", { cause: error });
+  }
+  const parserWarningCount = String(stderr || "").split(/\r?\n/)
+    .filter((line) => /\b(?:warn(?:ing)?|error|failed|skipped)\b/i.test(line)).length;
+  return { report, parserWarningCount };
+}
+
+function reportDays(report) {
+  return [...new Set(Array.isArray(report?.daily)
+    ? report.daily.map((row) => row?.period).filter((day) => /^\d{4}-\d{2}-\d{2}$/.test(day || ""))
+    : [])].sort();
+}
+
+function syncCoverageReason(inventoryComplete) {
+  return inventoryComplete
+    ? "The local file inventory was readable, but ccusage returns aggregate reports without a per-file/day parse manifest. Lower or omitted counters remain protected."
+    : "The local file inventory had read errors or reached its file limit, and ccusage does not certify per-file/day parsing. Lower or omitted counters remain protected.";
+}
+
+function formatDuration(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return "not run";
+  if (ms < 1_000) return `${Math.round(ms)}ms`;
+  const seconds = ms / 1_000;
+  return `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)}s`;
+}
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes < 0) return "unknown size";
+  const units = ["B", "MiB", "GiB", "TiB"];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value < 10 && unit ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
+}
+
+function timingSummary(timingsMs) {
+  const phases = [
+    ["inventory", timingsMs.inventoryMs],
+    ["parse", timingsMs.parseMs],
+    ["plan", timingsMs.planningMs],
+    ["upload", timingsMs.uploadMs],
+  ].filter(([, duration]) => Number.isFinite(duration));
+  return `${formatDuration(timingsMs.totalMs)} total${phases.length ? ` (${phases.map(([name, duration]) => `${name} ${formatDuration(duration)}`).join(", ")})` : ""}`;
+}
+
+function largeJsonlSummary(inventory) {
+  const files = inventory?.largeJsonlFiles;
+  if (!files?.count) return "none detected";
+  const sources = files.bySource.map((item) => `${item.source}: ${item.count}`).join(", ");
+  return `${files.count} file(s) ≥${Math.round(LARGE_JSONL_WARNING_BYTES / (1024 * 1024))} MiB; ${formatBytes(files.bytes)} total (${sources})`;
 }
 
 function snapshotEndpoint(config) {
@@ -323,6 +387,11 @@ async function sync(args, suppliedConfig) {
 
 async function syncPrepared(args, suppliedConfig, recovery, progress = createProgress({ noProgress: true })) {
   const startedAt = Date.now();
+  const timingsMs = { inventoryMs: null, parseMs: null, planningMs: null, uploadMs: null, totalMs: null };
+  const withTimings = (result) => {
+    timingsMs.totalMs = Date.now() - startedAt;
+    return { ...result, timingsMs: { ...timingsMs }, durationMs: timingsMs.totalMs };
+  };
   const config = suppliedConfig || await readConfig();
   if (!config) throw new Error("This computer is not linked. Open https://usagemax.com/account and create a link code.");
   config.deviceId = await stableInstallationId(configDirectory(), config.deviceId);
@@ -338,23 +407,29 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
   if (config.pendingSync) {
     progress.update("Resuming the saved upload checkpoint…");
     if (dryRun) {
-      const result = { ...config.pendingSync.result, dryRun: true, pendingRunId: config.pendingSync.runId, cliVersion: VERSION, ccusageVersion: CCUSAGE_VERSION, durationMs: Date.now() - startedAt };
+      const result = withTimings({ ...config.pendingSync.result, dryRun: true, pendingRunId: config.pendingSync.runId, cliVersion: VERSION, ccusageVersion: CCUSAGE_VERSION });
       process.stdout.write(json ? `${JSON.stringify(result)}\n` : `Dry run: saved run ${config.pendingSync.runId} awaits resume; no upload.\n`);
       progress.succeed("Dry run complete; saved upload remains untouched.");
       return result;
     }
+    const uploadStarted = Date.now();
     const result = await resumeUpload(config, {
       save: writeConfig,
       request: snapshotRequest,
       warn: warnVersion,
       onProgress: ({ index, total, operation, acknowledged }) => progress.update(`${acknowledged ? "Uploaded" : "Uploading"} ${index}/${total} · ${operation}`),
     });
-    const summary = { ...result, cliVersion: VERSION, ccusageVersion: CCUSAGE_VERSION, durationMs: Date.now() - startedAt };
-    progress.succeed("Resumed and completed the saved sync.");
-    process.stdout.write(json ? `${JSON.stringify(summary)}\n` : "Resumed and completed the saved sync. Run sync again to scan newer local changes.\n");
+    timingsMs.uploadMs = Date.now() - uploadStarted;
+    const summary = withTimings({ ...result, cliVersion: VERSION, ccusageVersion: CCUSAGE_VERSION });
+    const sent = summary.uploadMetrics?.operationsAcknowledged;
+    progress.succeed(`Resumed sync · ${timingSummary(summary.timingsMs)}`);
+    process.stdout.write(json ? `${JSON.stringify(summary)}\n`
+      : `Resumed and completed the saved sync${Number.isFinite(sent) ? ` · ${sent} upload operation(s) acknowledged` : ""} · ${timingSummary(summary.timingsMs)}. Run sync again to scan newer local changes.\n`);
     return summary;
   }
+  const inventoryStarted = Date.now();
   const inventory = await sourceInventory({ env: recovery.env, home: ccusageHome(recovery.env) });
+  timingsMs.inventoryMs = Date.now() - inventoryStarted;
   progress.update(`Found ${inventory.sources.length} source${inventory.sources.length === 1 ? "" : "s"} and ${inventory.files}${inventory.truncated ? "+" : ""} local data file${inventory.files === 1 ? "" : "s"}.`);
   const today = new Date().toISOString().slice(0, 10);
   const knownSources = Array.isArray(config.knownSources) ? config.knownSources : [];
@@ -362,26 +437,54 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
     today, now: Date.now(), inventoryVersion: SOURCE_INVENTORY_VERSION, requestedFull, requestedArchives,
   });
   if (skip) {
-    const result = { accepted: 0, changedRows: 0, sessions: 0, sources: inventory.sources, corrections: 0, scanned: false, full: false, coverage: config.lastCoverage || "partial", skipReason: "inventory_unchanged", cliVersion: VERSION, ccusageVersion: CCUSAGE_VERSION, durationMs: Date.now() - startedAt };
+    const result = withTimings({
+      accepted: 0,
+      changedRows: 0,
+      sessions: 0,
+      sources: inventory.sources,
+      discoveredSources: inventory.sources,
+      corrections: 0,
+      protectedRegressions: 0,
+      scanned: false,
+      full: false,
+      coverage: config.lastCoverage || "partial",
+      // Older local configs may have called a readable inventory “complete”
+      // before parser certification existed; never upgrade that old label.
+      coverageStatus: config.lastCoverageStatus || "unverified",
+      coverageReason: config.lastCoverageReason || "Local source metadata is unchanged; no usage report was parsed in this run.",
+      inventoryComplete: inventory.complete && inventory.errors === 0 && !inventory.truncated,
+      inventoryErrors: inventory.errors,
+      inventoryTruncated: inventory.truncated,
+      inventoryFiles: inventory.files,
+      largeJsonlFiles: inventory.largeJsonlFiles,
+      skipReason: "inventory_unchanged",
+      cliVersion: VERSION,
+      ccusageVersion: CCUSAGE_VERSION,
+    });
     if (json) process.stdout.write(`${JSON.stringify(result)}\n`);
     else {
-      process.stdout.write("Already up to date. Local usage files have not changed; no logs were parsed or uploaded.\n");
-      if (explain) process.stdout.write(`Skipped because the source inventory fingerprint is unchanged; coverage remains ${result.coverage}.\n`);
+      process.stdout.write(`Already up to date. No usage logs were parsed or uploaded · inventory ${formatDuration(timingsMs.inventoryMs)}.\n`);
+      if (explain) process.stdout.write(`Coverage remains ${result.coverageStatus}; the unchanged file fingerprint allowed this safe no-op. ${result.coverageReason}\n`);
     }
     progress.succeed("No local changes; upload skipped.");
-    return;
+    return result;
   }
   progress.update(`Parsing ${full ? "retained history" : "changed history"} with ccusage…`);
-  const report = await ccusageJson(config, { env: recovery.env, full });
+  const parseStarted = Date.now();
+  const { report, parserWarningCount } = await ccusageJson(config, { env: recovery.env, full });
+  timingsMs.parseMs = Date.now() - parseStarted;
   // ccusage v20 exposes aggregates, not proof that every discovered file was
   // parsed. Inventory success alone cannot authorize destructive corrections.
-  const authoritative = false;
+  const parserCoverageCertified = false;
+  const inventoryComplete = inventory.complete && inventory.errors === 0 && !inventory.truncated;
+  const authoritative = parserCoverageCertified;
   const legacySnapshotBootstrap = bootstrap
     && Object.keys(config.snapshots || {}).length > 0;
   const runId = randomUUID();
   const revision = Date.now();
   const pricingVersion = `ccusage@${CCUSAGE_VERSION}`;
-  const { partitions, nextSnapshots, regressions } = buildSnapshotPlan(report, config.snapshots, {
+  const planningStarted = Date.now();
+  const { partitions, nextSnapshots, regressions, regressionDetails } = buildSnapshotPlan(report, config.snapshots, {
     bootstrap,
     complete: authoritative,
     full,
@@ -391,9 +494,11 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
   });
   const sessions = buildSessionPlan(report, config.deviceId);
   const sources = sourceSummary(report);
-  const days = Array.isArray(report?.daily)
-    ? report.daily.map((row) => row?.period).filter((day) => /^\d{4}-\d{2}-\d{2}$/.test(day || "")).sort()
-    : [];
+  const days = reportDays(report);
+  const sourcesWithoutUsageRows = inventory.sources.filter((source) => !sources.includes(source));
+  timingsMs.planningMs = Date.now() - planningStarted;
+  const coverageStatus = !full || !inventoryComplete ? "partial" : parserCoverageCertified ? "complete" : "unverified";
+  const coverageReason = syncCoverageReason(inventoryComplete);
   const result = {
     accepted: null,
     changedRows: partitions.reduce((sum, partition) => sum + partition.rows.filter((row) => JSON.stringify(row.previous) !== JSON.stringify(row.current)).length, 0),
@@ -401,12 +506,23 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
     sources,
     corrections: authoritative ? regressions.length : 0,
     protectedRegressions: authoritative ? 0 : regressions.length,
+    ...(explain ? { protectedRegressionExamples: regressionDetails.slice(0, 8) } : {}),
     partitions: partitions.length,
     scanned: true,
     full,
     coverage: authoritative ? "complete" : "partial",
-    coverageReason: "Parser does not certify complete source/day coverage; decreases and deletions are protected.",
-    range: { from: days[0], to: days.at(-1) },
+    coverageStatus,
+    coverageReason,
+    inventoryComplete,
+    inventoryErrors: inventory.errors,
+    inventoryTruncated: inventory.truncated,
+    inventoryFiles: inventory.files,
+    discoveredSources: inventory.sources,
+    sourcesWithoutUsageRows,
+    parserCoverageCertified,
+    parserWarningCount,
+    largeJsonlFiles: inventory.largeJsonlFiles,
+    range: { from: days[0] ?? null, to: days.at(-1) ?? null },
     cliVersion: VERSION,
     ccusageVersion: CCUSAGE_VERSION,
   };
@@ -415,42 +531,50 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
     result.archives = recovery.archives;
     result.unsupportedArchives = recovery.unsupported;
   }
+  const beginPayload = {
+    runId,
+    mode: requestedArchives ? "archives" : full ? "full" : "incremental",
+    baselineMode: legacySnapshotBootstrap ? "adopt-current" : "apply",
+    sourceCount: inventory.sources.length,
+    partitionCount: partitions.length,
+    inventoryComplete,
+    inventoryErrors: inventory.errors,
+    inventoryTruncated: inventory.truncated,
+    parserCoverageCertified,
+    coverageStartDay: days[0],
+    coverageEndDay: days.at(-1),
+  };
+  const uploadPlan = buildSnapshotUploadRequests({ runId, begin: beginPayload, sessions, partitions });
+  result.uploadPlan = {
+    requestCount: uploadPlan.requestCount,
+    sessionBatches: uploadPlan.sessionBatches,
+    partitionBatches: uploadPlan.partitionBatches,
+    maxPartitionRequestBytes: uploadPlan.maxPartitionRequestBytes,
+  };
   if (dryRun) {
-    result.durationMs = Date.now() - startedAt;
-    if (json) process.stdout.write(`${JSON.stringify({ ...result, dryRun: true })}\n`);
+    const summary = withTimings({ ...result, dryRun: true });
+    if (json) process.stdout.write(`${JSON.stringify(summary)}\n`);
     else {
-      process.stdout.write(`Dry run: ${partitions.length} partition(s), ${result.changedRows} changed row(s), ${sessions.length} private session identifiers, no upload.\n`);
-      if (explain) process.stdout.write(`Coverage ${result.coverage}; ${sources.length} source(s); ${days[0] || "unknown"} to ${days.at(-1) || "unknown"}; ${regressions.length} protected regression(s). ${result.coverageReason}\n`);
+      process.stdout.write(`Dry run: ${partitions.length} usage chunk(s), ${result.changedRows} changed row(s), ${sessions.length} session IDs; ${uploadPlan.requestCount} upload request(s) planned · ${timingSummary(summary.timingsMs)}. No upload.\n`);
+      if (explain) {
+        process.stdout.write(`Coverage ${coverageStatus}; local inventory ${inventoryComplete ? "complete" : "partial"} (${inventory.files}${inventory.truncated ? "+" : ""} files, ${inventory.sources.length} detected sources); report rows from ${sources.length} source(s), ${days[0] || "unknown"} to ${days.at(-1) || "unknown"}. ${coverageReason}\n`);
+        if (sourcesWithoutUsageRows.length) process.stdout.write(`No usage rows for detected source(s): ${sourcesWithoutUsageRows.join(", ")}. This can mean no activity in this range; it is not proof of a parser omission.\n`);
+        if (regressions.length) process.stdout.write(`Held ${regressions.length} lower or omitted source/day/model row(s) at their previous values; no totals were lowered and no history was deleted. Examples: ${regressionDetails.slice(0, 5).map((row) => `${row.source}/${row.day}/${row.provider}/${row.model}`).join(", ")}\n`);
+        if (parserWarningCount) process.stdout.write(`ccusage emitted ${parserWarningCount} warning/error line(s); text and paths are intentionally omitted.\n`);
+        process.stdout.write(`Large JSONL candidates (≥${Math.round(LARGE_JSONL_WARNING_BYTES / (1024 * 1024))} MiB): ${largeJsonlSummary(inventory)}. This is a review signal, not proof of missing usage.\n`);
+      }
     }
     progress.succeed("Dry run complete; nothing uploaded.");
     return result;
   }
-  const requests = [{ operation: "begin", payload: {
-      runId,
-      mode: requestedArchives ? "archives" : full ? "full" : "incremental",
-      baselineMode: legacySnapshotBootstrap ? "adopt-current" : "apply",
-      sourceCount: sources.length,
-      partitionCount: partitions.length,
-      inventoryComplete: authoritative,
-      inventoryErrors: inventory.errors,
-      inventoryTruncated: inventory.truncated,
-      coverageStartDay: days[0],
-      coverageEndDay: days.at(-1),
-    } }];
-  for (let offset = 0; offset < sessions.length; offset += 100) {
-    requests.push({ operation: "sessions", payload: { runId, sessions: sessions.slice(offset, offset + 100) } });
-  }
-  for (let offset = 0; offset < partitions.length; offset += 10) {
-    requests.push({ operation: "partitions", payload: { runId, partitions: partitions.slice(offset, offset + 10) } });
-  }
-  requests.push({ operation: "complete", payload: { runId } });
   const syncedAt = new Date().toISOString();
   config.pendingSync = {
-    version: 1, runId, cursor: 0, requests, result,
+    version: 1, runId, cursor: 0, requests: uploadPlan.requests, result,
     checkpoint: {
       snapshots: nextSnapshots, snapshotProtocolVersion: 2,
       lastSyncAt: syncedAt, lastReconciledDay: today, lastSyncComplete: authoritative,
-      lastScanSucceeded: true, lastCoverage: result.coverage,
+      lastScanSucceeded: true, lastCoverage: result.coverage, lastCoverageStatus: coverageStatus,
+      lastCoverageReason: coverageReason,
       sourceInventoryVersion: SOURCE_INVENTORY_VERSION,
       knownSources: [...new Set([...knownSources, ...inventory.sources, ...sources])].sort(),
       sourceFingerprint: inventoryStable ? inventory.fingerprint : null,
@@ -458,25 +582,34 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
     },
   };
   config.lastSyncComplete = false;
+  const uploadStarted = Date.now();
   await writeConfig(config);
-  await resumeUpload(config, {
+  const uploaded = await resumeUpload(config, {
     save: writeConfig,
     request: snapshotRequest,
     warn: warnVersion,
     onProgress: ({ index, total, operation, acknowledged }) => progress.update(`${acknowledged ? "Uploaded" : "Uploading"} ${index}/${total} · ${operation}`),
   });
-  result.durationMs = Date.now() - startedAt;
-  progress.succeed(`Sync complete · ${partitions.length} chunk${partitions.length === 1 ? "" : "s"}, ${sessions.length} session identifier${sessions.length === 1 ? "" : "s"}.`);
-  if (json) process.stdout.write(`${JSON.stringify(result)}\n`);
+  timingsMs.uploadMs = Date.now() - uploadStarted;
+  result.uploadMetrics = uploaded.uploadMetrics;
+  const summary = withTimings(result);
+  progress.succeed(`Sync complete · ${uploadPlan.requestCount} request(s) · ${timingSummary(summary.timingsMs)}`);
+  if (json) process.stdout.write(`${JSON.stringify(summary)}\n`);
   else {
     process.stdout.write(partitions.length || sessions.length
-      ? `Completed ${partitions.length} usage chunk(s) and ${sessions.length} session identifier(s) from ${sources.join(", ") || "local agents"}${full ? " across retained history" : ""}.\n`
-      : `Already up to date. No usage rows changed${full ? " after a full-history reconciliation" : ""}.\n`);
-    if (regressions.length) process.stdout.write(`${regressions.length} local row(s) moved backward; prior counter dimensions were preserved because coverage is incomplete.\n`);
-    if (!authoritative) process.stdout.write(`${result.coverageReason}\n`);
-    if (explain) process.stdout.write(`Coverage ${result.coverage}; ${sources.length} source(s); ${days[0] || "unknown"} to ${days.at(-1) || "unknown"}; ${partitions.length} atomic partition(s).\n`);
+      ? `Completed ${partitions.length} usage chunk(s) and ${sessions.length} session identifier(s) from ${sources.join(", ") || "local agents"}${full ? " across retained history" : ""} · ${uploadPlan.requestCount} upload operation(s) · ${timingSummary(summary.timingsMs)}.\n`
+      : `Already up to date. No usage rows changed${full ? " after a full-history reconciliation" : ""} · ${timingSummary(summary.timingsMs)}.\n`);
+    if (regressions.length) process.stdout.write(`Held ${regressions.length} lower or omitted source/day/model row(s) at their previous values; no totals were lowered and no history was deleted.\n`);
+    process.stdout.write(`Coverage ${coverageStatus}: ${coverageReason}\n`);
+    if (parserWarningCount) process.stdout.write(`ccusage emitted ${parserWarningCount} warning/error line(s); text and paths are intentionally omitted.\n`);
+    if (explain) {
+      process.stdout.write(`Local inventory ${inventoryComplete ? "complete" : "partial"} (${inventory.files}${inventory.truncated ? "+" : ""} files, ${inventory.sources.length} detected sources); report rows from ${sources.length} source(s), ${days[0] || "unknown"} to ${days.at(-1) || "unknown"}.\n`);
+      if (sourcesWithoutUsageRows.length) process.stdout.write(`No usage rows for detected source(s): ${sourcesWithoutUsageRows.join(", ")}. This can mean no activity in this range; it is not proof of a parser omission.\n`);
+      if (regressions.length) process.stdout.write(`Examples held: ${regressionDetails.slice(0, 5).map((row) => `${row.source}/${row.day}/${row.provider}/${row.model}`).join(", ")}\n`);
+      process.stdout.write(`Large JSONL candidates (≥${Math.round(LARGE_JSONL_WARNING_BYTES / (1024 * 1024))} MiB): ${largeJsonlSummary(inventory)}. This is a review signal, not proof of missing usage.\n`);
+    }
   }
-  return result;
+  return summary;
 }
 
 function collectorStatusEndpoint(config) {
@@ -676,6 +809,7 @@ async function doctor(args = []) {
       inventoryComplete: inventory.complete,
       inventoryErrors: inventory.errors,
       inventoryTruncated: inventory.truncated,
+      largeJsonlFiles: inventory.largeJsonlFiles,
       supportedSources: SUPPORTED_SOURCES,
       archives: archives.length,
       environment: platform() === "linux" && process.env.WSL_DISTRO_NAME ? `WSL ${process.env.WSL_DISTRO_NAME}` : platform(),
@@ -683,9 +817,16 @@ async function doctor(args = []) {
     };
     if (args.includes("--deep")) {
       progress.update("Parsing retained history with ccusage…");
-      const report = await ccusageJson(config, { env, full: true });
+      const { report, parserWarningCount } = await ccusageJson(config, { env, full: true });
       result.parsedSources = sourceSummary(report);
       result.sessions = buildSessionPlan(report, config?.deviceId || "unlinked").length;
+      const days = reportDays(report);
+      result.reportedRange = { from: days[0] ?? null, to: days.at(-1) ?? null };
+      result.sourcesWithoutUsageRows = inventory.sources.filter((source) => !result.parsedSources.includes(source));
+      result.parserCoverageCertified = false;
+      result.coverageStatus = inventory.complete && inventory.errors === 0 && !inventory.truncated ? "unverified" : "partial";
+      result.coverageReason = syncCoverageReason(result.coverageStatus === "unverified");
+      result.parserWarningCount = parserWarningCount;
     }
     progress.succeed("Coverage check complete.");
     if (json) {
@@ -710,7 +851,13 @@ async function doctor(args = []) {
     }
     if (archives.length) process.stdout.write(`Recovery: ${archives.length} compressed provider archive(s) detected; run \`bunx usagemax sync --archives\` once to reconcile them\n`);
     if (!inventory.complete) process.stdout.write(`Inventory: incomplete (${inventory.errors} read error(s)${inventory.truncated ? ", file limit reached" : ""}); no-change shortcut disabled\n`);
-    if (result.parsedSources) process.stdout.write(`Parsed sources: ${result.parsedSources.join(", ") || "none"}; ${result.sessions} private session identifiers\n`);
+    if (result.parsedSources) {
+      process.stdout.write(`Full-history report: ${result.parsedSources.join(", ") || "no sources with rows"}; ${result.sessions} private session identifiers; ${result.reportedRange.from || "unknown"} to ${result.reportedRange.to || "unknown"}.\n`);
+      process.stdout.write(`Coverage ${result.coverageStatus}: ${result.coverageReason}\n`);
+      if (result.sourcesWithoutUsageRows.length) process.stdout.write(`No usage rows for detected source(s): ${result.sourcesWithoutUsageRows.join(", ")}. This can mean no activity in the selected dates; it is not proof of a parser omission.\n`);
+      if (result.parserWarningCount) process.stdout.write(`ccusage emitted ${result.parserWarningCount} warning/error line(s); text and paths are intentionally omitted.\n`);
+    }
+    if (inventory.largeJsonlFiles.count) process.stdout.write(`Large JSONL candidates (≥${Math.round(LARGE_JSONL_WARNING_BYTES / (1024 * 1024))} MiB): ${largeJsonlSummary(inventory)}. This is a review signal, not proof of missing usage.\n`);
     process.stdout.write(`Mode: one-shot, metadata no-op check, ${args.includes("--deep") ? "deep local parse" : "no log parsing"}\n`);
   } catch (error) {
     progress.stop();

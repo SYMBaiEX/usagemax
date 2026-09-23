@@ -11,7 +11,9 @@ export const collectorCapabilities = query({
     snapshotProtocol: 2,
     snapshotChunks: true,
     maxChunkRows: 100,
-    recommendedCliVersion: "0.3.10",
+    maxSessionsPerRequest: 250,
+    maxPartitionsPerRequest: 20,
+    recommendedCliVersion: "0.3.11",
   }),
 });
 

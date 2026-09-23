@@ -304,6 +304,7 @@ export function buildSnapshotPlan(report, priorSnapshots, {
   // replace or remove a checkpoint, including legacy three-part identities.
   const nextSnapshots = Object.fromEntries([...priorRows].map(([key, row]) => [key, row.current]));
   const regressions = [];
+  const regressionDetails = [];
   for (const key of allKeys) {
     const currentRow = rows.get(key);
     const priorRow = priorRows.get(key);
@@ -312,7 +313,15 @@ export function buildSnapshotPlan(report, priorSnapshots, {
     const previous = priorRow?.current ?? snapshotCounters();
     let current = currentRow?.current ?? snapshotCounters();
     const regressed = snapshotCounterFields.some((field) => current[field] < previous[field]);
-    if (regressed) regressions.push(key);
+    if (regressed) {
+      regressions.push(key);
+      regressionDetails.push({
+        source: identity.source,
+        day: identity.period,
+        provider: identity.provider,
+        model: identity.model,
+      });
+    }
     // A larger total can conceal a missing dimension. Keep the coherent prior
     // vector (including in the checkpoint) until coverage is authoritative.
     if (!complete && regressed) current = { ...previous };
@@ -369,7 +378,7 @@ export function buildSnapshotPlan(report, priorSnapshots, {
     }
   }
   partitions.sort((left, right) => left.day === right.day ? left.source.localeCompare(right.source) : left.day.localeCompare(right.day));
-  return { partitions, nextSnapshots, regressions };
+  return { partitions, nextSnapshots, regressions, regressionDetails };
 }
 
 function randomPlanId() {

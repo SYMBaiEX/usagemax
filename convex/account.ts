@@ -544,7 +544,10 @@ export const current = query({
       connectedSources: stats?.sources ?? [],
       lastSyncAt: stats?.lastSyncAt ?? stats?.lastEventAt,
       coverage: latestRun ? {
-        status: latestRun.inventoryComplete && !latestRun.inventoryTruncated && latestRun.inventoryErrors === 0 ? "complete" : "partial",
+        status: latestRun.mode !== "full" || !latestRun.inventoryComplete || latestRun.inventoryTruncated || latestRun.inventoryErrors > 0
+          ? "partial"
+          : latestRun.parserCoverageCertified ? "complete" : "unverified",
+        parserCoverageCertified: latestRun.parserCoverageCertified ?? false,
         phase: latestRun.status,
         mode: latestRun.mode,
         sourceCount: latestRun.sourceCount,

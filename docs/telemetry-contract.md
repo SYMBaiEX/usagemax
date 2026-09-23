@@ -51,11 +51,14 @@ derive it or depend on an infrastructure-provider hostname.
 A run follows this sequence:
 
 1. `begin` declares a UUID `runId`, mode, source inventory, partition count, and
-   coverage bounds.
+   coverage bounds. `inventoryComplete` only certifies that local discovery
+   finished. `parserCoverageCertified` separately states that the parser can
+   account for every source/day in the requested range; omit or set it false
+   unless a source-level manifest proves that claim.
 2. `sessions` uploads opaque, installation-scoped session hashes in chunks of
-   at most 100. Local paths and raw session identifiers never leave the device.
-3. `partitions` uploads at most 10 complete source/day partitions per request,
-   with at most 100 provider/model rows per partition.
+   at most 250. Local paths and raw session identifiers never leave the device.
+3. `partitions` uploads at most 20 source/day partitions per request, with at
+   most 100 provider/model rows per partition.
 4. `complete` atomically publishes coverage and leaderboard metadata only after
    every declared partition has been accepted. `fail` records a bounded error
    code without advancing the local checkpoint.
@@ -67,9 +70,14 @@ The canonical row identity is:
 Each partition carries a monotonically increasing revision, a stable
 `partitionId`, and a server-recomputed payload hash. Replaying the same payload
 is safe. Reusing an idempotency key for different content is rejected. A
-complete partition removes rows that disappeared locally; signed server-side
-diffs therefore handle corrected and deleted history instead of permanently
-inflating totals.
+A parser-certified complete partition can remove rows that disappeared locally;
+without both parser certification and a complete source inventory, lower
+counters and omitted rows are kept at their last accepted values. The native
+ccusage adapter currently sends aggregate output without a per-file/day
+manifest, so its full scan is reported as unverified and cannot authorize
+decreases or deletion cleanup. The HTTP endpoint caps each JSON request at 2 MB;
+the CLI targets 1.5 MB for partition batches and checkpoints every acknowledged
+request so interrupted runs can resume idempotently.
 
 Snapshot token buckets mirror ccusage's disjoint local accounting categories:
 input, output, cache read, cache write, reasoning, and unclassified. Their exact
