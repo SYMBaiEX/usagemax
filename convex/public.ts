@@ -13,7 +13,7 @@ export const collectorCapabilities = query({
     maxChunkRows: 100,
     maxSessionsPerRequest: 250,
     maxPartitionsPerRequest: 20,
-    recommendedCliVersion: "0.3.11",
+    recommendedCliVersion: "0.3.12",
   }),
 });
 

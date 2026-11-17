@@ -37,7 +37,7 @@ describe("UsageMax OpenAPI contract", () => {
     expect(document.components.schemas.SnapshotOperation.properties.sessions.maxItems).toBe(250);
     expect(document.components.schemas.SnapshotOperation.properties.partitions.maxItems).toBe(20);
     expect(document.components.schemas.SnapshotOperation.properties.parserCoverageCertified.type).toBe("boolean");
-    expect(document.components.schemas.CollectorCapabilities.properties.recommendedCliVersion.example).toBe("0.3.11");
+    expect(document.components.schemas.CollectorCapabilities.properties.recommendedCliVersion.example).toBe("0.3.12");
     expect(document.paths["/api/v2/usage/snapshots"].post.responses["202"].headers.Location).toMatchObject({ schema: { type: "string", format: "uri" } });
     expect(document.paths["/api/v2/usage/snapshots/{runId}"].get.operationId).toBe("getUsageSnapshotStatus");
     expect(document.paths["/api/v1/sandbox/validate"].post.responses["200"]).toBeDefined();
