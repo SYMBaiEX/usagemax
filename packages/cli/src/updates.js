@@ -5,6 +5,7 @@ import { spawn } from "node:child_process";
 
 export const REGISTRY_URL = "https://registry.npmjs.org/usagemax/latest";
 export const UPDATE_CHECK_TTL_MS = 12 * 60 * 60 * 1000;
+export const UPDATE_CHECK_TIMEOUT_MS = 10_000;
 
 function record(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
@@ -64,10 +65,10 @@ async function writeCache(directory, value) {
   }
 }
 
-export async function latestVersion({ fetchImpl = fetch, timeout = 1_500 } = {}) {
+export async function latestVersion({ fetchImpl = fetch, timeout = UPDATE_CHECK_TIMEOUT_MS } = {}) {
   try {
     const response = await fetchImpl(REGISTRY_URL, {
-      headers: { accept: "application/json" },
+      headers: { accept: "application/json", "cache-control": "no-cache" },
       cache: "no-store",
       signal: AbortSignal.timeout(timeout),
     });
@@ -89,6 +90,9 @@ export async function checkForUpdate(directory, currentVersion, { force = false,
     return { ...cached, newer: compareVersions(cached.latest, currentVersion) > 0 };
   }
   const latest = await latestVersion({ fetchImpl });
+  // An explicit update must never turn a stale cached version into a claim
+  // that the current registry release was checked successfully.
+  if (force && !latest) return { checkedAt: now, latest: null, newer: false };
   const result = { checkedAt: now, latest: latest || cached?.latest || null };
   await writeCache(directory, result).catch(() => undefined);
   return { ...result, newer: compareVersions(result.latest, currentVersion) > 0 };
@@ -122,8 +126,8 @@ export async function updateGlobal({ latest = "latest", manager = packageManager
   if (!/^\d+\.\d+\.\d+$/.test(String(latest)) && latest !== "latest") throw new Error("Invalid UsageMax release version.");
   const command = manager === "bun" ? (platform === "win32" ? "bun.exe" : "bun") : (platform === "win32" ? "npm.cmd" : "npm");
   const args = manager === "bun"
-    ? ["add", "--global", `usagemax@${latest}`]
-    : ["install", "--global", `usagemax@${latest}`];
+    ? ["add", "--global", "--force", `usagemax@${latest}`]
+    : ["install", "--global", "--prefer-online", `usagemax@${latest}`];
   const child = spawnImpl(command, args, {
     // Do not leave child output pipes undrained: a JSON-mode package update
     // can otherwise block once Bun/npm fills the operating-system pipe buffer.
@@ -140,17 +144,20 @@ export async function updateGlobal({ latest = "latest", manager = packageManager
   });
 }
 
-/** Re-run a command through the current npm dist-tag without requiring @latest. */
+/** Re-run a command through the checked release, with `latest` for legacy callers. */
 export async function runLatest(args, {
+  version = "latest",
   spawnImpl = spawn,
   cliPath = process.argv[1],
   runtime = process.versions,
   env = process.env,
   platform = process.platform,
 } = {}) {
+  if (!/^\d+\.\d+\.\d+$/.test(String(version)) && version !== "latest") throw new Error("Invalid UsageMax release version.");
   const manager = packageManagerFor({ cliPath, runtime, env });
   const selected = runner({ manager, env, platform });
-  const child = spawnImpl(selected.command, [...selected.prefix, "usagemax@latest", "--", ...args], {
+  const online = manager === "npm" ? ["--prefer-online"] : [];
+  const child = spawnImpl(selected.command, [...selected.prefix, ...online, `usagemax@${version}`, "--", ...args], {
     stdio: "inherit",
     env: { ...env, USAGEMAX_UPDATE_HANDOFF: "1" },
   });

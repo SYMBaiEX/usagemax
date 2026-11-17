@@ -109,11 +109,11 @@ bunx usagemax unlink --json                # safe automation result; no secret o
 
 ## Sources and coverage
 
-UsageMax pins [ccusage v20.0.24](https://github.com/ccusage/ccusage/releases/tag/v20.0.24)
-and supports its 16 adapters: Amp, Claude Code, Codebuff, Codex, GitHub Copilot
-CLI, Factory Droid, Gemini CLI, Goose, Grok Build, Hermes, Kilo Code, Kimi CLI,
-OpenClaw, OpenCode, Pi, and Qwen Code. Named Pi-format stores are discovered as
-well.
+UsageMax pins [ccusage v20.0.51](https://github.com/ccusage/ccusage/releases/tag/v20.0.51)
+and supports its 19 adapters: Amp, Antigravity, Claude Code, Cline, Codebuff,
+Codex, GitHub Copilot CLI, Factory Droid, Gemini CLI, Goose, Grok Build, Hermes,
+Kilo Code, Kimi CLI, OpenClaw, OpenCode, Pi, Qwen Code, and ZCode. Named
+Pi-format stores are discovered as well.
 
 The collector explicitly requests ccusage's per-model breakdown so models used
 on the same day remain individually attributed instead of collapsing into a
@@ -132,7 +132,7 @@ extracts supported Claude JSONL members into a private temporary directory and
 removes them after reconciliation. Normal runs do not crawl the whole disk or
 unpack archives.
 
-Cursor, Windsurf, Aider, Continue, Cline, Roo Code, hosted agents, and direct
+Cursor, Windsurf, Aider, Continue, Roo Code, hosted agents, and direct
 provider API traffic may not leave a stable local token ledger. Use UsageMax's
 native or OTLP/HTTP JSON contract, or a provider billing export, when local
 evidence is unavailable. Unsupported usage is never guessed.
@@ -151,7 +151,7 @@ printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
       --json
 ```
 
-The `token status` and `telemetry test` commands are included in CLI `0.3.11`.
+The `token status` and `telemetry test` commands are included in CLI `0.3.12`.
 If a fresh environment still has an older npm tag, run `usagemax update token status` or
 `node packages/cli/src/cli.js token status` from this repository until the new
 package is published.

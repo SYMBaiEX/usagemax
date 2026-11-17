@@ -3,14 +3,16 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 
-export const CCUSAGE_VERSION = "20.0.24";
-// Reconcile retained history when the collector output contract changes, not
-// just when a source path is added. v4 enables explicit per-model breakdowns.
-export const SOURCE_INVENTORY_VERSION = 4;
+export const CCUSAGE_VERSION = "20.0.51";
+// Reconcile retained history when the collector output contract or supported
+// source set changes, not just when an existing source path changes.
+export const SOURCE_INVENTORY_VERSION = 5;
 export const LARGE_JSONL_WARNING_BYTES = 64 * 1024 * 1024;
 export const SUPPORTED_SOURCES = [
   "amp",
+  "antigravity",
   "claude",
+  "cline",
   "codebuff",
   "codex",
   "copilot",
@@ -25,6 +27,7 @@ export const SUPPORTED_SOURCES = [
   "opencode",
   "pi",
   "qwen",
+  "zcode",
 ];
 
 const MAX_FINGERPRINT_FILES = 50_000;
@@ -76,7 +79,7 @@ async function providerBearingHome(home, pathApi) {
   // (for example .local/share itself) as evidence that a Windows profile is
   // relevant; that would make multi-user WSL selection noisy and unsafe.
   const markers = [
-    ".claude", ".config/claude", ".codex", ".factory", ".gemini", ".openclaw", ".clawdbot", ".moltbot", ".moldbot", ".hermes", ".grok",
+    ".claude", ".config/claude", ".codex", ".factory", ".gemini", ".gemini/antigravity", ".config/antigravity", ".cline", ".zcode", ".openclaw", ".clawdbot", ".moltbot", ".moldbot", ".hermes", ".grok",
     ".kimi", ".kimi-code", ".qwen", ".copilot", ".pi",
     ".local/share/amp", ".local/share/goose", ".local/share/Block/goose", ".local/share/kilo", ".local/share/opencode",
     "AppData/Roaming/Block/goose",
@@ -205,7 +208,34 @@ function db(source, filePath) {
   return [file(source, filePath), file(source, `${filePath}-wal`), file(source, `${filePath}-shm`)];
 }
 
-export function sourceDefinitions({ env = process.env, home = ccusageHome(env), cwd = process.cwd(), pathApi = path } = {}) {
+function defaultOpenCodeRoots(home, env, pathApi) {
+  const dataHome = String(env.XDG_DATA_HOME ?? "").trim() || pathApi.join(home, ".local", "share");
+  return [pathApi.join(dataHome, "opencode")];
+}
+
+function defaultClineRoots(home, env, platform, pathApi) {
+  const editorBase = platform === "darwin"
+    ? pathApi.join(home, "Library", "Application Support")
+    : platform === "win32"
+      ? String(env.APPDATA ?? "").trim() || pathApi.join(home, "AppData", "Roaming")
+      : String(env.XDG_CONFIG_HOME ?? "").trim() || pathApi.join(home, ".config");
+  const editors = ["Code", "Code - Insiders", "Cursor", "Windsurf", "VSCodium"];
+  return [
+    pathApi.join(home, ".cline"),
+    ...editors.map((editor) => pathApi.join(editorBase, editor, "User", "globalStorage", "saoudrizwan.claude-dev")),
+  ];
+}
+
+function defaultAntigravityRoots(home, pathApi) {
+  const variants = ["antigravity", "antigravity-cli", "antigravity-ide", "antigravity-backup", "antigravity-acp"];
+  return [...variants.map((name) => pathApi.join(home, ".gemini", name)), pathApi.join(home, ".config", "antigravity")];
+}
+
+function antigravityConversationRoot(root, pathApi) {
+  return pathApi.basename(root) === "conversations" ? root : pathApi.join(root, "conversations");
+}
+
+export function sourceDefinitions({ env = process.env, home = ccusageHome(env), cwd = process.cwd(), pathApi = path, platform = process.platform } = {}) {
   const join = (...parts) => pathApi.join(...parts);
   const definitions = [];
 
@@ -220,8 +250,17 @@ export function sourceDefinitions({ env = process.env, home = ccusageHome(env), 
   for (const root of envList(env, "CODEX_HOME", [join(home, ".codex")])) {
     definitions.push({ source: "codex", path: root, kind: "codex-home", matcher: "jsonl" });
   }
-  for (const root of envList(env, "OPENCODE_DATA_DIR", [join(home, ".local", "share", "opencode")])) {
+  for (const root of envList(env, "OPENCODE_DATA_DIR", defaultOpenCodeRoots(home, env, pathApi))) {
     definitions.push(tree("opencode", root, "opencode"));
+  }
+  for (const root of envList(env, "CLINE_DATA_DIR", defaultClineRoots(home, env, platform, pathApi))) {
+    definitions.push(tree("cline", root, "cline"));
+  }
+  for (const root of envList(env, "ANTIGRAVITY_DATA_DIR", defaultAntigravityRoots(home, pathApi))) {
+    definitions.push(tree("antigravity", antigravityConversationRoot(root, pathApi), "sqlite"));
+  }
+  for (const root of envList(env, "ZCODE_HOME", [join(home, ".zcode")])) {
+    definitions.push(...db("zcode", join(root, "cli", "db", "db.sqlite")));
   }
   for (const root of envList(env, "AMP_DATA_DIR", [join(home, ".local", "share", "amp")])) {
     definitions.push(tree("amp", join(root, "threads"), "json"));
@@ -345,7 +384,18 @@ export async function ccusageEnvironment({ env = process.env, platform = process
   ], pathApi);
 
   const additions = (segments) => additionalHomes.map((candidate) => pathApi.join(candidate, ...segments));
-  setDiscoveredList(effective, "OPENCODE_DATA_DIR", [pathApi.join(home, ".local", "share", "opencode")], additions([".local", "share", "opencode"]), pathApi);
+  const additionalHomePlatform = platform === "linux" && String(effective.WSL_DISTRO_NAME ?? "").trim() ? "win32" : platform;
+  const additionalClineRoots = additionalHomes.flatMap((candidate) => {
+    const profileEnv = additionalHomePlatform === "win32"
+      ? { ...effective, APPDATA: pathApi.join(candidate, "AppData", "Roaming") }
+      : effective;
+    return defaultClineRoots(candidate, profileEnv, additionalHomePlatform, pathApi);
+  });
+  const additionalAntigravityRoots = additionalHomes.flatMap((candidate) => defaultAntigravityRoots(candidate, pathApi));
+  setDiscoveredList(effective, "OPENCODE_DATA_DIR", defaultOpenCodeRoots(home, effective, pathApi), additions([".local", "share", "opencode"]), pathApi);
+  setDiscoveredList(effective, "CLINE_DATA_DIR", defaultClineRoots(home, effective, platform, pathApi), additionalClineRoots, pathApi);
+  setDiscoveredList(effective, "ANTIGRAVITY_DATA_DIR", defaultAntigravityRoots(home, pathApi), additionalAntigravityRoots, pathApi);
+  setDiscoveredList(effective, "ZCODE_HOME", [pathApi.join(home, ".zcode")], additions([".zcode"]), pathApi);
   setDiscoveredList(effective, "AMP_DATA_DIR", [pathApi.join(home, ".local", "share", "amp")], additions([".local", "share", "amp"]), pathApi);
   setDiscoveredList(effective, "DROID_SESSIONS_DIR", [pathApi.join(home, ".factory", "sessions")], additions([".factory", "sessions"]), pathApi);
   setDiscoveredList(effective, "CODEBUFF_DATA_DIR", ["manicode", "manicode-dev", "manicode-staging"].map((channel) => pathApi.join(home, ".config", channel)), additionalHomes.flatMap((candidate) => ["manicode", "manicode-dev", "manicode-staging"].map((channel) => pathApi.join(candidate, ".config", channel))), pathApi);
@@ -380,6 +430,11 @@ function accepts(matcher, filePath, pathApi) {
   if (matcher === "openclaw") return name.includes(".jsonl");
   if (matcher === "grok") return name === "updates.jsonl" || name === "summary.json";
   if (matcher === "opencode") return name.endsWith(".db") || name.includes(".db-") || name.endsWith(".json");
+  if (matcher === "cline") return name === "ui_messages.json" || name.endsWith(".messages.json");
+  if (matcher === "sqlite") {
+    const lowerName = name.toLowerCase();
+    return lowerName.endsWith(".db") || lowerName.endsWith(".db-wal") || lowerName.endsWith(".db-shm");
+  }
   return false;
 }
 

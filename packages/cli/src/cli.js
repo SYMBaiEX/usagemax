@@ -28,7 +28,7 @@ process.title = "UsageMax";
 
 const require = createRequire(import.meta.url);
 const executeFile = promisify(execFile);
-const VERSION = "0.3.11";
+const VERSION = "0.3.12";
 const PUBLIC_API_ORIGIN = "https://usagemax.com/api";
 const DEFAULT_LINK_ENDPOINT = `${PUBLIC_API_ORIGIN}/v1/devices/link`;
 const DEFAULT_STATUS_ENDPOINT = `${PUBLIC_API_ORIGIN}/v1/devices/status`;
@@ -905,7 +905,7 @@ async function update(args = []) {
     process.stdout.write(json ? `${JSON.stringify(result)}\n` : `UsageMax CLI ${VERSION} is current.\n`);
     if (commandWillRun) {
       if (!json) process.stdout.write(`Launching UsageMax ${check.latest}…\n`);
-      return runLatest(handoffArgs);
+      return runLatest(handoffArgs, { version: check.latest });
     }
     if (!json && commandArgs.length) process.stdout.write(`Check-only: the requested command was not run: \`usagemax ${commandArgs.join(" ")}\`.\n`);
     return;
@@ -921,10 +921,12 @@ async function update(args = []) {
     };
     process.stdout.write(json ? `${JSON.stringify(result)}\n` : `UsageMax CLI ${check.latest} is available (current ${VERSION}).\n`);
     if (!json) process.stdout.write(`Launching UsageMax ${check.latest}…\n`);
-    return runLatest(handoffArgs);
+    return runLatest(handoffArgs, { version: check.latest });
   }
   const manager = packageManagerFor({ cliPath: process.argv[1], runtime: process.versions, env: process.env });
-  const installCommand = manager === "bun" ? "bun add --global usagemax@latest" : "npm install --global usagemax@latest";
+  const installCommand = manager === "bun"
+    ? `bun add --global --force usagemax@${check.latest}`
+    : `npm install --global --prefer-online usagemax@${check.latest}`;
   const available = {
     version: VERSION,
     latest: check.latest,
@@ -961,7 +963,7 @@ async function maybeUpdate(command, args) {
   const check = await checkForUpdate(configDirectory(), VERSION, { force: explicitCheck });
   if (!check.newer) return false;
   if (process.env.USAGEMAX_AUTO_UPDATE === "1") {
-    await runLatest([command, ...args.filter((arg) => !["--check-updates", "--no-update-check"].includes(arg))]);
+    await runLatest([command, ...args.filter((arg) => !["--check-updates", "--no-update-check"].includes(arg))], { version: check.latest });
     return true;
   }
   process.stderr.write(`UsageMax ${check.latest} is available. Run \`usagemax update ${command}\` or set USAGEMAX_AUTO_UPDATE=1.\n`);

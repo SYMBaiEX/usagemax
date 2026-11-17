@@ -29,7 +29,7 @@ test("validates one-use link code and secure endpoints", () => {
 });
 
 test("creates additive, idempotent usage deltas without content fields", () => {
-  const first = buildDeltaPlan(report, {}, "device-1", "ccusage@20.0.24");
+  const first = buildDeltaPlan(report, {}, "device-1", "ccusage@20.0.51");
   assert.equal(first.plan.length, 1);
   assert.deepEqual(first.plan[0].event, {
     eventKey: first.plan[0].event.eventKey,
@@ -47,7 +47,7 @@ test("creates additive, idempotent usage deltas without content fields", () => {
     costMicros: 750000,
     costBasis: "estimated",
     pricingSource: "ccusage / LiteLLM",
-    pricingVersion: "ccusage@20.0.24",
+    pricingVersion: "ccusage@20.0.51",
     status: "ok",
     state: "synced",
     occurredAt: "2026-09-14T00:00:00.000Z",
@@ -145,17 +145,50 @@ test("classifies prefixed and bracketed model providers without changing model i
   assert.equal(events.find((event) => event.model === "kimi-k2.5")?.provider, "moonshot");
 });
 
+test("classifies provider-prefixed OpenCode model IDs while preserving exact model labels", () => {
+  const models = [
+    ["opencode", "openai/gpt-6.1-terra", "openai"],
+    ["opencode", "anthropic/claude-haiku-5-5", "anthropic"],
+    ["opencode", "google/gemini-3.8-flash-high", "google"],
+    ["opencode", "openrouter/anthropic/claude-sonnet-5-5#high", "openrouter"],
+    ["opencode", "opencode/gpt-6-astra", "opencode"],
+    ["opencode", "local/coder-v2", "local"],
+    ["openclaw", "qwen/qwen3-coder", "alibaba"],
+    ["pi", "[pi] o6-mini", "openai"],
+  ];
+  const fixture = {
+    daily: [{
+      agent: "all",
+      period: "2026-11-15",
+      agents: models.map(([agent, modelName]) => ({
+        agent,
+        modelBreakdowns: [{ modelName, inputTokens: 1 }],
+      })),
+    }],
+  };
+  const events = buildDeltaPlan(fixture, {}, "device-1").plan.map((item) => item.event);
+  for (const [, modelName, provider] of models) {
+    const event = events.find((item) => item.model === modelName);
+    assert.equal(event?.provider, provider, modelName);
+  }
+});
+
 test("keeps current OpenAI and Anthropic model IDs separate in deltas and snapshots", () => {
   const models = [
-    ...["gpt-6-luna", "gpt-6-sol", "gpt-6-astra"].map((modelName) => ({ agent: "codex", modelName, provider: "openai" })),
+    ...["gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna"].map((modelName) => ({ agent: "codex", modelName, provider: "openai" })),
     ...[
-      "claude-fable-5",
-      "claude-mythos-5",
+      "claude-fable-5-2",
+      "claude-mythos-5-2",
+      "claude-opus-5-5",
+      "claude-sonnet-5-5",
+      "claude-haiku-5-5",
       "claude-opus-5",
       "claude-opus-4-8",
       "claude-opus-4-7",
+      "claude-opus-4-6",
       "claude-sonnet-5",
       "claude-sonnet-4-6",
+      "claude-haiku-4-5",
     ].map((modelName) => ({ agent: "claude", modelName, provider: "anthropic" })),
   ];
   const fixture = {

@@ -12,13 +12,53 @@ test("matches ccusage home precedence on Windows and POSIX", () => {
   assert.equal(ccusageHome({ HOMEDRIVE: "D:", HOMEPATH: "\\Users\\me" }), "D:\\Users\\me");
 });
 
-test("resolves all 16 ccusage sources with Windows-safe paths", () => {
-  const definitions = sourceDefinitions({ env: {}, home: "C:\\Users\\me", cwd: "C:\\work", pathApi: path.win32 });
+test("resolves all 19 ccusage sources with Windows-safe paths", () => {
+  const definitions = sourceDefinitions({ env: {}, home: "C:\\Users\\me", cwd: "C:\\work", pathApi: path.win32, platform: "win32" });
   const sources = [...new Set(definitions.filter((item) => item.source !== "ccusage-config").map((item) => item.source))].sort();
   assert.deepEqual(sources, [...SUPPORTED_SOURCES].sort());
   assert.ok(definitions.some((item) => item.path === "C:\\Users\\me\\.factory\\sessions"));
   assert.ok(definitions.some((item) => item.path === "C:\\Users\\me\\.hermes\\state.db"));
   assert.ok(definitions.some((item) => item.path === "C:\\Users\\me\\.copilot\\otel"));
+  assert.ok(definitions.some((item) => item.source === "opencode" && item.path === "C:\\Users\\me\\.local\\share\\opencode"));
+  assert.ok(definitions.some((item) => item.source === "cline" && item.path === "C:\\Users\\me\\AppData\\Roaming\\Code\\User\\globalStorage\\saoudrizwan.claude-dev"));
+  assert.ok(definitions.some((item) => item.source === "antigravity" && item.path === "C:\\Users\\me\\.gemini\\antigravity\\conversations"));
+  assert.ok(definitions.some((item) => item.source === "zcode" && item.path === "C:\\Users\\me\\.zcode\\cli\\db\\db.sqlite"));
+});
+
+test("discovers OpenCode from XDG_DATA_HOME and fingerprints Cline, Antigravity, and ZCode", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "usagemax-new-sources-"));
+  const home = path.join(root, "home");
+  const xdg = path.join(root, "xdg-data");
+  const files = [
+    path.join(xdg, "opencode", "storage", "message", "session-1", "msg_1.json"),
+    path.join(home, ".cline", "data", "sessions", "session-1", "session-1.messages.json"),
+    path.join(home, ".gemini", "antigravity", "conversations", "conversation.db"),
+    path.join(home, ".zcode", "cli", "db", "db.sqlite"),
+  ];
+  for (const file of files) {
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, "data");
+  }
+
+  const env = { HOME: home, XDG_DATA_HOME: xdg };
+  const inventory = await sourceInventory({ env, home, cwd: root });
+  assert.deepEqual(inventory.sources, ["antigravity", "cline", "opencode", "zcode"]);
+  const definitions = sourceDefinitions({ env, home, cwd: root });
+  assert.ok(definitions.some((item) => item.source === "opencode" && item.path === path.join(xdg, "opencode")));
+  assert.ok(definitions.some((item) => item.source === "antigravity" && item.path === path.join(home, ".gemini", "antigravity", "conversations")));
+});
+
+test("adds Cline editor storage roots for each supported operating system", async () => {
+  const home = "C:\\Users\\me";
+  const appData = "C:\\Users\\me\\AppData\\Roaming";
+  const effective = await ccusageEnvironment({
+    env: { HOME: home, APPDATA: appData },
+    platform: "win32",
+    pathApi: path.win32,
+  });
+  assert.ok(effective.CLINE_DATA_DIR.split(",").includes(path.win32.join(appData, "Code", "User", "globalStorage", "saoudrizwan.claude-dev")));
+  assert.ok(effective.ANTIGRAVITY_DATA_DIR.split(",").includes(path.win32.join(home, ".config", "antigravity")));
+  assert.ok(effective.ZCODE_HOME.split(",").includes(path.win32.join(home, ".zcode")));
 });
 
 test("uses comma-only overrides and Claude XDG discovery", () => {

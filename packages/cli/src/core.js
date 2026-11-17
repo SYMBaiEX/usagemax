@@ -2,6 +2,18 @@ import { createHash } from "node:crypto";
 
 const MAX_SAFE_COUNTER = 1_000_000_000_000;
 const MAX_SAFE_COST_MICROS = 1_000_000_000_000_000;
+const MODEL_PROVIDER_PREFIXES = new Map([
+  ["openrouter", "openrouter"], ["openai", "openai"], ["anthropic", "anthropic"], ["opencode", "opencode"],
+  ["azure", "azure-openai"], ["azure-openai", "azure-openai"], ["aws", "aws-bedrock"], ["bedrock", "aws-bedrock"],
+  ["amazon-bedrock", "aws-bedrock"], ["google", "google"], ["google-vertex", "google"], ["google-vertex-ai", "google"],
+  ["google-vertex-anthropic", "google"], ["vertex", "google"], ["vertex_ai", "google"],
+  ["xai", "xai"], ["deepseek", "deepseek"], ["moonshot", "moonshot"], ["kimi", "moonshot"],
+  ["alibaba", "alibaba"], ["qwen", "alibaba"], ["zai", "zai"], ["z.ai", "zai"], ["glm", "zai"],
+  ["mistral", "mistral"], ["codestral", "mistral"], ["meta", "meta"], ["meta-llama", "meta"], ["llama", "meta"],
+  ["minimax", "minimax"], ["cohere", "cohere"], ["groq", "groq"], ["cerebras", "cerebras"],
+  ["together", "together"], ["fireworks", "fireworks"], ["perplexity", "perplexity"], ["nvidia", "nvidia"],
+  ["ollama", "ollama"], ["lmstudio", "lmstudio"], ["vllm", "vllm"],
+]);
 
 function number(value, maximum = MAX_SAFE_COUNTER) {
   return typeof value === "number" && Number.isFinite(value)
@@ -23,23 +35,26 @@ function text(value, fallback, maximum = 120) {
 
 function providerFor(model, source) {
   const displayName = model.toLowerCase().replace(/^\[[^\]]+\]\s*/, "");
-  const name = displayName.replace(/^api[-_:]/, "");
-  if (name.startsWith("openrouter/")) return "openrouter";
-  if (name.startsWith("azure/") || name.startsWith("azure-openai/")) return "azure-openai";
-  if (name.startsWith("bedrock/") || name.startsWith("aws/")) return "aws-bedrock";
-  if (name.startsWith("vertex/") || name.startsWith("vertex_ai/") || name.startsWith("google/")) return "google";
-  if (name.includes("claude")) return "anthropic";
-  if (/^(?:gpt|o[1345]|codex)/.test(name) || name.includes("openai")) return "openai";
-  if (name.includes("gemini")) return "google";
-  if (name.includes("grok")) return "xai";
-  if (name.includes("deepseek")) return "deepseek";
-  if (name.includes("kimi") || name.includes("moonshot")) return "moonshot";
-  if (name.includes("qwen")) return "alibaba";
-  if (name.includes("glm") || name.includes("zai") || name.includes("z.ai")) return "zai";
-  if (name.includes("mistral") || name.includes("codestral")) return "mistral";
-  if (name.includes("llama") || name.includes("meta/")) return "meta";
-  if (name.includes("minimax")) return "minimax";
-  if (name.includes("command-r") || name.includes("cohere")) return "cohere";
+  const name = displayName.replace(/^api[-_:]/, "").split("#", 1)[0];
+  const parts = name.split("/").filter(Boolean);
+  const prefixProvider = MODEL_PROVIDER_PREFIXES.get(parts[0]);
+  if (prefixProvider) return prefixProvider;
+  // OpenCode IDs are provider/model references. Preserve custom providers too,
+  // so newly added catalog entries do not get collapsed into "opencode".
+  if (source === "opencode" && parts.length > 1) return parts[0];
+  const modelId = parts.at(-1) || name;
+  if (modelId.includes("claude")) return "anthropic";
+  if (/^(?:gpt(?:-|$)|o\d(?:[-._]|$)|codex(?:-|$))/.test(modelId) || modelId.includes("openai")) return "openai";
+  if (modelId.includes("gemini")) return "google";
+  if (modelId.includes("grok")) return "xai";
+  if (modelId.includes("deepseek")) return "deepseek";
+  if (modelId.includes("kimi") || modelId.includes("moonshot")) return "moonshot";
+  if (modelId.includes("qwen")) return "alibaba";
+  if (modelId.includes("glm") || modelId.includes("zai") || modelId.includes("z.ai")) return "zai";
+  if (modelId.includes("mistral") || modelId.includes("codestral")) return "mistral";
+  if (modelId.includes("llama") || modelId.includes("meta/")) return "meta";
+  if (modelId.includes("minimax")) return "minimax";
+  if (modelId.includes("command-r") || modelId.includes("cohere")) return "cohere";
   return source;
 }
 

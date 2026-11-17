@@ -91,21 +91,22 @@ bunx usagemax status --remote            # check the saved credential safely
 ### CLI updates and progress
 
 The CLI checks npm's `latest` dist-tag at most twice per day. Run
-`usagemax update` to update a global installation through Bun or npm; use
-`--check` for a read-only check. Run `usagemax update sync` to hand a command
-to the current release without typing `@latest`, or set `USAGEMAX_AUTO_UPDATE=1` for an
-explicit automatic handoff. Use `--no-update-check` or set
+`usagemax update` to check the live npm release and install that exact version
+through Bun or npm; use `--check` for a read-only check. Run
+`usagemax update sync` to hand a command to the checked release without typing
+`@latest`, or set `USAGEMAX_AUTO_UPDATE=1` for an explicit automatic handoff.
+Use `--no-update-check` or set
 `USAGEMAX_DISABLE_UPDATE_CHECK=1` in offline environments. Interactive
 terminals show a small stderr progress line; JSON,
 quiet, CI, and scheduled runs remain machine-readable and quiet.
 
 ## Coverage and correctness
 
-UsageMax pins [ccusage v20.0.24](https://github.com/ccusage/ccusage/releases/tag/v20.0.24)
-and uses its 16 adapters: Amp, Claude Code, Codebuff, Codex, GitHub Copilot
-CLI, Factory Droid, Gemini CLI, Goose, Grok Build, Hermes, Kilo Code, Kimi CLI,
-OpenClaw, OpenCode, Pi, and Qwen Code. Named Pi-format stores are discovered as
-well.
+UsageMax pins [ccusage v20.0.51](https://github.com/ccusage/ccusage/releases/tag/v20.0.51)
+and uses its 19 adapters: Amp, Antigravity, Claude Code, Cline, Codebuff, Codex,
+GitHub Copilot CLI, Factory Droid, Gemini CLI, Goose, Grok Build, Hermes, Kilo
+Code, Kimi CLI, OpenClaw, OpenCode, Pi, Qwen Code, and ZCode. Named Pi-format
+stores are discovered as well.
 
 The collector recognizes supported provider overrides, bounded home locations,
 Claude Desktop sessions, `.cc-mirror`, renamed Claude/Codex backup folders, and
@@ -127,7 +128,7 @@ UsageMax reports those two states separately; counter decreases and missing
 rows remain protected unless the parser explicitly certifies its coverage.
 Unknown models stay `unattributed`; unknown pricing stays unknown.
 
-Cursor, Windsurf, Aider, Continue, Cline, Roo Code, hosted agents, direct
+Cursor, Windsurf, Aider, Continue, Roo Code, hosted agents, direct
 provider API traffic, and enterprise billing systems do not all expose a stable
 local ledger. Feed those through the native or OTLP/HTTP JSON contract, or use
 a provider billing export when local evidence is unavailable.
@@ -179,7 +180,7 @@ printf '%s' "$USAGEMAX_COLLECTOR_TOKEN" \
   | jq -r '[.httpStatus, (if .ingestAuthorized then 1 else 0 end)] | @tsv'
 ```
 
-`token status` and `telemetry test` are included in CLI `0.3.11`. If a fresh
+`token status` and `telemetry test` are included in CLI `0.3.12`. If a fresh
 environment still has an older npm tag, run `usagemax update token status` or use
 `node packages/cli/src/cli.js token status` from this repository until the new
 package is published.

@@ -37,18 +37,20 @@ test("update check-only options never create a command handoff", () => {
 
 test("verified current and newer releases run suffixes; check-only and unavailable checks do not", () => {
   const commandArgs = ["sync"];
-  assert.equal(updateCommandWillRun({ latest: "0.3.11", checkOnly: false, commandArgs }), true);
-  assert.equal(updateCommandWillRun({ latest: "0.3.11", checkOnly: false, commandArgs }), true);
-  assert.equal(updateCommandWillRun({ latest: "0.3.11", checkOnly: true, commandArgs }), false);
+  assert.equal(updateCommandWillRun({ latest: "0.3.12", checkOnly: false, commandArgs }), true);
+  assert.equal(updateCommandWillRun({ latest: "0.3.12", checkOnly: false, commandArgs }), true);
+  assert.equal(updateCommandWillRun({ latest: "0.3.12", checkOnly: true, commandArgs }), false);
   assert.equal(updateCommandWillRun({ latest: null, checkOnly: false, commandArgs }), false);
-  assert.equal(updateCommandWillRun({ latest: "0.3.11", checkOnly: false }), false);
+  assert.equal(updateCommandWillRun({ latest: "0.3.12", checkOnly: false }), false);
 });
 test("caches the npm check and reports a newer release", async () => {
   const directory = await mkdtemp(join(tmpdir(), "usagemax-updates-"));
   let calls = 0;
-  const fetchImpl = async (url) => {
+  const fetchImpl = async (url, options) => {
     calls += 1;
     assert.equal(url, REGISTRY_URL);
+    assert.deepEqual(options.headers, { accept: "application/json", "cache-control": "no-cache" });
+    assert.equal(options.cache, "no-store");
     return new Response(JSON.stringify({ version: "0.3.7" }), { status: 200 });
   };
   try {
@@ -67,6 +69,25 @@ test("failed registry checks remain non-fatal", async () => {
   const directory = await mkdtemp(join(tmpdir(), "usagemax-updates-"));
   try {
     const result = await checkForUpdate(directory, "0.3.6", { fetchImpl: async () => { throw new Error("offline"); } });
+    assert.equal(result.latest, null);
+    assert.equal(result.newer, false);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("a forced update check does not treat a cached version as the current registry release", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "usagemax-updates-fresh-check-"));
+  try {
+    await checkForUpdate(directory, "0.3.6", {
+      now: 1_000,
+      fetchImpl: async () => new Response(JSON.stringify({ version: "0.3.7" }), { status: 200 }),
+    });
+    const result = await checkForUpdate(directory, "0.3.6", {
+      force: true,
+      now: 1_001,
+      fetchImpl: async () => { throw new Error("offline"); },
+    });
     assert.equal(result.latest, null);
     assert.equal(result.newer, false);
   } finally {
@@ -95,7 +116,7 @@ test("updates the global package through the selected package manager", async ()
     },
   });
   await result;
-  assert.deepEqual(calls[0].args, ["add", "--global", "usagemax@0.3.9"]);
+  assert.deepEqual(calls[0].args, ["add", "--global", "--force", "usagemax@0.3.9"]);
   assert.equal(calls[0].options.env.NPM_CONFIG_UPDATE_NOTIFIER, "false");
 });
 
@@ -113,14 +134,14 @@ test("uses Windows package-manager entrypoints without a shell", async () => {
     },
   });
   await result;
-  assert.deepEqual(calls[0], { command: "npm.cmd", args: ["install", "--global", "usagemax@0.3.9"] });
+  assert.deepEqual(calls[0], { command: "npm.cmd", args: ["install", "--global", "--prefer-online", "usagemax@0.3.9"] });
 });
 
 test("quiet JSON updates discard child output instead of leaving pipes undrained", async () => {
   const child = new EventEmitter();
   let options;
   const result = updateGlobal({
-    latest: "0.3.11",
+    latest: "0.3.12",
     manager: "npm",
     quiet: true,
     spawnImpl: (_command, _args, spawnOptions) => {
@@ -137,6 +158,7 @@ test("latest command handoff chooses npm exec for an npm-global installation", a
   const child = new EventEmitter();
   let invocation;
   await runLatest(["sync", "--json"], {
+    version: "0.3.12",
     cliPath: "/usr/local/lib/node_modules/usagemax/src/cli.js",
     runtime: {},
     env: { PATH: "/usr/bin", npm_execpath: undefined },
@@ -148,7 +170,7 @@ test("latest command handoff chooses npm exec for an npm-global installation", a
     },
   });
   assert.equal(invocation.command, "npm");
-  assert.deepEqual(invocation.args, ["exec", "--yes", "usagemax@latest", "--", "sync", "--json"]);
+  assert.deepEqual(invocation.args, ["exec", "--yes", "--prefer-online", "usagemax@0.3.12", "--", "sync", "--json"]);
   assert.equal(invocation.options.env.USAGEMAX_UPDATE_HANDOFF, "1");
   assert.equal(invocation.options.stdio, "inherit");
 });
@@ -157,6 +179,7 @@ test("latest command handoff uses bunx for a Bun-global installation", async () 
   const child = new EventEmitter();
   let invocation;
   await runLatest(["sync", "--json"], {
+    version: "0.3.12",
     cliPath: "/Users/a/.bun/install/global/node_modules/usagemax/src/cli.js",
     runtime: {},
     env: { PATH: "/bin" },
@@ -168,7 +191,11 @@ test("latest command handoff uses bunx for a Bun-global installation", async () 
     },
   });
   assert.equal(invocation.command, "bunx");
-  assert.deepEqual(invocation.args, ["--bun", "usagemax@latest", "--", "sync", "--json"]);
+  assert.deepEqual(invocation.args, ["--bun", "usagemax@0.3.12", "--", "sync", "--json"]);
   assert.equal(invocation.options.env.USAGEMAX_UPDATE_HANDOFF, "1");
   assert.equal(invocation.options.stdio, "inherit");
+});
+
+test("rejects an invalid release before launching a package runner", async () => {
+  await assert.rejects(runLatest(["sync"], { version: "0.3.12; echo unsafe" }), /Invalid UsageMax release version/);
 });
