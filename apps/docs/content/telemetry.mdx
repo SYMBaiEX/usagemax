@@ -3,7 +3,7 @@ title: Telemetry ingestion
 description: Send native usage events, OTLP JSON, or device snapshots from a custom collector.
 ---
 
-Create a key under **Advanced · custom telemetry collector** in [your account](https://usagemax.com/account). The key is shown once. Keep it server-side and use it with its bound installation UUID.
+Create a key under **Advanced · custom telemetry collector** in [your account](https://usagemax.com/account?setup=telemetry#custom-telemetry). The key is shown once. Keep it server-side and use it with its bound installation UUID.
 
 ## Send a native event
 
@@ -26,6 +26,13 @@ curl --fail-with-body https://usagemax.com/api/v1/telemetry/llm \
 ```
 
 Use the actual event time in ISO 8601 or Unix milliseconds. Reuse the same event key and payload when retrying a request. Changes to the payload under the same key can produce a conflict.
+
+## Set up agent and outcome tracking
+
+Open [Workspace Activity](https://usagemax.com/workspace?tab=activity) to see the agents and outcomes reported by your collectors. Local history sync populates usage reports. Add the following fields to native events to populate Activity.
+
+- For **Agents**, add a stable `agentId` to your model request events. Optionally include `agentName` and `parentAgentId` to identify agents and their parents.
+- For **Outcomes**, send a separate event with `eventType: "outcome"`, a unique `eventKey`, the original `logicalRequestId`, and a `state` of `accepted`, `rejected`, `abandoned`, or `retried`. Supply the same required `model` and `occurredAt` fields as above.
 
 ## OpenTelemetry
 

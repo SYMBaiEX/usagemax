@@ -37,6 +37,9 @@ const fixture = vi.hoisted(() => ({
     capabilities: {
       "finance:read": true,
       "finance:manage": true,
+      "billing:read": true,
+      "billing:manage": true,
+      "data:export": true,
       "members:manage": true,
       "teams:manage": true,
       "workspace:manage": true,
@@ -73,7 +76,7 @@ const fixture = vi.hoisted(() => ({
   },
 }));
 vi.mock("next/link", () => ({
-  default: (props: AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props} />,
+  default: ({ children, href, className, "aria-current": current }: AnchorHTMLAttributes<HTMLAnchorElement>) => <a href={href} className={className} aria-current={current}>{children}</a>,
 }));
 vi.mock("./workspace.module.css", () => ({
   default: new Proxy({}, { get: (_, key) => String(key) }),
@@ -248,7 +251,7 @@ describe("workspace product surfaces", () => {
     expect(html).toContain("Usage reports");
     expect(html).toContain('aria-current="page"');
     expect(html).toContain("Personal workspace");
-    expect(html).not.toContain(">Connections</button>");
+    expect(html).not.toContain("tab=connections");
     expect(html).not.toContain("credential");
   });
   test("enterprise exposes its connections tab and form labels", () => {
@@ -262,9 +265,20 @@ describe("workspace product surfaces", () => {
         <Teams overview={overview} />
       </>,
     );
-    expect(html).toContain(">Connections</button>");
+    expect(html).toContain("tab=connections");
     expect(html).toContain('aria-label="Workspace sections"');
     expect(html).toContain('scope="col"');
+  });
+  test("opens linked usage and billing sections with actions for authorized roles", () => {
+    const usage = renderToStaticMarkup(<Workspace tab="Usage" />);
+    expect(usage).toMatch(/href="\/workspace\?tab=usage"[^>]*aria-current="page"/);
+    expect(usage).toContain('dataset=daily&amp;from=2020-01-01&amp;through=');
+    expect(usage).toContain("Export filtered history");
+
+    const billing = renderToStaticMarkup(<Workspace tab="Billing" billingStatus="success" />);
+    expect(billing).toMatch(/href="\/workspace\?tab=billing"[^>]*aria-current="page"/);
+    expect(billing).toContain("Your plan will update after payment is confirmed.");
+    expect(billing).not.toContain("Start Team plan");
   });
   test("team management opens the active team and explains empty membership states", () => {
     const overview = fixture.overview as unknown as Parameters<

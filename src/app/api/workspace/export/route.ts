@@ -1,7 +1,7 @@
 import { withAuth } from "@workos-inc/authkit-nextjs";
 import { fetchMutation, fetchQuery } from "convex/nextjs";
 import { api } from "../../../../../convex/_generated/api";
-import type { FunctionReturnType } from "convex/server";
+import type { FunctionArgs, FunctionReturnType } from "convex/server";
 import { apiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
@@ -11,9 +11,22 @@ export async function GET(request: Request) {
   const { user, accessToken } = await withAuth();
   if (!user || !accessToken)
     return apiError("unauthorized", 401, { hint: "Sign in to UsageMax before requesting a workspace export." });
-  const dataset = new URL(request.url).searchParams.get("dataset") as Dataset;
+  const search = new URL(request.url).searchParams;
+  const dataset = search.get("dataset") as Dataset;
   if (!["daily", "models", "ledger", "audit", "telemetry", "agents", "outcomes"].includes(dataset))
     return apiError("invalid_dataset", 400);
+  const from = search.get("from");
+  const through = search.get("through");
+  const model = search.get("model");
+  const source = search.get("source");
+  let dailyFilters: FunctionArgs<typeof api.personal.exportPage>["dailyFilters"];
+  if (dataset === "daily" && (from !== null || through !== null || model !== null || source !== null)) {
+    if (!from || !through || !/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(through)
+      || from > through || (model?.length ?? 0) > 200 || (source?.length ?? 0) > 200) {
+      return apiError("invalid_daily_filters", 400);
+    }
+    dailyFilters = { startDay: from, endDay: through, model: model || undefined, source: source || undefined };
+  }
   const options = { token: accessToken };
   type Page = FunctionReturnType<typeof api.personal.exportPage>;
   let first: Page;
@@ -28,6 +41,7 @@ export async function GET(request: Request) {
       api.personal.exportPage,
       {
         dataset,
+        dailyFilters,
         expectedWorkspaceId,
         paginationOpts: { numItems: 250, cursor: null },
       },
@@ -54,6 +68,7 @@ export async function GET(request: Request) {
             api.personal.exportPage,
             {
               dataset,
+              dailyFilters,
               expectedWorkspaceId,
               paginationOpts: { numItems: 250, cursor },
             },

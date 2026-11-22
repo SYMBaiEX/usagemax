@@ -41,7 +41,9 @@
   border-radius: calc(var(--radius-control, 8px) + 5px);
   box-shadow: var(--shadow-inset);
 }
-.tabs button {
+.tabs a {
+  display: inline-flex;
+  align-items: center;
   border: 0;
   padding: 9px 14px;
   border-radius: var(--radius-control, 8px);
@@ -52,11 +54,11 @@
   min-height: 40px;
   transition: background .18s, color .18s, box-shadow .18s;
 }
-.tabs button:not([aria-current="page"]):hover {
+.tabs a:not([aria-current="page"]):hover {
   color: var(--ink);
   background: var(--surface-hover, var(--paper-raised));
 }
-.tabs button[aria-current="page"] {
+.tabs a[aria-current="page"] {
   background: var(--button-bg, #253e32);
   color: var(--button-text, #fff);
   box-shadow: var(--shadow-control);
@@ -281,7 +283,7 @@
   font-size: 11px;
   color: var(--orange-dark);
 }
-:global([data-theme="dark"]) .tabs button[aria-current="page"] {
+:global([data-theme="dark"]) .tabs a[aria-current="page"] {
   background: var(--accent-soft, #38251e);
   color: var(--orange-dark);
   box-shadow: var(--shadow-control), inset 0 -2px 0 var(--orange);
@@ -367,7 +369,7 @@
 .navigationBlock { margin: 22px 0 26px; }
 .navigationLabel { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding-inline: 2px; }
 .tabs { width: 100%; margin: 0; padding: 4px; overflow-x: auto; flex-wrap: nowrap; border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-inset); scrollbar-width: thin; }
-.tabs button { flex: 0 0 auto; min-height: 38px; padding-inline: 13px; }
+.tabs a { flex: 0 0 auto; min-height: 38px; padding-inline: 13px; }
 .body { gap: 18px; animation: workspace-enter .34s ease both; }
 .panel { position: relative; padding: 24px; border: 1px solid color-mix(in srgb, var(--line) 82%, transparent); border-radius: 18px; }
 .panel::before { content: ""; position: absolute; inset: 0 20% auto 20%; height: 1px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--orange) 34%, transparent), transparent); opacity: .7; }

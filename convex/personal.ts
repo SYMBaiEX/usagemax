@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type QueryCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import {
   requireWorkspaceMembership,
   requireWorkspaceAccess,
@@ -65,69 +66,78 @@ export const savePreferences = mutation({
   },
 });
 
-export const usage = query({
-  args: {
-    startDay: v.string(),
-    endDay: v.string(),
-    model: v.optional(v.string()),
-    source: v.optional(v.string()),
-    paginationOpts: paginationOptsValidator,
-  },
-  handler: async (ctx, args) => {
-    const { profile } = await requireWorkspaceAccess(ctx, "finance:read");
-    if (
-      args.startDay > args.endDay ||
-      !/^\d{4}-\d{2}-\d{2}$/.test(args.startDay) ||
-      !/^\d{4}-\d{2}-\d{2}$/.test(args.endDay)
-    )
-      throw new ConvexError("INVALID_RANGE");
-    if (args.model && args.source)
-      return await ctx.db
-        .query("dailyUsage")
-        .withIndex("by_profileId_and_source_and_model_and_day", (q) =>
-          q
-            .eq("profileId", profile._id)
-            .eq("source", args.source!)
-            .eq("model", args.model!)
-            .gte("day", args.startDay)
-            .lte("day", args.endDay),
-        )
-        .order("desc")
-        .paginate(args.paginationOpts);
-    if (args.model)
-      return await ctx.db
-        .query("dailyUsage")
-        .withIndex("by_profileId_and_model_and_day", (q) =>
-          q
-            .eq("profileId", profile._id)
-            .eq("model", args.model!)
-            .gte("day", args.startDay)
-            .lte("day", args.endDay),
-        )
-        .order("desc")
-        .paginate(args.paginationOpts);
-    if (args.source)
-      return await ctx.db
-        .query("dailyUsage")
-        .withIndex("by_profileId_and_source_and_day", (q) =>
-          q
-            .eq("profileId", profile._id)
-            .eq("source", args.source!)
-            .gte("day", args.startDay)
-            .lte("day", args.endDay),
-        )
-        .order("desc")
-        .paginate(args.paginationOpts);
+const dailyUsageFilters = v.object({
+  startDay: v.string(),
+  endDay: v.string(),
+  model: v.optional(v.string()),
+  source: v.optional(v.string()),
+});
+
+async function dailyUsagePage(
+  ctx: QueryCtx,
+  profileId: Id<"profiles">,
+  args: typeof dailyUsageFilters.type & { paginationOpts: typeof paginationOptsValidator.type },
+) {
+  if (
+    args.startDay > args.endDay ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(args.startDay) ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(args.endDay)
+  )
+    throw new ConvexError("INVALID_RANGE");
+  if (args.model && args.source)
     return await ctx.db
       .query("dailyUsage")
-      .withIndex("by_profileId_and_day", (q) =>
+      .withIndex("by_profileId_and_source_and_model_and_day", (q) =>
         q
-          .eq("profileId", profile._id)
+          .eq("profileId", profileId)
+          .eq("source", args.source!)
+          .eq("model", args.model!)
           .gte("day", args.startDay)
           .lte("day", args.endDay),
       )
       .order("desc")
       .paginate(args.paginationOpts);
+  if (args.model)
+    return await ctx.db
+      .query("dailyUsage")
+      .withIndex("by_profileId_and_model_and_day", (q) =>
+        q
+          .eq("profileId", profileId)
+          .eq("model", args.model!)
+          .gte("day", args.startDay)
+          .lte("day", args.endDay),
+      )
+      .order("desc")
+      .paginate(args.paginationOpts);
+  if (args.source)
+    return await ctx.db
+      .query("dailyUsage")
+      .withIndex("by_profileId_and_source_and_day", (q) =>
+        q
+          .eq("profileId", profileId)
+          .eq("source", args.source!)
+          .gte("day", args.startDay)
+          .lte("day", args.endDay),
+      )
+      .order("desc")
+      .paginate(args.paginationOpts);
+  return await ctx.db
+    .query("dailyUsage")
+    .withIndex("by_profileId_and_day", (q) =>
+      q
+        .eq("profileId", profileId)
+        .gte("day", args.startDay)
+        .lte("day", args.endDay),
+    )
+    .order("desc")
+    .paginate(args.paginationOpts);
+}
+
+export const usage = query({
+  args: { ...dailyUsageFilters.fields, paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const { profile } = await requireWorkspaceAccess(ctx, "finance:read");
+    return dailyUsagePage(ctx, profile._id, args);
   },
 });
 
@@ -277,6 +287,7 @@ export const beginExport = mutation({
 export const exportPage = query({
   args: {
     expectedWorkspaceId: v.optional(v.id("workspaces")),
+    dailyFilters: v.optional(dailyUsageFilters),
     dataset: v.union(
       v.literal("daily"),
       v.literal("models"),
@@ -423,6 +434,8 @@ export const exportPage = query({
         })),
       };
     }
+    if (args.dailyFilters)
+      return dailyUsagePage(ctx, profile._id, { ...args.dailyFilters, paginationOpts: args.paginationOpts });
     return await ctx.db
       .query("dailyUsage")
       .withIndex("by_profileId_and_day", (q) => q.eq("profileId", profile._id))

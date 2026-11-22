@@ -58,7 +58,7 @@ export function MobileAuthLink() {
   const { user, loading } = useAuth();
   if (loading) return null;
   return user ? (
-    <Link href="/workspace">Account <ArrowUpRight size={14} /></Link>
+    <Link href="/workspace">Workspace <ArrowUpRight size={14} /></Link>
   ) : (
     <AuthNavigation href="/sign-in">Sign in <GitHubMark size={14} /></AuthNavigation>
   );

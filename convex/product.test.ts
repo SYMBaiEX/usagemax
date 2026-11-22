@@ -485,6 +485,34 @@ describe("free personal and enterprise controls", () => {
     }
     expect(count).toBe(550);
   });
+  test("filtered daily export uses the same indexed rows as usage history", async () => {
+    const session = await owner();
+    const { workspace } = await session.query(api.workspaces.overview, {});
+    await t.run(async (ctx) => {
+      const profile = await (await ctx.db.query("profiles").collect()).find((row) => row.workspaceId === workspace.id);
+      if (!profile) throw new Error("profile missing");
+      const row = {
+        workspaceId: workspace.id, profileId: profile._id, day: "2025-11-22",
+        model: "gpt-5", provider: "openai", source: "codex", inputTokens: 1,
+        outputTokens: 2, cacheReadTokens: 0, reasoningTokens: 0, totalTokens: 3,
+        costMicros: 9, sessions: 1, requests: 1, errors: 0, updatedAt: Date.now(),
+      };
+      await ctx.db.insert("dailyUsage", row);
+      await ctx.db.insert("dailyUsage", { ...row, day: "2025-11-20" });
+      await ctx.db.insert("dailyUsage", { ...row, model: "claude-sonnet-4-5" });
+      await ctx.db.insert("dailyUsage", { ...row, source: "ci" });
+    });
+    const dailyFilters = { startDay: "2025-11-21", endDay: "2025-11-23", model: "gpt-5", source: "codex" };
+    const usage = await session.query(api.personal.usage, { ...dailyFilters, paginationOpts: page });
+    const exported = await session.query(api.personal.exportPage, {
+      dataset: "daily", dailyFilters, paginationOpts: page, expectedWorkspaceId: workspace.id,
+    });
+    const legacy = await session.query(api.personal.exportPage, { dataset: "daily", paginationOpts: page });
+    expect(usage.page).toHaveLength(1);
+    expect(exported.page).toEqual(usage.page);
+    expect(legacy.page).toHaveLength(4);
+  });
+
   test("paged detail exports include retained events without internal tenancy fields", async () => {
     const session = await owner("detail-export");
     await t.run(async (ctx) => {
