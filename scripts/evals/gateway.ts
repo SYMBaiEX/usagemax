@@ -64,7 +64,7 @@ type Baseline = z.infer<typeof baselineSchema>;
 type Route = z.infer<typeof route>;
 type EvalCase = z.infer<typeof evalCase>;
 type Mode = z.infer<typeof mode>;
-const evaluator = "deterministic-v1";
+export const gatewayEvaluator = "deterministic-v1";
 
 function passes(assertion: EvalCase["assertion"], output: string) {
   if (assertion.type === "text") return output.trim() === assertion.expected;
@@ -97,7 +97,7 @@ export function evaluate(dataset: Dataset, inputs: Observation[], mode: Mode) {
       results,
     };
   });
-  return { mode, dataset: dataset.id, datasetVersion: dataset.version, evaluator, routes };
+  return { mode, dataset: dataset.id, datasetVersion: dataset.version, evaluator: gatewayEvaluator, routes };
 }
 
 export function compareBaseline(report: ReturnType<typeof evaluate>, baseline: Baseline) {
