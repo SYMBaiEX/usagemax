@@ -51,6 +51,7 @@ the versioned UsageMax API.
 | **Public profile** | Opt-in profile, leaderboard, activity, model mix, cost estimate, and streaks. |
 | **Collector API** | Installation-bound, write-only snapshots and content-free telemetry. |
 | **`usagemax` CLI** | A `bunx`-friendly scanner with archive recovery, safe diagnostics, and optional OS scheduling. |
+| **Python SDK** | [Install from PyPI](https://pypi.org/project/usagemax/) to read public usage, send telemetry, and work with gateway receipts. |
 | **Agent interfaces** | Bounded OpenAPI, MCP, Markdown, WebMCP, A2A, and installable skill surfaces. |
 
 The physical HUD/screen project is intentionally separate from this repository.
