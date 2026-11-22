@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "usagemax"
+version = "0.1.0"
+description = "Python client for UsageMax telemetry, gateway receipts, and usage reports"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Topic :: Software Development :: Libraries",
+  "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://usagemax.com"
+Documentation = "https://docs.usagemax.com"
+"API Reference" = "https://usagemax.com/openapi.json"
+Source = "https://github.com/SYMBaiEX/usagemax/tree/main/packages/python"
+Issues = "https://github.com/SYMBaiEX/usagemax/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/usagemax"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/tests", "/README.md", "/LICENSE", "/pyproject.toml"]
