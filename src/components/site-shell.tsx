@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connectComputerHref } from "@/lib/product-navigation";
 
 import { HeaderAuthControls } from "./auth-controls";
 import { ArrowUpRight } from "./icons";
@@ -26,7 +27,7 @@ export function SiteHeader() {
           <ThemeControls />
           <div className="header-actions">
             <HeaderAuthControls />
-            <Link className="header-cta" href="/docs">
+            <Link className="header-cta" href={connectComputerHref}>
               Connect data <ArrowUpRight size={15} />
             </Link>
           </div>

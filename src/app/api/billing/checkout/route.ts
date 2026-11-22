@@ -3,39 +3,44 @@ import { fetchMutation, fetchQuery } from "convex/nextjs";
 import { createHmac } from "node:crypto";
 import { NextResponse } from "next/server";
 import { api } from "../../../../../convex/_generated/api";
+import { billingFailure, billingWorkspaceHref } from "@/lib/billing-navigation";
 import { appOrigin, stripeClient, stripePriceId } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  const origin = appOrigin(request);
+  const fail = (code: string, status: number) => billingFailure(request, origin, code, status);
   const { user, accessToken } = await withAuth();
   if (!user || !accessToken)
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    return fail("unauthorized", 401);
   const plan = new URL(request.url).searchParams.get("plan") ?? "team";
   if (plan !== "team")
-    return NextResponse.json({ error: "unsupported_plan" }, { status: 400 });
+    return fail("unsupported_plan", 400);
   try {
     const options = { token: accessToken };
     const overview = await fetchQuery(api.workspaces.overview, {}, options);
+    if (!overview.capabilities["billing:manage"]) return fail("billing_access_required", 403);
     const existing = await fetchQuery(api.billing.get, {}, options);
     if (
       existing?.stripeSubscriptionId
       && existing.status !== "inactive"
       && existing.status !== "canceled"
     )
-      return NextResponse.json({ error: "billing_already_started" }, { status: 409 });
+      return fail("billing_already_started", 409);
     const stripe = stripeClient();
+    const price = stripePriceId("team");
     let customerId = existing?.stripeCustomerId ?? undefined;
     if (!customerId) {
+      const billingSecret = process.env.BILLING_INTERNAL_SECRET;
+      if (!billingSecret) throw new Error("billing_proof_not_configured");
       const customer = await stripe.customers.create({
         email: user.email ?? undefined,
         name: [user.firstName, user.lastName].filter(Boolean).join(" ") || undefined,
         metadata: { workspaceId: String(overview.workspace.id), product: "usagemax" },
       }, { idempotencyKey: `usagemax-customer-${overview.workspace.id}` });
       customerId = customer.id;
-      const billingSecret = process.env.BILLING_INTERNAL_SECRET;
-      if (!billingSecret) throw new Error("billing_proof_not_configured");
       const issuedAt = Date.now();
       const proof = createHmac("sha256", billingSecret)
         .update(`${overview.workspace.id}:${customerId}:${issuedAt}`)
@@ -46,16 +51,15 @@ export async function POST(request: Request) {
         options,
       );
     }
-    const origin = appOrigin(request);
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
       client_reference_id: String(overview.workspace.id),
-      line_items: [{ price: stripePriceId("team"), quantity: 1 }],
+      line_items: [{ price, quantity: 1 }],
       allow_promotion_codes: true,
       billing_address_collection: "auto",
-      success_url: `${origin}/workspace?billing=success`,
-      cancel_url: `${origin}/pricing?billing=cancelled`,
+      success_url: `${origin}${billingWorkspaceHref}&billing=success`,
+      cancel_url: `${origin}${billingWorkspaceHref}&billing=cancelled`,
       metadata: {
         workspaceId: String(overview.workspace.id),
         tier: "team",
@@ -67,7 +71,7 @@ export async function POST(request: Request) {
         },
       },
     });
-    if (!session.url) return NextResponse.json({ error: "checkout_unavailable" }, { status: 503 });
+    if (!session.url) return fail("checkout_unavailable", 503);
     return NextResponse.redirect(session.url, 303);
   } catch (error) {
     const code = String(error).includes("stripe_price_not_configured")
@@ -77,6 +81,6 @@ export async function POST(request: Request) {
         : String(error).includes("billing_proof_not_configured")
           ? "billing_not_configured"
         : "checkout_failed";
-    return NextResponse.json({ error: code }, { status: code === "checkout_failed" ? 502 : 503 });
+    return fail(code, code === "checkout_failed" ? 502 : 503);
   }
 }

@@ -64,7 +64,7 @@ describe("account deletion billing hold", () => {
     const html = renderToStaticMarkup(<AccountView />);
     expect(html).toContain("Deletion is paused until billing is resolved.");
     expect(html).toContain("UsageMax will not cancel the subscription for you.");
-    expect(html).toContain('action="/api/billing/portal"');
+    expect(html).toContain('action="/api/billing/portal?flow=account"');
     expect(html).toContain(">Manage billing</button>");
     expect(html).toContain("Cancel deletion and restore collectors");
     expect(html).not.toContain("Hard deletion is scheduled");
@@ -75,7 +75,7 @@ describe("account deletion billing hold", () => {
     const html = renderToStaticMarkup(<AccountView />);
     expect(html).toContain("Billing is canceled or inactive.");
     expect(html).toContain("Account deletion is still in progress");
-    expect(html).not.toContain('action="/api/billing/portal"');
+    expect(html).not.toContain('action="/api/billing/portal?flow=account"');
     fixture.account.deletionRequest.waitingForBillingCancellation = true;
     fixture.account.deletionRequest.billingCancellationConfirmed = false;
   });

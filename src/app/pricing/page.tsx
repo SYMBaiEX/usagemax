@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { connectComputerHref, workspaceHref } from "@/lib/product-navigation";
 
 import { ArrowRight, ArrowUpRight, Check, ShieldCheck } from "@/components/icons";
 import { PageIntro, TextLink } from "@/components/site-shell";
@@ -16,8 +17,8 @@ const plans = [
     title: "Free for builders",
     description: "Keep a complete, private record of your AI work across the computers and models you use.",
     items: ["Linked computers and supported local histories", "One-shot sync and bounded exports", "Optional public profile and leaderboard", "Native telemetry and OTLP/HTTP JSON"],
-    action: "Read the docs",
-    href: "/docs",
+    action: "Connect your first computer",
+    href: connectComputerHref,
     tone: "detail-card-orange",
   },
   {
@@ -25,8 +26,8 @@ const plans = [
     title: "Free for small teams",
     description: "Give a small group one private view of usage, ownership, projects, and cost context.",
     items: ["Invitations, roles, and private workspaces", "Shared provider and model reporting", "Project and cost-center dimensions", "No card required"],
-    action: "Open a workspace",
-    href: "/workspace",
+    action: "Set up a team workspace",
+    href: workspaceHref("Teams"),
   },
   {
     eyebrow: "03 / TEAM OPERATIONS",
@@ -34,7 +35,7 @@ const plans = [
     description: "A flat workspace subscription for governance, billing, and team operations. No token-count meter and no per-seat surprise.",
     items: ["Stripe Checkout and customer portal", "100 members / 250 devices", "200 projects / 50 budgets", "90-day detailed retention"],
     action: "Open workspace billing",
-    href: "/workspace",
+    href: workspaceHref("Billing"),
     tone: "detail-card-orange",
   },
   {
@@ -51,7 +52,7 @@ export default function PricingPage() {
   return (
     <div className="page-surface content-page pricing-page">
       <PageIntro title={<>A useful record.<br /><span className="text-accent">A fair starting point.</span></>}>
-        <Link className="button button-acid" href="/workspace">Start free <ArrowRight size={16} /></Link>
+        <Link className="button button-acid" href={connectComputerHref}>Start free <ArrowRight size={16} /></Link>
         <Link className="button button-outline" href="/enterprise">For teams <ArrowUpRight size={16} /></Link>
       </PageIntro>
 

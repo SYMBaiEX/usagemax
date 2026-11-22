@@ -4,6 +4,7 @@ import { getFunctionName } from "convex/server";
 import type { ReactNode, AnchorHTMLAttributes } from "react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
+import { aggregateGateway } from "../../convex/gatewayMetrics";
 import { GatewayWorkspace } from "./gateway-workspace";
 
 const fixture = vi.hoisted(() => ({
@@ -13,11 +14,12 @@ const fixture = vi.hoisted(() => ({
   receipt: {
     requestId: "request:123",
     revision: 1,
+    schemaVersion: 1 as const,
     model: "example",
     provider: "provider",
     status: "ok",
     settledAt: Date.UTC(2026, 10, 21),
-    currency: "USD",
+    currency: "USD" as const,
     customerChargeNanos: 1,
     providerCostNanos: 0,
     providerCostBasis: "provider_reported",
@@ -55,7 +57,11 @@ vi.mock("convex/react", () => ({
       case "gatewayCredentials:project": return fixture.linkedProject;
       case "gatewayReceipts:list": return { receipts: [fixture.receipt], truncated: true };
       case "gatewayReceipts:get": return fixture.receipt;
-      case "gatewayOperations:workspaceReport": return undefined;
+      case "gatewayOperations:workspaceReport": return {
+        limit: 2000,
+        ...aggregateGateway([{ ...fixture.receipt, status: "ok", providerCostBasis: "provider_reported" }]),
+        alerts: { items: [], evaluatedAt: null, truncated: false },
+      };
       case "gatewayCredentials:list": return { credentials: [], truncated: false };
       default: throw new Error(`Unexpected query ${name}`);
     }
@@ -88,6 +94,10 @@ describe("private gateway workspace", () => {
       args: { projectId: "project1", requestId: "request:123" },
     });
     expect(view).toContain("Showing the latest 50 receipts");
+    expect(view).toContain("Apply dates");
+    expect(view).toContain("Provider breakdown");
+    expect(view).toContain("Model breakdown");
+    expect(view).toContain("Operational alerts");
     expect(view).toContain("<dt>Input</dt><dd>0</dd>");
     expect(view).toContain("<dt>Cache read</dt><dd>Unreported</dd>");
     expect(view).toContain("<dt>Customer charge (USD)</dt><dd>$0.000000001</dd>");

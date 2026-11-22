@@ -4,7 +4,8 @@
 /* eslint-disable @next/next/no-html-link-for-pages */
 
 import Link from "next/link";
-import { createContext, useContext, useEffect, useState } from "react";
+import { accountOnboardingHref, connectComputerHref, connectTelemetryHref, gatewayHref, signInHref, workspaceHref, type WorkspaceTab } from "@/lib/product-navigation";
+import { createContext, useContext, useDeferredValue, useEffect, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import {
   Authenticated,
@@ -165,14 +166,20 @@ function Panel({
   children,
   action,
   eyebrow,
+  id,
 }: {
   title: string;
+  id?: string;
   children: ReactNode;
   action?: ReactNode;
   eyebrow?: string;
 }) {
+  const section = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (id && window.location.hash === `#${id}`) section.current?.scrollIntoView();
+  }, [id]);
   return (
-    <section className={styles.panel}>
+    <section className={styles.panel} id={id} ref={section}>
       <div className={styles.sectionHeader}>
         <div className={styles.panelTitle}>
           {eyebrow && <span className={styles.panelEyebrow}>{eyebrow}</span>}
@@ -244,24 +251,26 @@ function Table({
   );
 }
 
-export function WorkspaceView() {
+type WorkspaceSelection = { tab?: WorkspaceTab; billingStatus?: string };
+
+export function WorkspaceView({ tab = "Overview", billingStatus }: WorkspaceSelection) {
   return (
     <div className={`shell ${styles.workspace}`}>
       <AuthLoading>
         <LoadingState label="Opening your workspace…" />
       </AuthLoading>
       <Unauthenticated>
-        <AuthNavigation href="/sign-in" className="button button-primary">
+        <AuthNavigation href={signInHref(workspaceHref(tab))} className="button button-primary">
           Sign in
         </AuthNavigation>
       </Unauthenticated>
       <Authenticated>
-        <WorkspaceGate />
+        <WorkspaceGate tab={tab} billingStatus={billingStatus} />
       </Authenticated>
     </div>
   );
 }
-function WorkspaceGate() {
+function WorkspaceGate({ tab = "Overview", billingStatus }: WorkspaceSelection) {
   const account = useQuery(api.account.current, {});
   const bootstrap = useMutation(api.workspaces.bootstrap);
   const [error, setError] = useState("");
@@ -274,7 +283,7 @@ function WorkspaceGate() {
         {error} <Link href="/account">Account settings</Link>
       </div>
     );
-  if (!account)
+  if (account === undefined)
     return (
       <div className={styles.loadingShell} role="status">
         <span />
@@ -282,6 +291,8 @@ function WorkspaceGate() {
         <span />
       </div>
     );
+  if (account === null)
+    return <p role="alert">Workspace access could not be confirmed. <Link href={accountOnboardingHref(workspaceHref(tab))}>Open your account</Link></p>;
   if (!account.profile)
     return (
       <Panel title="Your private workspace">
@@ -289,21 +300,20 @@ function WorkspaceGate() {
           Choose a profile handle to start. Your history and devices remain
           free.
         </p>
-        <Link className="button button-primary" href="/account">
+        <Link className="button button-primary" href={accountOnboardingHref(workspaceHref(tab))}>
           Set up your account
         </Link>
       </Panel>
     );
-  return <Workspace />;
+  return <Workspace tab={tab} billingStatus={billingStatus} />;
 }
-export function Workspace() {
+export function Workspace({ tab = "Overview", billingStatus }: WorkspaceSelection) {
   const preferences = useQuery(api.personal.preferences, {});
   const overview = useQuery(api.workspaces.overview, {});
   const workspaces = useQuery(api.workspaces.list, {});
   const create = useAction(api.organizationActions.create);
   const selectPersonal = useMutation(api.workspaces.selectPersonal);
   const { switchToOrganization } = useAuth();
-  const [tab, setTab] = useState("Overview");
   const [message, setMessage] = useState("");
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -346,7 +356,7 @@ export function Workspace() {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join("") || "U";
-  const tabs = [
+  const tabs: WorkspaceTab[] = [
     "Overview",
     cap["finance:read"] && "Usage",
     cap["finance:read"] && "Activity",
@@ -357,8 +367,8 @@ export function Workspace() {
     overview.policy.enterprise && cap["integrations:manage"] && "Connections",
     cap["billing:read"] && "Billing",
     "Settings",
-  ].filter(Boolean) as string[];
-  const selected = tabs.includes(tab) ? tab : tabs[0];
+  ].filter((item): item is WorkspaceTab => Boolean(item));
+  const selected = tabs.includes(tab) ? tab : "Overview";
   return (
     <Timezone.Provider value={preferences?.timezone ?? "UTC"}>
       <Operations.Provider value={{ run, busy }}>
@@ -391,7 +401,7 @@ export function Workspace() {
                         await selectPersonal({ personal: id === "personal" });
                         if (id !== "personal")
                           await switchToOrganization(id, {
-                            returnTo: "/workspace",
+                            returnTo: workspaceHref(selected),
                           });
                       }, "Workspace switched.");
                   }}
@@ -442,7 +452,7 @@ export function Workspace() {
                 });
                 await selectPersonal({ personal: false });
                 await switchToOrganization(result.organizationId, {
-                  returnTo: "/workspace",
+                  returnTo: workspaceHref("Teams"),
                 });
               }}
             >
@@ -459,19 +469,24 @@ export function Workspace() {
           </div>
           <nav className={styles.tabs} aria-label="Workspace sections">
             {tabs.map((item) => (
-              <button
+              <Link
                 key={item}
-                onClick={() => {
-                  setTab(item);
-                  setMessage("");
-                }}
+                href={workspaceHref(item)}
+                scroll={false}
+                onClick={() => setMessage("")}
                 aria-current={selected === item ? "page" : undefined}
               >
                 {item}
-              </button>
+              </Link>
             ))}
           </nav>
         </div>
+        {tab !== selected && (
+          <p className={styles.notice} role="status">
+            {tab} is unavailable for your current workspace plan or role.
+            {tab === "Connections" && <> <Link href="/enterprise">Explore enterprise connections</Link>.</>}
+          </p>
+        )}
         {message && (
           <p
             className={styles.notice}
@@ -485,9 +500,9 @@ export function Workspace() {
           className={styles.body}
           key={`${overview.workspace.id}:${selected}`}
         >
-          {selected === "Usage" && <Usage />}
+          {selected === "Usage" && <Usage canExport={cap["data:export"]} />}
           {selected === "Overview" && (
-            <WorkspaceOverview overview={overview} onNavigate={setTab} />
+            <WorkspaceOverview overview={overview} />
           )}
           {selected === "Activity" && <Activity />}
           {selected === "Teams" && <Teams overview={overview} />}
@@ -499,7 +514,7 @@ export function Workspace() {
             <Savings editable={cap["finance:manage"]} />
           )}
           {selected === "Connections" && <Connections />}
-          {selected === "Billing" && <Billing overview={overview} />}
+          {selected === "Billing" && <Billing overview={overview} status={billingStatus} />}
           {selected === "Settings" && <Settings overview={overview} />}
         </div>
       </Operations.Provider>
@@ -507,13 +522,7 @@ export function Workspace() {
   );
 }
 
-function WorkspaceOverview({
-  overview,
-  onNavigate,
-}: {
-  overview: Overview;
-  onNavigate: (tab: string) => void;
-}) {
+function WorkspaceOverview({ overview }: { overview: Overview }) {
   const canReadUsage = overview.capabilities["finance:read"];
   const summary = useQuery(
     api.personal.summary,
@@ -566,6 +575,15 @@ function WorkspaceOverview({
           </div>
         </div>
       )}
+      {summary && !summary.stats?.totalTokens && (
+        <Panel title="Bring in your first usage">
+          <div className={styles.quickActions}>
+            <Link className="button button-primary" href={connectComputerHref}>Link a computer</Link>
+            <Link className="button button-outline" href={connectTelemetryHref}>Connect an integration</Link>
+            <Link className="button button-outline" href="/workspace/gateway">Set up gateway reporting</Link>
+          </div>
+        </Panel>
+      )}
       {canReadUsage && !summary && (
         <LoadingState label="Loading your usage summary…" />
       )}
@@ -593,29 +611,29 @@ function WorkspaceOverview({
         <Panel title="Quick navigation" eyebrow="SHORTCUTS">
           <div className={styles.quickActions}>
             {canReadUsage && (
-              <button className="button button-outline" onClick={() => onNavigate("Usage")}>
+              <Link className="button button-outline" href={workspaceHref("Usage")}>
                 Usage reports
-              </button>
+              </Link>
             )}
-            <button className="button button-outline" onClick={() => onNavigate("Teams")}>
+            <Link className="button button-outline" href={workspaceHref("Teams")}>
               {canReadUsage || overview.capabilities["members:manage"]
                 ? "Teams & projects"
                 : "Your teams"}
-            </button>
+            </Link>
             {overview.capabilities["finance:read"] && (
-              <button className="button button-outline" onClick={() => onNavigate("Ledger")}>
+              <Link className="button button-outline" href={workspaceHref("Ledger")}>
                 Cost ledger
-              </button>
+              </Link>
             )}
             {overview.capabilities["finance:read"] &&
               overview.capabilities["finance:manage"] && (
-              <button className="button button-outline" onClick={() => onNavigate("Budgets")}>
+              <Link className="button button-outline" href={workspaceHref("Budgets")}>
                 Budget controls
-              </button>
+              </Link>
             )}
-            <button className="button button-outline" onClick={() => onNavigate("Settings")}>
+            <Link className="button button-outline" href={workspaceHref("Settings")}>
               Workspace settings
-            </button>
+            </Link>
           </div>
         </Panel>
       </div>
@@ -625,9 +643,9 @@ function WorkspaceOverview({
             title="Recent agents"
             eyebrow="TELEMETRY"
             action={
-              <button className={styles.textButton} onClick={() => onNavigate("Activity")}>
+              <Link className={styles.textButton} href={workspaceHref("Activity")}>
                 View activity
-              </button>
+              </Link>
             }
           >
             {agents.status === "LoadingFirstPage" ? (
@@ -647,8 +665,8 @@ function WorkspaceOverview({
               </div>
             ) : (
               <Empty>
-                No agent telemetry received yet. Historical token imports do not
-                fabricate live agent activity.
+                Connect a telemetry source to see live agent activity.{" "}
+                <a href="https://docs.usagemax.com/telemetry#set-up-agent-and-outcome-tracking">Set up telemetry</a>.
               </Empty>
             )}
           </Panel>
@@ -670,8 +688,8 @@ function WorkspaceOverview({
               </div>
             ) : (
               <Empty>
-                No outcomes were supplied. Token volume alone is not a
-                productivity measurement.
+                Send outcome events to see results here.{" "}
+                <a href="https://docs.usagemax.com/telemetry#set-up-agent-and-outcome-tracking">See outcome events</a>.
               </Empty>
             )}
           </Panel>
@@ -684,12 +702,12 @@ function WorkspaceOverview({
             financial summaries are available to roles with finance read access.
           </p>
           <div className={styles.quickActions}>
-            <button className="button button-outline" onClick={() => onNavigate("Teams")}>
+            <Link className="button button-outline" href={workspaceHref("Teams")}>
               View teams
-            </button>
-            <button className="button button-outline" onClick={() => onNavigate("Settings")}>
+            </Link>
+            <Link className="button button-outline" href={workspaceHref("Settings")}>
               Preferences
-            </button>
+            </Link>
           </div>
         </Panel>
       )}
@@ -697,38 +715,55 @@ function WorkspaceOverview({
   );
 }
 
-function Billing({ overview }: { overview: Overview }) {
+function Billing({ overview, status }: { overview: Overview; status?: string }) {
+  const canManage = overview.capabilities["billing:manage"];
   const billing = overview.billing;
   const active = billing?.status === "active" || billing?.status === "trialing";
+  const checkoutPending = status === "success" && !active;
+  const messages = new Map([
+    ["success", checkoutPending ? "Stripe returned you to UsageMax. Your plan will update after payment is confirmed." : "Your Team plan is active."],
+    ["cancelled", "Checkout was closed. You can start it again from this page."],
+    ["billing_already_started", "A subscription already exists for this workspace. Use Manage billing to review it."],
+    ["billing_access_required", "A workspace owner or billing administrator can manage this subscription."],
+    ["billing_not_started", "There is no billing account for this workspace yet."],
+    ["billing_portal_unavailable", "The billing portal is temporarily unavailable. Try again or contact billing support."],
+    ["billing_not_configured", "Checkout is unavailable. Contact billing support to start a plan."],
+    ["billing_plan_not_configured", "Checkout is unavailable. Contact billing support to start a plan."],
+    ["checkout_unavailable", "Stripe did not return a checkout link. Try again or contact billing support."],
+    ["checkout_failed", "Checkout could not be started. Try again or contact billing support."],
+  ]);
+  const notice = status ? messages.get(status) : undefined;
+  const canStart = !active && !checkoutPending && (!billing || billing.status === "inactive" || billing.status === "canceled");
   const period = billing?.currentPeriodEnd
     ? new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(billing.currentPeriodEnd)
     : null;
   return (
     <Panel title="Plan & billing" eyebrow="ACCOUNT">
+      {notice && <p className={styles.notice} role="status">{notice}</p>}
       <div className={styles.stats}>
         <div>
           <span>Workspace plan</span>
-          <strong>{active ? "Team" : "Free"}</strong>
+          <strong>{overview.policy.enterprise ? "Enterprise" : active ? "Team" : "Free"}</strong>
         </div>
         <div>
           <span>Billing status</span>
           <strong>{billing?.status ?? "Not started"}</strong>
         </div>
         <div>
-          <span>Renewal</span>
+          <span>{billing?.cancelAtPeriodEnd ? "Access ends" : "Renewal"}</span>
           <strong>{period ?? "—"}</strong>
         </div>
       </div>
       <div className={styles.toolbar}>
-        {!active && (
-          <form method="post" action="/api/billing/checkout?plan=team">
+        {canManage && canStart && !overview.policy.enterprise && (
+          <form method="post" action="/api/billing/checkout?plan=team&flow=workspace">
             <button className="button button-primary" type="submit">
               Start Team plan
             </button>
           </form>
         )}
-        {billing?.stripeCustomerId && (
-          <form method="post" action="/api/billing/portal">
+        {canManage && billing?.stripeCustomerId && (
+          <form method="post" action="/api/billing/portal?flow=workspace">
             <button className="button button-outline" type="submit">
               Manage billing
             </button>
@@ -737,19 +772,22 @@ function Billing({ overview }: { overview: Overview }) {
         <Link className="button button-outline" href="/enterprise">
           Enterprise controls
         </Link>
+        <a className="button button-outline" href="mailto:hello@usagemax.com">Billing support</a>
       </div>
     </Panel>
   );
 }
 
-function Usage() {
+function Usage({ canExport }: { canExport: boolean }) {
   const preferences = useQuery(api.personal.preferences, {});
   if (!preferences) return <LoadingState label="Loading preferences…" />;
-  return <UsageHistory defaultRange={preferences.defaultRange} />;
+  return <UsageHistory defaultRange={preferences.defaultRange} canExport={canExport} />;
 }
 function UsageHistory({
   defaultRange,
+  canExport,
 }: {
+  canExport: boolean;
   defaultRange: "7d" | "30d" | "90d" | "all";
 }) {
   const summary = useQuery(api.personal.summary, {});
@@ -766,11 +804,13 @@ function UsageHistory({
           .slice(0, 10),
   );
   const [end, setEnd] = useState(() => new Date().toISOString().slice(0, 10));
-  const [model, setModel] = useState("");
+  const [modelInput, setModel] = useState("");
+  const model = useDeferredValue(modelInput.trim());
   const [source, setSource] = useState("");
+  const validRange = Boolean(start && end && start <= end);
   const rows = usePaginatedQuery(
     api.personal.usage,
-    start && end && start <= end
+    validRange
       ? {
           startDay: start,
           endDay: end,
@@ -785,13 +825,18 @@ function UsageHistory({
   const remove = useMutation(api.personal.removeView);
   const { run } = useContext(Operations);
   const stats = summary?.stats;
+  const exportSearch = new URLSearchParams({ dataset: "daily", from: start, through: end });
+  if (model) exportSearch.set("model", model);
+  if (source) exportSearch.set("source", source);
   return (
     <>
       <Panel
         title="History"
         eyebrow="REPORTING"
         action={
-          <a href="/api/workspace/export?dataset=daily">Export daily history ↗</a>
+          canExport && validRange && model === modelInput.trim()
+            ? <a href={`/api/workspace/export?${exportSearch}`}>Export filtered history ↗</a>
+            : undefined
         }
       >
         <div className={styles.form}>
@@ -811,14 +856,16 @@ function UsageHistory({
             />
           </Field>
           <Field label="Model">
-            <select value={model} onChange={(e) => setModel(e.target.value)}>
-              <option value="">All models</option>
-              {summary?.models.map((m) => (
-                <option key={m._id} value={m.model}>
-                  {m.model}
-                </option>
-              ))}
-            </select>
+            <input
+              list="usage-models"
+              maxLength={200}
+              placeholder="All models or exact model ID"
+              value={modelInput}
+              onChange={(e) => setModel(e.target.value)}
+            />
+            <datalist id="usage-models">
+              {[...new Set(summary?.models.map((row) => row.model))].map((name) => <option key={name} value={name} />)}
+            </datalist>
           </Field>
           <Field label="Source">
             <select value={source} onChange={(e) => setSource(e.target.value)}>
@@ -829,6 +876,9 @@ function UsageHistory({
             </select>
           </Field>
         </div>
+        {summary?.moreModels && <p className={styles.hint}>Search the 100 most-used models or enter any exact model ID.</p>}
+        {!validRange ? <p className={styles.notice} role="alert">Choose a valid start and end date.</p> : (
+        <>
         <Table
           headings={[
             "Date",
@@ -858,12 +908,13 @@ function UsageHistory({
         ) : (
           !rows.results.length && (
             <Empty>
-              No retained usage in this range. Connect a device or choose
-              earlier dates.
+              {stats?.firstDay ? <>No usage matches these filters. Try a wider date range or clear the model and source.</> : <>No usage has arrived yet. <Link href={connectComputerHref}>Link a computer</Link> or <Link href={connectTelemetryHref}>connect a telemetry source</Link>.</>}
             </Empty>
           )
         )}
         <More status={rows.status} load={rows.loadMore} />
+        </>
+        )}
         <p className={styles.hint}>
           Daily buckets remain UTC for consistent accounting. Coverage starts{" "}
           {stats?.firstDay ?? "after your first upload"}.{" "}
@@ -912,7 +963,7 @@ function UsageHistory({
           <Field label="Save these filters as">
             <input name="name" required maxLength={60} />
           </Field>
-          <Button>Save view</Button>
+          <Button disabled={!validRange || model !== modelInput.trim()}>Save view</Button>
         </Form>
       </Panel>
     </>
@@ -970,11 +1021,8 @@ function Activity() {
             </tr>
           ))}
         </Table>
-        {!agents.results.length && (
-          <Empty>
-            No agent telemetry received. Historical token imports do not
-            fabricate live agents.
-          </Empty>
+        {agents.status === "LoadingFirstPage" ? <LoadingState label="Loading agent activity…" /> : !agents.results.length && (
+          <Empty>No agent telemetry received. <a href="https://docs.usagemax.com/telemetry#set-up-agent-and-outcome-tracking">Set up agent tracking</a>.</Empty>
         )}
         <More status={agents.status} load={agents.loadMore} />
       </Panel>
@@ -988,11 +1036,8 @@ function Activity() {
             </tr>
           ))}
         </Table>
-        {!outcomes.results.length && (
-          <Empty>
-            No outcomes supplied. Token volume alone is not a productivity
-            measurement.
-          </Empty>
+        {outcomes.status === "LoadingFirstPage" ? <LoadingState label="Loading outcomes…" /> : !outcomes.results.length && (
+          <Empty>No outcomes received in the last 30 days. <a href="https://docs.usagemax.com/telemetry#set-up-agent-and-outcome-tracking">Send outcome events</a>.</Empty>
         )}
         <More status={outcomes.status} load={outcomes.loadMore} />
       </Panel>
@@ -1101,7 +1146,7 @@ export function Teams({ overview }: { overview: Overview }) {
           )}
         </Panel>
         {(canManage || overview.capabilities["finance:read"]) && (
-          <Panel title="Projects & cost centers" eyebrow="ALLOCATION">
+          <Panel id="projects" title="Projects & cost centers" eyebrow="ALLOCATION">
             {projectRows.status === "LoadingFirstPage" ? (
               <LoadingState label="Loading projects…" />
             ) : !projectRows.results.length ? (
@@ -1132,6 +1177,9 @@ export function Teams({ overview }: { overview: Overview }) {
                       </span>
                     )}
                   </summary>
+                  {!p.archivedAt && (overview.capabilities["finance:read"] || overview.capabilities["collectors:manage"]) && (
+                    <Link className="button button-outline" href={gatewayHref(p._id, null)}>Open gateway report</Link>
+                  )}
                   {canManage && (
                     <Form
                       resetOnSuccess={false}
@@ -1607,7 +1655,7 @@ export function Ledger({ overview }: { overview: Overview }) {
         title="Financial ledger"
         eyebrow="RECONCILIATION"
         action={
-          <a href="/api/workspace/export?dataset=ledger">Export ledger ↗</a>
+          overview.capabilities["data:export"] ? <a href="/api/workspace/export?dataset=ledger">Export full ledger ↗</a> : undefined
         }
       >
         <div className={styles.form}>

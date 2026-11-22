@@ -1,7 +1,7 @@
 import type { AnchorHTMLAttributes } from "react";
 
 type AuthNavigationProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href"> & {
-  href: "/sign-in" | "/sign-up";
+  href: "/sign-in" | "/sign-up" | `/sign-in?${string}`;
 };
 
 /**

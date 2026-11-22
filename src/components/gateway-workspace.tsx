@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { accountOnboardingHref, gatewayHref, signInHref, workspaceHref } from "@/lib/product-navigation";
+import { AuthNavigation } from "./auth-navigation";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Authenticated, AuthLoading, Unauthenticated, useAction, useMutation, usePaginatedQuery, useQuery } from "convex/react";
@@ -14,6 +16,7 @@ import gateway from "./gateway-workspace.module.css";
 
 type GatewayProps = { projectHint: string | null; receiptHint: string | null; today: string };
 type Overview = FunctionReturnType<typeof api.workspaces.overview>;
+type Report = FunctionReturnType<typeof api.gatewayOperations.workspaceReport>;
 type Receipt = FunctionReturnType<typeof api.gatewayReceipts.list>["receipts"][number];
 type Credential = FunctionReturnType<typeof api.gatewayCredentials.list>["credentials"][number];
 type KeyScope = Credential["scope"];
@@ -43,13 +46,14 @@ function utc(value: number | null | undefined) {
   return value == null ? "Unavailable" : `${dateTime.format(value)} UTC`;
 }
 
-function usdNanos(value: number | null) {
+function usdNanos(value: number | string | null) {
   if (value === null) return "Unavailable";
-  const nanos = BigInt(value);
+  const amount = BigInt(value);
+  const nanos = amount < BigInt(0) ? -amount : amount;
   const dollars = nanos / nanosPerDollar;
   const remainder = (nanos % nanosPerDollar).toString().padStart(9, "0");
   const decimal = remainder.replace(/0+$/, "").padEnd(2, "0");
-  return `$${integer.format(dollars)}.${decimal}`;
+  return `${amount < BigInt(0) ? "−" : ""}$${integer.format(dollars)}.${decimal}`;
 }
 
 function scopeLabel(scope: KeyScope) {
@@ -69,7 +73,7 @@ export function GatewayWorkspace(props: GatewayProps) {
       </header>
       <AuthLoading><p role="status">Opening your workspace…</p></AuthLoading>
       <Unauthenticated>
-        <Link className="button button-primary" href="/sign-in?returnTo=%2Fworkspace%2Fgateway">Sign in</Link>
+        <AuthNavigation className="button button-primary" href={signInHref(gatewayHref(props.projectHint, props.receiptHint))}>Sign in</AuthNavigation>
       </Unauthenticated>
       <Authenticated><GatewayAccess {...props} /></Authenticated>
     </div>
@@ -80,7 +84,7 @@ function GatewayAccess(props: GatewayProps) {
   const account = useQuery(api.account.current, {});
   const overview = useQuery(api.workspaces.overview, account?.profile ? {} : "skip");
 
-  if (account === undefined || (account?.profile && !overview)) {
+  if (account === undefined || (account?.profile && overview === undefined)) {
     return <p role="status">Checking workspace access…</p>;
   }
   if (!account?.profile || !overview) {
@@ -88,7 +92,7 @@ function GatewayAccess(props: GatewayProps) {
       <section className={styles.panel}>
         <h2>Set up your workspace</h2>
         <p className={styles.hint}>Create a workspace profile before connecting a gateway.</p>
-        <Link className="button button-primary" href="/account">Set up your account</Link>
+        <Link className="button button-primary" href={accountOnboardingHref(gatewayHref(props.projectHint, props.receiptHint))}>Set up your account</Link>
       </section>
     );
   }
@@ -136,11 +140,21 @@ function GatewayProjects({ overview, projectHint, receiptHint, today }: GatewayP
             )}
             {projectHint && !selection && !project && (
               <p className={styles.hint} role="status">
-                The linked project is unavailable in this workspace. Choose a project or switch workspaces.
+                The linked project is unavailable in this workspace. {options.length ? "Choose an active project or " : ""}
+                <Link href="/workspace">switch workspaces</Link>.
               </p>
             )}
             {!options.length && projects.status === "Exhausted" && (
-              <p className={styles.hint}>Create an active project in the workspace to start collecting receipts.</p>
+              <>
+                <p className={styles.hint}>
+                  {overview.capabilities["members:manage"]
+                    ? "Create a project to start collecting gateway receipts."
+                    : "Ask a workspace admin to create an active project for gateway receipts."}
+                </p>
+                <Link className="button button-outline" href={workspaceHref("Teams", overview.capabilities["members:manage"] || overview.capabilities["finance:read"] ? "projects" : undefined)}>
+                  {overview.capabilities["members:manage"] ? "Create a project" : "View workspace teams"}
+                </Link>
+              </>
             )}
             {(projects.status === "CanLoadMore" || projects.status === "LoadingMore") && (
               <button className={`button button-outline ${gateway.more}`} type="button" onClick={() => projects.loadMore(50)} disabled={projects.status === "LoadingMore"}>
@@ -179,25 +193,77 @@ function GatewayProjects({ overview, projectHint, receiptHint, today }: GatewayP
 function GatewayOperations({ projectId, from, through }: { projectId: Id<"projects">; from: string; through: string }) {
   const report = useQuery(api.gatewayOperations.workspaceReport, { projectId, from, through });
   if (!report) return <p className={styles.hint} role="status">Loading gateway analytics…</p>;
+  const { overall, alerts } = report;
+  const rules = { provider_errors: "Provider errors", slow_provider: "Slow provider", billing_pending: "Pending billing" };
   return <section className={styles.item} aria-label="Gateway analytics">
     <h3>Gateway analytics</h3>
     <p className={styles.hint}>{from} through {through} UTC · latest {report.limit.toLocaleString()} retained receipts at most.</p>
     <dl className={gateway.facts}>
-      <div><dt>Requests</dt><dd>{integer.format(report.overall.requests)}</dd></div>
-      <div><dt>Provider attempts</dt><dd>{integer.format(report.overall.providerAttempts)}</dd></div>
-      <div><dt>P95 latency</dt><dd>{report.overall.latency ? `${integer.format(report.overall.latency.p95)} ms` : "Unavailable"}</dd></div>
-      <div><dt>Invoice-confirmed costs</dt><dd>{integer.format(report.overall.invoiceConfirmed)}</dd></div>
+      <div><dt>Requests</dt><dd>{integer.format(overall.requests)}</dd></div>
+      <div><dt>Failed requests</dt><dd>{integer.format(overall.errors)}</dd></div>
+      <div><dt>Provider attempts</dt><dd>{integer.format(overall.providerAttempts)}</dd></div>
+      <div><dt>Traced requests</dt><dd>{integer.format(overall.traces)}</dd></div>
+      <div><dt>Input / output tokens</dt><dd>{integer.format(overall.inputTokens)} / {integer.format(overall.outputTokens)}</dd></div>
+      <div><dt>Cached input tokens</dt><dd>{integer.format(overall.cachedTokens)}</dd></div>
+      <div><dt>P95 time to settlement</dt><dd>{milliseconds(overall.latency)}</dd></div>
+      <div><dt>P95 time to first token</dt><dd>{milliseconds(overall.firstToken)}</dd></div>
+      <div><dt>Recorded customer charges</dt><dd>{overall.requests ? usdNanos(overall.customerChargeNanos) : "—"}</dd></div>
+      <div><dt>Known provider cost</dt><dd>{overall.costCovered ? usdNanos(overall.knownProviderCostNanos) : "—"}</dd></div>
+      <div><dt>Margin on covered requests</dt><dd>{overall.marginCovered ? usdNanos(overall.coveredMarginNanos) : "—"}</dd></div>
+      <div><dt>Invoice-confirmed receipts</dt><dd>{integer.format(overall.invoiceConfirmed)}</dd></div>
     </dl>
-    {report.truncated && <p className={styles.hint}>This report reached its receipt limit.</p>}
-    <p className={styles.hint}>{report.alerts.evaluatedAt === null
-      ? "Alert evaluation pending."
-      : `${report.alerts.items.filter((alert) => alert.resolvedAt === undefined).length} open alerts · evaluated ${utc(report.alerts.evaluatedAt)}.`}</p>
+    <p className={styles.hint}>Provider cost is available for {overall.costCovered} of {overall.requests} receipts. Latency percentiles use receipts that include timestamps.</p>
+    {report.truncated && <p className={styles.hint}>This report reached its receipt limit. Choose a shorter date range to see more detail.</p>}
+    {report.groupsTruncated && <p className={styles.hint}>Showing up to 100 providers and 100 models.</p>}
+    <GatewayBreakdown label="Daily activity" rows={report.daily} />
+    <GatewayBreakdown label="Provider breakdown" rows={report.providers} />
+    <GatewayBreakdown label="Model breakdown" rows={report.models} />
+    <details className={styles.item}>
+      <summary>Operational alerts</summary>
+      <p className={styles.hint}>{alerts.evaluatedAt === null
+        ? "Alert evaluation pending."
+        : `Last evaluated ${utc(alerts.evaluatedAt)}.`}</p>
+      {alerts.items.length ? <ul>{alerts.items.map((alert) => (
+        <li key={`${alert.key}:${alert.openedAt}`}>
+          {rules[alert.rule]} · {alert.provider} · {alert.resolvedAt === undefined ? "Open" : "Resolved"} · {utc(alert.updatedAt)}
+        </li>
+      ))}</ul> : alerts.evaluatedAt !== null ? <p>No alerts have been recorded for this project.</p> : null}
+      {alerts.truncated && <p className={styles.hint}>Alert coverage is limited to the recent evaluation window.</p>}
+    </details>
   </section>;
 }
 
+function milliseconds(sample: Report["overall"]["latency"]) {
+  return sample ? `${integer.format(sample.p95)} ms` : "—";
+}
+
+function GatewayBreakdown({ label, rows }: { label: string; rows: Report["daily"] }) {
+  if (!rows.length) return null;
+  return (
+    <details className={styles.item}>
+      <summary>{label}</summary>
+      <div className={styles.scroll} role="region" aria-label={label} tabIndex={0}>
+        <table className={styles.table}>
+          <thead><tr>
+            <th scope="col">Name</th><th scope="col">Requests</th><th scope="col">Attempts</th>
+            <th scope="col">P95 settlement</th><th scope="col">Known provider cost</th>
+          </tr></thead>
+          <tbody>{rows.map((row) => <tr key={row.key}>
+            <th scope="row">{row.key}</th><td>{integer.format(row.requests)}</td>
+            <td>{integer.format(row.providerAttempts)}</td><td>{milliseconds(row.latency)}</td>
+            <td>{row.costCovered ? usdNanos(row.knownProviderCostNanos) : "—"}</td>
+          </tr>)}</tbody>
+        </table>
+      </div>
+    </details>
+  );
+}
+
 function GatewayReceipts({ projectId, receiptHint, today }: { projectId: Id<"projects">; receiptHint: string | null; today: string }) {
-  const from = new Date(Date.parse(today) - 6 * dayMs).toISOString().slice(0, 10);
-  const page = useQuery(api.gatewayReceipts.list, { projectId, from, through: today, limit: 50 });
+  const lastWeek = new Date(Date.parse(today) - 6 * dayMs).toISOString().slice(0, 10);
+  const [range, setRange] = useState({ from: lastWeek, through: today });
+  const { from, through } = range;
+  const page = useQuery(api.gatewayReceipts.list, { projectId, ...range, limit: 50 });
   const [requested, selectReceipt] = useState(receiptHint);
   const [search, setSearch] = useState(receiptHint ?? "");
   const detail = useRef<HTMLDivElement>(null);
@@ -220,6 +286,21 @@ function GatewayReceipts({ projectId, receiptHint, today }: { projectId: Id<"pro
     selectReceipt(requestId);
   }
 
+  function applyRange(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const from = String(data.get("gateway-from"));
+    const through = String(data.get("gateway-through"));
+    const elapsed = Date.parse(through) - Date.parse(from);
+    if (!Number.isFinite(elapsed) || elapsed < 0 || elapsed >= 31 * dayMs || through > today || from < "2024-01-01") {
+      const field = event.currentTarget.elements.namedItem("gateway-through") as HTMLInputElement;
+      field.setCustomValidity("Choose a start and end date within 31 days.");
+      field.reportValidity();
+      return;
+    }
+    setRange({ from, through });
+  }
+
   function findReceipt(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const requestId = search.trim();
@@ -229,7 +310,15 @@ function GatewayReceipts({ projectId, receiptHint, today }: { projectId: Id<"pro
   return (
     <section className={styles.panel} aria-labelledby="gateway-receipts">
       <h2 id="gateway-receipts">Request receipts</h2>
-      <GatewayOperations projectId={projectId} from={from} through={today} />
+      <form className={styles.form} onSubmit={applyRange} onChange={(event) => {
+        const field = event.currentTarget.elements.namedItem("gateway-through") as HTMLInputElement;
+        field.setCustomValidity("");
+      }}>
+        <label>From (UTC)<input name="gateway-from" type="date" required defaultValue={lastWeek} min="2024-01-01" max={today} /></label>
+        <label>Through (UTC)<input name="gateway-through" type="date" required defaultValue={today} min="2024-01-01" max={today} /></label>
+        <button className="button button-outline" type="submit">Apply dates</button>
+      </form>
+      <GatewayOperations projectId={projectId} from={from} through={through} />
       <form className={styles.form} onSubmit={findReceipt}>
         <label>
           Request ID
@@ -244,11 +333,11 @@ function GatewayReceipts({ projectId, receiptHint, today }: { projectId: Id<"pro
           )}
         </div>
       )}
-      <p className={styles.hint}>Recent settlements from {from} through {today} UTC.</p>
+      <p className={styles.hint}>Settlements from {from} through {through} UTC.</p>
       {page === undefined ? (
         <p className={styles.hint} role="status">Loading settlements…</p>
       ) : page.receipts.length === 0 ? (
-        <div className={styles.empty}><p>No receipts for this project in the last seven days.</p></div>
+        <div className={styles.empty}><p>No receipts for this project in this range. Change the dates or find a retained receipt by request ID.</p></div>
       ) : (
         <>
           {page.truncated && <p className={styles.hint}>Showing the latest 50 receipts. Find an older receipt by request ID.</p>}
