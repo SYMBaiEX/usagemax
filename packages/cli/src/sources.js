@@ -374,12 +374,18 @@ export async function ccusageEnvironment({ env = process.env, platform = process
   }
 
   const xdgClaude = pathApi.join(has(effective, "XDG_CONFIG_HOME") ? String(effective.XDG_CONFIG_HOME) : pathApi.join(home, ".config"), "claude");
-  setDiscoveredList(effective, "CLAUDE_CONFIG_DIR", [xdgClaude, pathApi.join(home, ".claude")], [
+  const claudeRoots = [
+    ...(has(effective, "CLAUDE_CONFIG_DIR") ? [] : [xdgClaude, pathApi.join(home, ".claude")]),
     ...additionalHomes.flatMap((candidate) => [pathApi.join(candidate, ".config", "claude"), pathApi.join(candidate, ".claude")]),
     ...mirroredClaude,
     ...backups.flatMap((item) => item.claude),
     ...nestedClaude,
-  ], pathApi);
+  ];
+  // ccusage treats an explicit Claude override without any projects directory
+  // as an error, including when parsing an unrelated agent's history.
+  const claudeRootExists = await Promise.all(claudeRoots.map((root) => existsDirectory(pathApi.join(root, "projects"))));
+  const discoveredClaude = claudeRoots.filter((_, index) => claudeRootExists[index]);
+  if (discoveredClaude.length) setDiscoveredList(effective, "CLAUDE_CONFIG_DIR", [], discoveredClaude, pathApi);
   setDiscoveredList(effective, "CODEX_HOME", [pathApi.join(home, ".codex")], [
     ...additionalHomes.map((candidate) => pathApi.join(candidate, ".codex")),
     ...backups.flatMap((item) => item.codex),

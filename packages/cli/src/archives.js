@@ -74,7 +74,7 @@ export async function prepareArchiveRecovery(baseEnv) {
       cleanup: async () => rm(temporary, { force: true, recursive: true }),
       env: {
         ...baseEnv,
-        CLAUDE_CONFIG_DIR: [...new Set([...existingClaude, ...roots.claude])].join(","),
+        ...(roots.claude.length ? { CLAUDE_CONFIG_DIR: [...new Set([...existingClaude, ...roots.claude])].join(",") } : {}),
         CODEX_HOME: [...new Set([...existingCodex, ...roots.codex])].join(","),
       },
       unsupported,
