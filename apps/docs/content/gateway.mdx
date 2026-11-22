@@ -1,0 +1,51 @@
+---
+title: Connect an inference gateway
+description: Deliver settled request receipts to a private UsageMax project and read them with a separate reporting key.
+---
+
+## Create project keys
+
+Open [Gateway receipts](https://usagemax.com/workspace/gateway) in the intended workspace and select a project. Create an **Ingest** key for the server that delivers receipts and a **Report** key for the administrative application that reads them. Save each key in its server's secret storage. UsageMax shows the secret when you create or rotate a key.
+
+Call `GET https://usagemax.com/api/v1/gateway/status` with `Authorization: Bearer …` to check the key scope and latest successful activity for that key. The key determines the destination workspace and project. Requests contain no customer-selected workspace or project identity.
+
+## Send from a durable outbox
+
+In the same transaction that settles a request in your ledger, save a receipt in an outbox. Deliver it asynchronously. An analytics outage should leave inference and credit settlement available.
+
+```json
+{
+  "receipts": [{
+    "schemaVersion": 1,
+    "requestId": "req_opaque_example",
+    "revision": 1,
+    "model": "example-model",
+    "provider": "example-provider",
+    "status": "ok",
+    "settledAt": 1795305600000,
+    "currency": "USD",
+    "customerChargeNanos": 1400000,
+    "providerCostNanos": null,
+    "providerCostBasis": "unknown",
+    "usage": { "inputTokens": 1000, "outputTokens": 120, "reportedTotalTokens": 1120 }
+  }]
+}
+```
+
+Post the batch to `https://usagemax.com/api/v1/gateway/receipts` using the ingest key. A batch can contain up to 50 receipts and 64 KiB.
+
+| Result | Outbox handling |
+| --- | --- |
+| `accepted` or `replay` | Acknowledge the receipt. |
+| `stale` | Acknowledge it when a later revision superseded it. |
+| `conflict` | Hold it for investigation. The same revision already contains different evidence. |
+
+Retry transient failures with bounded exponential backoff and respect `Retry-After` when present. Preserve the request ID and revision on retry. To submit a correction, send a complete replacement receipt with a higher revision and the original settlement date. Keep the customer amount and provider cost distinct. USD amounts use integer nanodollars. A null cost or absent token field means the source did not supply it.
+
+## Read reports and receipts
+
+Use the server-side report key for `GET /api/v1/gateway/receipts?from=2026-11-21&through=2026-11-21`. Date bounds are inclusive UTC and can span up to 31 days. The response indicates truncation for a bounded result. Query a narrower range if you need complete counts. For one request, use `GET /api/v1/gateway/receipts/{requestId}`.
+
+The [OpenAPI document](https://usagemax.com/openapi.json) describes both operations. The repository includes a [TypeScript server client](https://github.com/SYMBaiEX/usagemax/tree/main/packages/gateway-client) with generated contract types.
+
+Gateway receipts stay private to the project. Send only permitted metrics and opaque identifiers. Keep prompts, responses, tools, headers, wallet addresses, secrets, and customer identity out of receipts.

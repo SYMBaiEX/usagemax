@@ -21,3 +21,4 @@ jobs:
       - run: bun run check
       - run: bun run cli:pack
       - run: bun run docs:build
+      - run: bun run gateway:generate --check

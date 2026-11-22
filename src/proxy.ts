@@ -43,7 +43,7 @@ const knownExactPaths = new Set([
   "/a2a", "/AGENTS.md", "/docs", "/docs-mcp", "/docs.md", "/enterprise", "/enterprise.md", "/index.md", "/integrations", "/integrations.md", "/leaderboard", "/leaderboard.md", "/llms.txt",
   "/mcp", "/mcp.md", "/docs-mcp.md", "/methodology", "/methodology.md", "/not-found.md", "/openapi.json", "/pricing", "/pricing.md", "/privacy", "/privacy.md",
   "/profile.md", "/robots.txt", "/sandbox", "/sandbox.md", "/schema-feed.jsonl", "/schemamap.xml", "/security", "/security.md", "/server-card.json", "/sign-in", "/sign-up", "/webmcp", "/webmcp.md",
-  "/sitemap.xml", "/terms", "/terms.md", "/workspace",
+  "/sitemap.xml", "/terms", "/terms.md", "/workspace", "/workspace/gateway",
 ]);
 
 function addVary(headers: Headers, value: string) {

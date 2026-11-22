@@ -1,9 +1,39 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { productTables } from "./productSchema";
+import { gatewayReceipt, gatewayScope } from "./gatewayContract";
 
 export default defineSchema({
   ...productTables,
+
+  gatewayCredentials: defineTable({
+    workspaceId: v.id("workspaces"),
+    projectId: v.id("projects"),
+    scope: gatewayScope,
+    name: v.string(),
+    keyHash: v.string(),
+    keyPrefix: v.string(),
+    createdAt: v.number(),
+    rotatedAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
+    lastSuccessAt: v.optional(v.number()),
+  })
+    .index("by_keyHash", ["keyHash"])
+    .index("by_workspaceId", ["workspaceId"])
+    .index("by_projectId", ["projectId"])
+    .index("by_projectId_and_revokedAt", ["projectId", "revokedAt"]),
+
+  gatewayReceipts: defineTable({
+    workspaceId: v.id("workspaces"),
+    projectId: v.id("projects"),
+    requestId: v.string(),
+    historyAt: v.number(),
+    payloadHash: v.string(),
+    receipt: gatewayReceipt,
+  })
+    .index("by_projectId_and_requestId", ["projectId", "requestId"])
+    .index("by_projectId_and_historyAt", ["projectId", "historyAt"])
+    .index("by_workspaceId_and_historyAt", ["workspaceId", "historyAt"]),
   users: defineTable({
     workosUserId: v.string(),
     authIdentityKey: v.optional(v.string()),

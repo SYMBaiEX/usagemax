@@ -1331,6 +1331,12 @@ export const processAccountDeletion = internalMutation({
 
     if (stage === "deviceLinks") return finishRows(await ctx.db.query("deviceLinkCodes").withIndex("by_workspaceId", (q) => q.eq("workspaceId", request.workspaceId)).take(100));
     if (stage === "productData") {
+      const gatewayKeys = await ctx.db.query("gatewayCredentials")
+        .withIndex("by_workspaceId", (q) => q.eq("workspaceId", request.workspaceId)).take(100);
+      if (gatewayKeys.length) return finishRows(gatewayKeys);
+      const gatewayReceipts = await ctx.db.query("gatewayReceipts")
+        .withIndex("by_workspaceId_and_historyAt", (q) => q.eq("workspaceId", request.workspaceId)).take(100);
+      if (gatewayReceipts.length) return finishRows(gatewayReceipts);
       const teams = await ctx.db.query("teams").withIndex("by_workspaceId", q => q.eq("workspaceId", request.workspaceId)).take(100);
       if (teams.length) return finishRows(teams);
       const teamMembers = await ctx.db.query("teamMembers").withIndex("by_workspaceId_and_userId_and_leftAt", q => q.eq("workspaceId", request.workspaceId)).take(100);

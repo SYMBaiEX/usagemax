@@ -1,0 +1,60 @@
+.more,
+.detail {
+  margin-top: 16px;
+}
+
+.detailHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.detailHeader p,
+.detailHeader h3 {
+  margin: 0;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+  gap: 12px;
+  padding-block: 8px;
+}
+
+.facts dt {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.facts dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.receiptsList tbody button {
+  max-width: min(60vw, 360px);
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+.receiptsList tbody button[aria-pressed="true"] {
+  background: var(--accent-soft, var(--paper-deep));
+}
+
+.secret {
+  width: 100%;
+  min-height: 42px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control, 8px);
+  background: var(--surface-card);
+  font: 500 13px/1.4 var(--font-mono);
+}
+
+.secret:focus-visible,
+.detail:focus-visible {
+  outline: 2px solid var(--focus-ring, var(--orange-dark));
+  outline-offset: 3px;
+}

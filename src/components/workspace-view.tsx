@@ -410,6 +410,11 @@ export function Workspace() {
             <Link className="button button-outline" href="/account">
               Profile & devices
             </Link>
+            {(cap["finance:read"] || cap["collectors:manage"]) && (
+              <Link className="button button-outline" href="/workspace/gateway">
+                Inference gateway
+              </Link>
+            )}
             {cap["workspace:manage"] && (
               <button
                 className="button button-outline"

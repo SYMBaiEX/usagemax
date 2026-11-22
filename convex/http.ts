@@ -6,6 +6,7 @@ import { MIN_EVENT_TIME, clampNonNegative, cleanText, jsonResponse, sha256 } fro
 import { isAutomaticDeviceName } from "./device_name";
 import type { telemetryEventValidator } from "./telemetry";
 import { verifyStripeSnapshotSignature } from "./billing";
+import { gatewayCredentialStatus, gatewayReceiptDetail, ingestGatewayReceipts, reportGatewayReceipts } from "./gatewayHttp";
 
 type NormalizedEvent = typeof telemetryEventValidator.type;
 type JsonObject = Record<string, unknown>;
@@ -899,5 +900,9 @@ http.route({ path: "/v1/telemetry/llm", method: "OPTIONS", handler: cors });
 http.route({ path: "/v1/traces", method: "POST", handler: httpAction((ctx, request) => ingest(ctx, request, "otlp")) });
 http.route({ path: "/v1/traces", method: "OPTIONS", handler: cors });
 http.route({ path: "/v1/workos/events", method: "POST", handler: workosLifecycle });
+http.route({ path: "/v1/gateway/receipts", method: "POST", handler: ingestGatewayReceipts });
+http.route({ path: "/v1/gateway/receipts", method: "GET", handler: reportGatewayReceipts });
+http.route({ pathPrefix: "/v1/gateway/receipts/", method: "GET", handler: gatewayReceiptDetail });
+http.route({ path: "/v1/gateway/status", method: "GET", handler: gatewayCredentialStatus });
 
 export default http;
