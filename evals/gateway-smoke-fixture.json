@@ -1,0 +1,6 @@
+[
+  { "routeId": "near-flash", "caseId": "literal", "text": "PONG", "inputTokens": 22, "outputTokens": 3, "chargedMicrousd": 8, "latencyMs": 250 },
+  { "routeId": "near-flash", "caseId": "json-answer", "text": "{\"answer\":4}", "inputTokens": 42, "outputTokens": 8, "chargedMicrousd": 16, "latencyMs": 300 },
+  { "routeId": "phala-flash", "caseId": "literal", "text": "PONG\n", "inputTokens": 24, "outputTokens": 4, "chargedMicrousd": 9, "latencyMs": 325 },
+  { "routeId": "phala-flash", "caseId": "json-answer", "text": "{ \"answer\" : 4 }", "inputTokens": 44, "outputTokens": 10, "chargedMicrousd": 17, "latencyMs": 400 }
+]

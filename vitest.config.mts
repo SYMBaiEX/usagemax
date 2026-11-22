@@ -5,6 +5,6 @@ export default defineConfig({
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   test: {
     environment: "edge-runtime",
-    include: ["convex/**/*.test.ts", "src/**/*.test.{ts,tsx}"],
+    include: ["convex/**/*.test.ts", "src/**/*.test.{ts,tsx}", "scripts/evals/**/*.test.ts"],
   },
 });
