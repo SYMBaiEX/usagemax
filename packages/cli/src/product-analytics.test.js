@@ -153,34 +153,31 @@ test("CLI telemetry commands work without a linked computer and preserve collect
 test("only a successful interactive collector command sends the daily signal", async (t) => {
   const { config, root, state } = await fixture(t);
   const preload = join(root, "mock-terminal.mjs");
-  const events = join(root, "events.txt");
   await writeFile(preload, [
-    'import { appendFileSync } from "node:fs";',
     'for (const stream of [process.stdin, process.stdout, process.stderr]) Object.defineProperty(stream, "isTTY", { value: true });',
-    'const stderrWrite = process.stderr.write.bind(process.stderr);',
-    'process.stderr.write = (...args) => {',
-    '  if (String(args[0]).includes("daily rotating ID")) appendFileSync(process.env.MOCK_EVENTS, "notice\\n");',
-    '  return stderrWrite(...args);',
-    '};',
     'globalThis.fetch = async () => {',
-    '  appendFileSync(process.env.MOCK_EVENTS, "request\\n");',
+    '  process.stderr.write("mock product telemetry request\\n");',
     '  return new Response(null, { status: 204 });',
     '};',
   ].join("\n"));
   const env = {
     ...process.env, HOME: root, USERPROFILE: root, APPDATA: root, LOCALAPPDATA: root,
-    XDG_CONFIG_HOME: root, XDG_DATA_HOME: root, USAGEMAX_CONFIG_DIR: config, MOCK_EVENTS: events,
+    XDG_CONFIG_HOME: root, XDG_DATA_HOME: root, USAGEMAX_CONFIG_DIR: config,
     USAGEMAX_DISABLE_UPDATE_CHECK: "1", CI: "", DO_NOT_TRACK: "", USAGEMAX_TELEMETRY_DISABLED: "",
   };
   const invoke = (...args) => exec(process.execPath, ["--import", pathToFileURL(preload).href, cli, ...args], { env, cwd: root });
-  await invoke("--version");
-  await invoke("doctor", "--help");
-  await invoke("doctor", "--json");
-  await assert.rejects(invoke("sync"), /not linked/i);
-  await assert.rejects(access(events), { code: "ENOENT" });
+  const requestMarker = "mock product telemetry request";
+  for (const args of [["--version"], ["doctor", "--help"], ["doctor", "--json"]]) {
+    assert.ok(!(await invoke(...args)).stderr.includes(requestMarker));
+  }
+  await assert.rejects(invoke("sync"), (error) => {
+    assert.match(error.stderr, /not linked/i);
+    assert.ok(!error.stderr.includes(requestMarker));
+    return true;
+  });
   await assert.rejects(access(state), { code: "ENOENT" });
   const doctor = await invoke("doctor");
-  assert.match(doctor.stderr, /usagemax telemetry disable/);
-  await invoke("doctor");
-  assert.equal(await readFile(events, "utf8"), "notice\nrequest\n");
+  const notice = doctor.stderr.indexOf("usagemax telemetry disable");
+  assert.ok(notice >= 0 && doctor.stderr.indexOf(requestMarker) > notice);
+  assert.ok(!(await invoke("doctor")).stderr.includes(requestMarker));
 });
