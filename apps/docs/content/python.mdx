@@ -1,0 +1,34 @@
+---
+title: Python SDK
+description: Install the UsageMax Python client to read usage, send telemetry, and report on gateway receipts.
+---
+
+Install [usagemax on PyPI](https://pypi.org/project/usagemax/) with Python 3.10 or later.
+
+```bash
+pip install usagemax
+```
+
+## Read public usage
+
+```python
+from usagemax import UsageMax
+
+usage = UsageMax()
+print(usage.health()["ok"])
+print(usage.stats()["stats"])
+```
+
+Use `profile(handle)` for an opt-in public profile and `daily_usage(handle, days=30)` for daily totals. If a breakdown reaches the summary limit, call `daily_detail()` with a date range and pass each `continueCursor` back as `cursor` until `isDone` is true.
+
+## Connect a gateway or collector
+
+| Client | Authentication | Operations |
+| --- | --- | --- |
+| `GatewayClient` | Project report key | `status()`, `receipts()`, `receipt()`, `operations()` |
+| `GatewayClient` | Project ingest key | `status()`, `write_receipts()` |
+| `CollectorClient` | Collector key and stable installation UUID for writes | `status()`, `send_events()`, `send_traces()` |
+
+Pass keys from your server's secret manager. Reuse the original receipt fields and revision or the original telemetry idempotency key and payload when retrying. The client exposes HTTP status and retry information through `APIError` and reports network failures through `TransportError`.
+
+For setup and payloads, see [Gateway receipts](/gateway), [Telemetry ingestion](/telemetry), and the [Python SDK examples](https://github.com/SYMBaiEX/usagemax/tree/main/packages/python).

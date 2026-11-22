@@ -13,6 +13,7 @@
     "teams",
     "---Build integrations---",
     "api",
+    "python",
     "telemetry",
     "gateway",
     "mcp"
