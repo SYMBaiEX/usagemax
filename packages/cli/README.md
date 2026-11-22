@@ -107,6 +107,18 @@ bunx usagemax update --check --json        # check without installing
 bunx usagemax unlink --json                # safe automation result; no secret output
 ```
 
+## CLI product telemetry
+
+The CLI shows a first-run notice and can send one activity signal per UTC day
+from eligible interactive runs. The signal contains a rotating daily pseudonym,
+the CLI version, OS family, and CPU architecture. It carries no account
+identifier, command data, or usage history.
+
+Run `usagemax telemetry status` to see the current preference, or
+`usagemax telemetry disable` to opt out. `USAGEMAX_TELEMETRY_DISABLED=1` and
+`DO_NOT_TRACK=1` also disable it. See the
+[CLI product telemetry guide](https://docs.usagemax.com/cli-analytics).
+
 ## Sources and coverage
 
 Sync uses ccusage's live LiteLLM catalog and models.dev fallback. Bundled rates

@@ -1,4 +1,4 @@
-import { MINUTE, RateLimiter } from "@convex-dev/rate-limiter";
+import { DAY, MINUTE, RateLimiter } from "@convex-dev/rate-limiter";
 import { ConvexError, v } from "convex/values";
 
 import { components } from "./_generated/api";
@@ -11,6 +11,8 @@ const rateLimiter = new RateLimiter(components.rateLimiter, {
   linkAttemptsGlobal: { kind: "fixed window", rate: 3_000, period: MINUTE, shards: 20 },
   linkAttemptsPerCode: { kind: "token bucket", rate: 3, period: MINUTE, capacity: 10 },
   management: { kind: "token bucket", rate: 10, period: MINUTE, capacity: 20 },
+  cliAnalyticsPerMinute: { kind: "fixed window", rate: 300, period: MINUTE, shards: 20 },
+  cliAnalyticsPerDay: { kind: "fixed window", rate: 10_000, period: DAY, shards: 20, start: 0 },
 });
 
 export const consumeManagementAttempt = internalMutation({
@@ -33,6 +35,12 @@ export async function enforceCollectorRateLimit(ctx: MutationCtx, collectorId: s
   } catch {
     throw new ConvexError("RATE_LIMITED");
   }
+}
+
+export async function consumeCliAnalyticsQuota(ctx: MutationCtx) {
+  const minute = await rateLimiter.limit(ctx, "cliAnalyticsPerMinute");
+  if (!minute.ok) return minute;
+  return rateLimiter.limit(ctx, "cliAnalyticsPerDay");
 }
 
 export const consumeDeviceLinkAttempt = internalMutation({

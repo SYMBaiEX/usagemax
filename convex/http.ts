@@ -6,10 +6,11 @@ import { MIN_EVENT_TIME, clampNonNegative, cleanText, jsonResponse, sha256 } fro
 import { isAutomaticDeviceName } from "./device_name";
 import type { telemetryEventValidator } from "./telemetry";
 import { verifyStripeSnapshotSignature } from "./billing";
+import { ingestCliAnalytics } from "./productAnalytics";
 
 type NormalizedEvent = typeof telemetryEventValidator.type;
 type JsonObject = Record<string, unknown>;
-const RECOMMENDED_CLI_VERSION = "0.3.13";
+const RECOMMENDED_CLI_VERSION = "0.3.14";
 const PUBLIC_SNAPSHOT_STATUS_ORIGIN = "https://usagemax.com";
 
 function snapshotStatusUrl(runId: string) {
@@ -890,6 +891,7 @@ http.route({ path: "/health", method: "GET", handler: httpAction(async () => jso
 http.route({ path: "/v1/devices/link", method: "POST", handler: linkDevice });
 http.route({ path: "/v1/devices/status", method: "GET", handler: collectorStatus });
 http.route({ path: "/v1/devices/revoke", method: "POST", handler: revokeDevice });
+http.route({ path: "/v1/cli-analytics", method: "POST", handler: ingestCliAnalytics });
 http.route({ path: "/v1/billing/stripe-sync", method: "POST", handler: stripeSnapshotWebhook });
 http.route({ pathPrefix: "/v2/usage/snapshots/", method: "GET", handler: snapshotStatus });
 http.route({ pathPrefix: "/v2/usage/snapshots/", method: "OPTIONS", handler: cors });

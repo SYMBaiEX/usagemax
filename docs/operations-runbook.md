@@ -12,6 +12,21 @@
   Stripe event ID.
 - The npm collector is one-shot. Optional `usagemax service install` schedules these one-shot jobs (15-minute default), not a resident daemon. A complete unchanged inventory skips parsing and upload; incomplete inventories cannot safely take that shortcut. Use `service status` for scheduler reachability and last-run health, and `service uninstall` to stop future jobs without deleting checkpoints.
 
+## CLI product analytics
+
+The production Convex Functions panel exposes the internal
+`productAnalytics:summary` query to deployment operators. Pass an inclusive
+UTC `throughDay` and a window of one to 30 `days`. It returns daily active
+installations and a breakdown by CLI version, operating system, and
+architecture. A `truncated` result covers only the rows scanned. Shorten the
+window before comparing totals.
+
+A daily count measures participating interactive installations. A person can
+use more than one installation, and a shell that opts out or runs only through
+scripts is absent from the count. The daily identifier changes each UTC day
+and cannot produce an installation-level monthly count. The public CLI guide
+documents the exact payload and controls.
+
 ## WorkOS organization lifecycle
 
 Configure a WorkOS webhook at `https://usagemax.com/api/webhooks/workos` for:

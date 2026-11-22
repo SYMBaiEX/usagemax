@@ -26,6 +26,7 @@ import type * as maintenance from "../maintenance.js";
 import type * as migrations from "../migrations.js";
 import type * as organizationActions from "../organizationActions.js";
 import type * as personal from "../personal.js";
+import type * as productAnalytics from "../productAnalytics.js";
 import type * as productPolicy from "../productPolicy.js";
 import type * as productSchema from "../productSchema.js";
 import type * as providerActions from "../providerActions.js";
@@ -65,6 +66,7 @@ declare const fullApi: ApiFromModules<{
   migrations: typeof migrations;
   organizationActions: typeof organizationActions;
   personal: typeof personal;
+  productAnalytics: typeof productAnalytics;
   productPolicy: typeof productPolicy;
   productSchema: typeof productSchema;
   providerActions: typeof providerActions;

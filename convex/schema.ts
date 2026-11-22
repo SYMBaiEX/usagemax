@@ -2,8 +2,25 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { productTables } from "./productSchema";
 
+export const cliAnalyticsPlatform = v.union(v.literal("darwin"), v.literal("linux"), v.literal("win32"), v.literal("other"));
+export const cliAnalyticsArch = v.union(v.literal("x64"), v.literal("arm64"), v.literal("other"));
+
 export default defineSchema({
   ...productTables,
+  cliAnalyticsReceipts: defineTable({
+    day: v.string(),
+    dailyIdHash: v.string(),
+  }).index("by_day_and_dailyIdHash", ["day", "dailyIdHash"]),
+
+  cliAnalyticsDaily: defineTable({
+    day: v.string(),
+    cliVersion: v.string(),
+    platform: cliAnalyticsPlatform,
+    arch: cliAnalyticsArch,
+    shard: v.number(),
+    installations: v.number(),
+  }).index("by_day_and_cliVersion_and_platform_and_arch_and_shard", ["day", "cliVersion", "platform", "arch", "shard"]),
+
   users: defineTable({
     workosUserId: v.string(),
     authIdentityKey: v.optional(v.string()),

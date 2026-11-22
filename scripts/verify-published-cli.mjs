@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
@@ -13,11 +14,23 @@ const readPackResult = (stdout, packageName) => {
   const result = JSON.parse(stdout);
   return Array.isArray(result) ? result[0] : result?.[packageName] ?? result;
 };
+async function packFromRegistry(args, directory) {
+  const delays = [0, 2, 4, 8, 15, 25, 35, 45];
+  for (const [index, seconds] of delays.entries()) {
+    await delay(seconds * 1000);
+    try {
+      return readPackResult((await exec("npm", ["pack", ...args, "--prefer-online", `${pkg.name}@${pkg.version}`], { cwd: directory, timeout: 30_000 })).stdout, pkg.name);
+    } catch (error) {
+      if (index === delays.length - 1 || !/npm error code (?:ETARGET|E404)\b/.test(error.stderr ?? "")) throw error;
+      console.log(`Waiting for ${pkg.name}@${pkg.version} to become available on the registry.`);
+    }
+  }
+}
 const directory = await mkdtemp(join(tmpdir(), "usagemax-registry-check-"));
 try {
-  const args = ["pack", "--ignore-scripts", "--json", "--cache", join(directory, "cache"), "--pack-destination", directory];
-  const local = readPackResult((await exec("npm", args, { cwd: root })).stdout, pkg.name);
-  const published = readPackResult((await exec("npm", [...args, `usagemax@${pkg.version}`], { cwd: directory })).stdout, pkg.name);
+  const args = ["--ignore-scripts", "--json", "--cache", join(directory, "cache"), "--pack-destination", directory];
+  const local = readPackResult((await exec("npm", ["pack", ...args], { cwd: root })).stdout, pkg.name);
+  const published = await packFromRegistry(args, directory);
   assert.equal(published.shasum, local.shasum, "Registry artifact differs from tested source");
   const archive = join(directory, published.filename);
   const files = (await exec("tar", ["-tzf", archive])).stdout.trim().split("\n");

@@ -1,0 +1,29 @@
+---
+title: CLI product telemetry
+description: See what the UsageMax CLI sends to measure adoption and how to turn it off.
+---
+
+Starting with CLI 0.3.14, UsageMax uses a daily activity signal to count active CLI installations and understand which versions and platforms people use. It is on by default for eligible interactive commands. The first eligible command displays a notice before sending a signal. Package installation, help, version output, dry runs, CI, scheduled jobs, and other noninteractive runs skip this signal.
+
+## See or change your preference
+
+```bash
+usagemax telemetry status
+usagemax telemetry disable
+usagemax telemetry enable
+```
+
+Set `USAGEMAX_TELEMETRY_DISABLED=1` or `DO_NOT_TRACK=1` to disable telemetry for an invocation or shell. Either environment variable takes precedence over the saved preference.
+
+The preference controls CLI product analytics. It leaves deliberate workspace syncs and the explicit `usagemax telemetry test` collector diagnostic available.
+
+## What the signal contains
+
+| Field | Purpose |
+| --- | --- |
+| UTC date | Assign the activity to a daily count. |
+| Daily pseudonym | Count an installation once per day. A new pseudonym is derived locally for each UTC day. |
+| CLI version, operating system family, and architecture | Identify which releases and platforms are in use. |
+| Schema version | Identify the payload format. |
+
+The local random seed stays on the installation. Product analytics excludes UsageMax account and device identifiers, credentials, command arguments, paths, models, token totals, prompts, and completions. UsageMax's analytics records exclude IP addresses and user agents. The service keeps a short-lived receipt to deduplicate a day's signals and retains aggregate counts for 30 days. Counts describe participating installations and can omit opt-out, automated, and offline activity.
