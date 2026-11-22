@@ -19,6 +19,10 @@ The collector groups usage by UTC day, source, provider, and model. Each sync re
 
 Collector estimates use ccusage's LiteLLM and models.dev pricing. A sync that parses history checks live rates and can fall back to the bundled catalog. Token totals still count when pricing is unknown. If an incomplete scan produces a lower estimate, UsageMax preserves the previously tracked cost and can still reconcile newly observed tokens. For known ambiguous bare model IDs, UsageMax uses the direct provider catalog entry and preserves the model label in your reports. Explicit provider routes and custom ccusage aliases remain available.
 
+UsageMax also reviews historical collector estimates using dated public rate cards. It can fill missing estimates and correct identified pricing errors when the stored model, provider, token breakdown, and rate tier support a calculation. These corrections use the **API-equivalent** cost basis. For example, a daily prompt total below a model's tier threshold proves each request stayed below that threshold. A cache-write total without its TTL breakdown can require more evidence.
+
+Provider-reported charges keep their reported amounts. A rate correction updates the dashboard and spend summaries automatically.
+
 A tracked estimate can differ from your invoice because contracts, cached input, service tiers, and subscriptions change what you pay. Keep any invoice reconciliation tied to a provider export and its billing period.
 
 A subscription to UsageMax covers workspace features and capacity. See [UsageMax plans](https://usagemax.com/pricing) for plan details or explore the [interactive accounting examples](https://usagemax.com/methodology).

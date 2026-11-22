@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import rateLimiterTest from "@convex-dev/rate-limiter/test";
-import { convexTest } from "convex-test";
+import { convexTest, type TestConvex } from "convex-test";
 
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
@@ -33,7 +33,7 @@ const rowForCoverage = (model: string, totalTokens: number, now: number) => ({
   lastUsedAt: now,
 });
 
-async function seed(t: ReturnType<typeof convexTest>, now: number) {
+async function seed(t: TestConvex<typeof schema>, now: number) {
   return t.run(async (ctx) => {
     const workspaceId = await ctx.db.insert("workspaces", { slug: "snapshot", name: "Snapshot", plan: "free", isPublic: true, retentionDays: 30, createdAt: now });
     const profileId = await ctx.db.insert("profiles", { workspaceId, handle: "snapshot", displayName: "Snapshot", bio: "", isPublic: true, isVerified: false, verification: "collector", createdAt: now });
@@ -44,11 +44,98 @@ async function seed(t: ReturnType<typeof convexTest>, now: number) {
 }
 
 describe("authoritative collector snapshots", () => {
-  let t: ReturnType<typeof convexTest>;
+  let t: TestConvex<typeof schema>;
 
   beforeEach(() => {
     t = convexTest(schema, modules);
     rateLimiterTest.register(t);
+  });
+
+  test("backfills proven estimates across projections and preserves reported charges and old collector retries", async () => {
+    vi.useFakeTimers();
+    const now = Date.parse("2026-11-22T12:00:00Z");
+    vi.setSystemTime(now);
+    try {
+      const { profileId } = await seed(t, now);
+      const day = "2026-11-20";
+      const historicalRows = [
+        { ...rowForCoverage("gpt-6.2-sol", 1000, now), current: counters(1000, 0), costBasis: "unknown" as const },
+        { ...rowForCoverage("grok-4.7", 1000, now), provider: "xai", current: counters(1000, 2640) },
+        { ...rowForCoverage("gpt-6.2-astra", 1000, now), current: counters(1000, 6000), costBasis: "reported" as const },
+        { ...rowForCoverage("gpt-6.1-terra", 300_000, now), current: counters(300_000, 0), costBasis: "unknown" as const },
+      ];
+      const sync = async (runId: string, rows: typeof historicalRows, pricingVersion: string, revision: number, source = "codex") => {
+        await t.mutation(internal.snapshots.beginRun, { keyHash, runId, mode: "incremental", sourceCount: 1,
+          partitionCount: 1, inventoryComplete: true, inventoryErrors: 0, inventoryTruncated: false, now });
+        await t.mutation(internal.snapshots.commitPartition, { keyHash, runId, partitionId: runId, payloadHash: runId,
+          revision, source, day, complete: false, rows, now, pricingVersion });
+        await t.mutation(internal.snapshots.completeRun, { keyHash, runId, now });
+      };
+      await sync("historical-price", historicalRows, "unreviewed-fixture", 1);
+      await t.run(async (ctx) => {
+        const rows = await ctx.db.query("collectorUsageSnapshots").withIndex("by_profileId_and_day",
+          (q) => q.eq("profileId", profileId).eq("day", day)).take(10);
+        for (const row of rows) await ctx.db.patch(row._id, { pricingVersion: "ccusage@20.0.20" });
+      });
+      const preview = await t.mutation(internal.pricingBackfill.preview, { cursor: null });
+      expect(preview).toMatchObject({ scanned: 4, corrected: 2, protectedReported: 1, insufficientEvidence: 1, missingProjection: 0 });
+      expect((await t.query(api.public.profile, { handle: "snapshot" }))?.stats?.totalCostMicros).toBe(8640);
+
+      await t.mutation(internal.pricingBackfill.start, {});
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      expect(await t.query(internal.pricingBackfill.status, {})).toMatchObject({ status: "complete", corrected: 2, protectedReported: 1 });
+      expect((await t.query(api.public.profile, { handle: "snapshot" }))?.stats).toMatchObject({ totalCostMicros: 10_000, totalTokens: 303_000 });
+
+      await t.run(async (ctx) => {
+        const rows = await ctx.db.query("collectorUsageSnapshots").withIndex("by_profileId_and_day",
+          (q) => q.eq("profileId", profileId).eq("day", day)).take(10);
+        expect(rows.find((row) => row.model === "gpt-6.2-astra")?.costMicros).toBe(6000);
+        expect(rows.find((row) => row.model === "gpt-6.2-sol")?.priceCorrection?.originalCostMicros).toBe(0);
+        expect(rows.find((row) => row.model === "grok-4.7")?.priceCorrection?.originalCostMicros).toBe(2640);
+        const profileDay = await ctx.db.query("profileDailyTotals").withIndex("by_profileId_and_day",
+          (q) => q.eq("profileId", profileId).eq("day", day)).unique();
+        expect(profileDay?.costMicros).toBe(10_000);
+        const leaderboard = await ctx.db.query("leaderboardEntries").withIndex("by_profileId_and_period_and_metric",
+          (q) => q.eq("profileId", profileId).eq("period", "all").eq("metric", "spend")).unique();
+        expect(leaderboard?.score).toBe(10_000);
+        expect((await ctx.db.query("networkCounterShards").first())?.totalCostMicros).toBe(10_000);
+      });
+
+      await sync("pricing-old-replay", historicalRows, "ccusage@20.0.20", 2);
+      await t.mutation(internal.pricingBackfill.start, {});
+      expect((await t.query(api.public.profile, { handle: "snapshot" }))?.stats?.totalCostMicros).toBe(10_000);
+      expect(await t.query(internal.pricingBackfill.status, {})).toMatchObject({ status: "complete", corrected: 2 });
+
+      await sync("new-claude-price", [{ ...rowForCoverage("claude-haiku-5-5", 1000, now), provider: "anthropic",
+        current: counters(1000, 0), costBasis: "unknown" }], "ccusage@20.0.51:live-with-bundled-fallback:direct-v1", 3, "claude");
+      expect((await t.query(api.public.profile, { handle: "snapshot" }))?.stats?.totalCostMicros).toBe(10_100);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("continues a historical pricing sweep across pages without counting retries", async () => {
+    vi.useFakeTimers();
+    const now = Date.parse("2026-11-22T12:00:00Z");
+    vi.setSystemTime(now);
+    try {
+      const owner = await seed(t, now);
+      await t.run(async (ctx) => {
+        for (let i = 0; i < 51; i++) {
+          await ctx.db.insert("collectorUsageSnapshots", { ...owner, source: "other", day: "2026-11-20",
+            provider: "other", model: "model-" + i, ...counters(1), costBasis: "reported",
+            contentHash: String(i), revision: 1, lastUsedAt: now, updatedAt: now });
+        }
+      });
+      await t.mutation(internal.pricingBackfill.start, {});
+      await t.mutation(internal.pricingBackfill.start, {});
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      expect(await t.query(internal.pricingBackfill.status, {})).toMatchObject({
+        status: "complete", scanned: 51, corrected: 0, protectedReported: 51,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   test("actual CLI chunk bytes are accepted through the HTTP contract before noon", async () => {

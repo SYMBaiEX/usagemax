@@ -163,6 +163,12 @@ cannot become an unbounded traffic generator.
 - Raw telemetry expires independently of authoritative accounting snapshots.
 - Restore projections from collector snapshots and retained non-expired request events; do not treat local CLI checkpoints as server authority.
 
+### Historical model pricing
+
+The server checks eligible collector snapshots against verified effective-dated rate cards during sync. The backfill applies the same rules to existing snapshot rows. It archives the original estimate in the snapshot and updates the matching cost projections in one transaction. Provider-reported charges and rows with ambiguous tiers, cache TTL, or projection attribution retain their source amounts.
+
+Run `pricingBackfill:preview` with a null cursor and follow its returned cursor until `done`. Review the aggregate counts, then run `pricingBackfill:start` and monitor `pricingBackfill:status`. The hourly recovery schedule resumes interrupted jobs and starts a new sweep when the backfill version changes. Use a new version if new historical rates make existing snapshots eligible.
+
 ## Account deletion
 
 - A confirmed deletion immediately revokes workspace collectors and starts a seven-day recovery window.

@@ -9,6 +9,7 @@ import { DAY_MS, dayFromTimestamp } from "./lib";
 import { enforceCollectorRateLimit } from "./rateLimits";
 import { assertCollectorMembership } from "./collectorAccess";
 import { ensureProfileDevice } from "./devices";
+import { automaticSnapshotPrice } from "./snapshotPricing";
 
 const costBasisValidator = v.union(
   v.literal("reported"),
@@ -424,6 +425,7 @@ export const commitPartition = internalMutation({
       current: Counters;
       delta: Counters;
       basis: typeof costBasisValidator.type;
+      priceCorrection?: Doc<"collectorUsageSnapshots">["priceCorrection"];
       contentHash: string;
       lastUsedAt: number;
       prior?: (typeof priorSnapshots)[number];
@@ -435,15 +437,44 @@ export const commitPartition = internalMutation({
         : prior
           ? Object.fromEntries(counterFields.map((field) => [field, prior[field]])) as Counters
           : row.previous;
-      // A partial scan is not authoritative evidence for any downward correction.
+      let current = row.current;
+      let basis = row.costBasis;
+      let priceCorrection: Doc<"collectorUsageSnapshots">["priceCorrection"];
+      const unchangedUsage = Boolean(prior && counterFields.every((field) => field === "costMicros" || current[field] === prior[field]));
+      if (run.baselineMode !== "adopt-current" && basis !== "reported" && prior?.costBasis !== "reported") {
+        const quote = automaticSnapshotPrice({
+          ...current, source: args.source, day: args.day, provider: row.provider, model: row.model,
+          pricingVersion: args.pricingVersion, costBasis: basis,
+        });
+        if (quote && quote.costMicros !== current.costMicros) {
+          priceCorrection = {
+            originalCostMicros: unchangedUsage && prior?.priceCorrection ? prior.priceCorrection.originalCostMicros : current.costMicros,
+            rateCardVersion: quote.pricingVersion,
+            appliedAt: unchangedUsage && prior?.priceCorrection?.rateCardVersion === quote.pricingVersion
+              ? prior.priceCorrection.appliedAt : args.now,
+          };
+          current = { ...current, costMicros: quote.costMicros };
+          basis = "api-equivalent";
+        } else if (prior?.priceCorrection && unchangedUsage) {
+          // An existing server correction wins over a replay of the same
+          // usage counters from an older collector catalog.
+          current = { ...current, costMicros: prior.costMicros };
+          basis = prior.costBasis;
+          priceCorrection = prior.priceCorrection;
+        }
+      }
+      // Incomplete scans may not remove usage. A known rate correction is
+      // permitted only when the complete vector agrees with the saved row.
+      const costOnlyCorrection = priceCorrection && unchangedUsage;
       if ((!args.complete || !run.parserCoverageCertified || !run.inventoryComplete || run.inventoryErrors > 0 || run.inventoryTruncated)
-        && counterFields.some(field => row.current[field] < base[field])) continue;
+        && counterFields.some(field => current[field] < base[field] && (field !== "costMicros" || !costOnlyCorrection))) continue;
       changes.push({
         provider: row.provider,
         model: row.model,
-        current: row.current,
-        delta: subtract(row.current, base),
-        basis: row.costBasis,
+        current,
+        delta: subtract(current, base),
+        basis,
+        priceCorrection,
         contentHash: row.contentHash,
         lastUsedAt: row.lastUsedAt,
         prior,
@@ -551,6 +582,7 @@ export const commitPartition = internalMutation({
           ...change.current,
           costBasis: change.basis,
           pricingVersion: args.pricingVersion,
+          priceCorrection: change.priceCorrection,
           contentHash: change.contentHash,
           revision: args.revision,
           seenRunId: args.runId,
@@ -705,7 +737,7 @@ export const commitPartition = internalMutation({
   },
 });
 
-async function refreshProfileSummary(ctx: MutationCtx, profileId: Doc<"profiles">["_id"], now: number) {
+async function refreshProfileSummary(ctx: MutationCtx, profileId: Doc<"profiles">["_id"], now: number, preserveSyncStatus = false) {
     const stats = await ctx.db.query("profileStats").withIndex("by_profileId", q => q.eq("profileId", profileId)).unique();
     const profile = await ctx.db.get(profileId);
     if (!stats || !profile) return;
@@ -734,8 +766,7 @@ async function refreshProfileSummary(ctx: MutationCtx, profileId: Doc<"profiles"
       topModel: topModel?.model ?? "unknown",
       topModelProvider: topModel?.provider,
       topModelMetric: ((topByCost?.costMicros ?? 0) > 0 ? "spend" : "tokens") as "spend" | "tokens",
-      syncStatus: "healthy" as const,
-      syncErrorCode: undefined,
+      ...(preserveSyncStatus ? {} : { syncStatus: "healthy" as const, syncErrorCode: undefined }),
       updatedAt: now,
     };
     await ctx.db.patch(stats._id, nextStats);
@@ -775,8 +806,12 @@ async function refreshProfileSummary(ctx: MutationCtx, profileId: Doc<"profiles"
 }
 
 export const refreshSummary = internalMutation({
-  args: { profileId: v.id("profiles") },
-  handler: async (ctx, args) => { await refreshProfileSummary(ctx, args.profileId, Date.now()); },
+  args: { profileId: v.id("profiles"), preserveSyncStatus: v.optional(v.boolean()) },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await refreshProfileSummary(ctx, args.profileId, Date.now(), args.preserveSyncStatus);
+    return null;
+  },
 });
 
 export const completeRun = internalMutation({

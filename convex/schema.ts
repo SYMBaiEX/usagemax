@@ -583,6 +583,11 @@ export default defineSchema({
     errors: v.number(),
     costBasis: v.union(v.literal("reported"), v.literal("estimated"), v.literal("api-equivalent"), v.literal("unknown")),
     pricingVersion: v.optional(v.string()),
+    priceCorrection: v.optional(v.object({
+      originalCostMicros: v.number(),
+      rateCardVersion: v.string(),
+      appliedAt: v.number(),
+    })),
     contentHash: v.string(),
     revision: v.number(),
     seenRunId: v.optional(v.string()),
@@ -592,6 +597,19 @@ export default defineSchema({
     .index("by_collectorId_and_source_and_day", ["collectorId", "source", "day"])
     .index("by_collectorId_and_source_and_day_and_provider_and_model", ["collectorId", "source", "day", "provider", "model"])
     .index("by_profileId_and_day", ["profileId", "day"]),
+
+  snapshotPriceBackfills: defineTable({
+    version: v.string(),
+    cursor: v.union(v.string(), v.null()),
+    status: v.union(v.literal("running"), v.literal("complete")),
+    scanned: v.number(),
+    corrected: v.number(),
+    protectedReported: v.number(),
+    insufficientEvidence: v.number(),
+    missingProjection: v.number(),
+    unchanged: v.number(),
+    updatedAt: v.number(),
+  }).index("by_version", ["version"]),
 
   snapshotRuns: defineTable({
     workspaceId: v.id("workspaces"),
