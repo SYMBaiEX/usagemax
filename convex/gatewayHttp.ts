@@ -102,6 +102,21 @@ export const reportGatewayReceipts = httpAction(async (ctx, request) => {
   }
 });
 
+export const reportGatewayOperations = httpAction(async (ctx, request) => {
+  const keyHash = await keyHashFor(request);
+  if (!keyHash) return errorFor();
+  const params = new URL(request.url).searchParams;
+  if ([...params.keys()].some((key) => !["from", "through"].includes(key) || params.getAll(key).length > 1)) {
+    return jsonResponse({ error: "invalid_gateway_range" }, 400);
+  }
+  try {
+    const { from, through } = validateGatewayRange({ from: params.get("from") ?? "", through: params.get("through") ?? "" });
+    return jsonResponse(await ctx.runMutation(internal.gatewayOperations.report, { keyHash, from, through }));
+  } catch (error) {
+    return errorFor(error);
+  }
+});
+
 export const gatewayReceiptDetail = httpAction(async (ctx, request) => {
   const keyHash = await keyHashFor(request);
   if (!keyHash) return errorFor();

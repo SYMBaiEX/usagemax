@@ -40,7 +40,11 @@ export const trim = internalMutation({
         q.eq("workspaceId", args.workspaceId).lt("historyAt", cutoff))
       .take(100);
     for (const receipt of receipts) await ctx.db.delete("gatewayReceipts", receipt._id);
-    if (events.length === 100 || receipts.length === 100)
+    const alerts = await ctx.db.query("gatewayAlertEvents")
+      .withIndex("by_workspaceId_and_updatedAt", (q) => q.eq("workspaceId", args.workspaceId).lt("updatedAt", cutoff))
+      .take(100);
+    for (const alert of alerts) await ctx.db.delete("gatewayAlertEvents", alert._id);
+    if (events.length === 100 || receipts.length === 100 || alerts.length === 100)
       await ctx.scheduler.runAfter(1000, internal.retention.trim, args);
     // Daily usage and financial evidence deliberately survive trace expiry.
     return { removed: events.length, gatewayReceiptsRemoved: receipts.length };

@@ -35,6 +35,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/gateway/operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Read project-scoped inference analytics, recent traces and scheduled alert history. Up to 2,000 newest retained receipts are analyzed over an inclusive UTC range of up to 31 days. */
+        get: operations["readGatewayOperations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/gateway/status": {
         parameters: {
             query?: never;
@@ -65,6 +82,11 @@ export interface components {
             model: string;
             resolvedModel?: string;
             traceId?: string;
+            trace?: {
+                /** @enum {string} */
+                billingStatus: "final" | "pending";
+                spans: components["schemas"]["GatewaySpan"][];
+            };
             /** @enum {string} */
             status: "ok" | "error" | "cancelled";
             /** @description Unix epoch in milliseconds. */
@@ -90,6 +112,111 @@ export interface components {
                 reasoningTokens?: number;
                 reportedTotalTokens?: number;
                 unclassifiedTokens?: number;
+            };
+        };
+        GatewaySpan: {
+            spanId: string;
+            parentSpanId?: string;
+            /** @enum {string} */
+            kind: "request" | "reservation" | "provider" | "verification" | "settlement" | "recovery";
+            /** @description Unix epoch in milliseconds. */
+            startedAt: number;
+            /** @description Unix epoch in milliseconds. */
+            endedAt: number;
+            /** @enum {string} */
+            status: "ok" | "error";
+            httpStatus?: number;
+            provider?: string;
+            model?: string;
+            /** @enum {string} */
+            outcome?: "success" | "http_error" | "transport_error" | "invalid_response" | "verification_failed" | "incomplete_stream";
+        };
+        GatewayMetrics: {
+            requests: number;
+            errors: number;
+            cancelled: number;
+            pendingBilling: number;
+            providerAttempts: number;
+            providerErrors: number;
+            traces: number;
+            inputTokens: number;
+            outputTokens: number;
+            cachedTokens: number;
+            reasoningTokens: number;
+            costCovered: number;
+            marginCovered: number;
+            invoiceConfirmed: number;
+            key: string;
+            /** @description Integer USD nanodollars encoded as a string. */
+            customerChargeNanos: string;
+            /** @description Integer USD nanodollars encoded as a string. */
+            knownProviderCostNanos: string;
+            /** @description Integer USD nanodollars encoded as a string. */
+            coveredMarginNanos: string;
+            latency: {
+                samples: number;
+                p50: number;
+                p95: number;
+                p99: number;
+            } | null;
+            firstToken: {
+                samples: number;
+                p50: number;
+                p95: number;
+                p99: number;
+            } | null;
+            providerLatency: {
+                samples: number;
+                p50: number;
+                p95: number;
+                p99: number;
+            } | null;
+        };
+        GatewayOperations: {
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            through: string;
+            /** @description Unix epoch in milliseconds. */
+            retainedFromAt: number;
+            /** @description Unix epoch in milliseconds. */
+            generatedAt: number;
+            latestReceiptAt: number | null;
+            latestRequestId: string | null;
+            truncated: boolean;
+            groupsTruncated: boolean;
+            limit: number;
+            overall: components["schemas"]["GatewayMetrics"];
+            daily: components["schemas"]["GatewayMetrics"][];
+            providers: components["schemas"]["GatewayMetrics"][];
+            models: components["schemas"]["GatewayMetrics"][];
+            recent: {
+                requestId: string;
+                provider: string;
+                model: string;
+                /** @description Unix epoch in milliseconds. */
+                settledAt: number;
+                /** @enum {string} */
+                status: "ok" | "error" | "cancelled";
+                hasTrace: boolean;
+            }[];
+            alerts: {
+                evaluatedAt: number | null;
+                truncated: boolean;
+                items: {
+                    key: string;
+                    provider: string;
+                    samples: number;
+                    observed: number;
+                    /** @enum {string} */
+                    rule: "provider_errors" | "slow_provider" | "billing_pending";
+                    /** @description Unix epoch in milliseconds. */
+                    openedAt: number;
+                    /** @description Unix epoch in milliseconds. */
+                    updatedAt: number;
+                    /** @description Unix epoch in milliseconds. */
+                    resolvedAt?: number;
+                }[];
             };
         };
         GatewayStatus: {
@@ -299,6 +426,64 @@ export interface operations {
             };
             /** @description The request was not found in this project. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Project key rate limit reached. Retry with backoff. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The UsageMax gateway service is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readGatewayOperations: {
+        parameters: {
+            query: {
+                from: string;
+                through: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Gateway operations and reporting coverage. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GatewayOperations"];
+                };
+            };
+            /** @description Invalid receipt, request ID, or report filters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid, revoked, or inactive gateway key. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The gateway key lacks the required scope. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

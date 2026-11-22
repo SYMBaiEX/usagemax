@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
 
+import { gatewaySpan, gatewayTrace, type GatewayTrace } from "./gatewayTraceContract";
 import { DAY_MS, MIN_EVENT_TIME, dayFromTimestamp } from "./lib";
 
 export const gatewayScope = v.union(v.literal("ingest"), v.literal("report"));
@@ -32,6 +33,7 @@ export const gatewayReceipt = v.object({
   stream: v.optional(v.boolean()),
   resolvedModel: v.optional(v.string()),
   traceId: v.optional(v.string()),
+  trace: v.optional(gatewayTrace),
   currency: v.literal("USD"),
   customerChargeNanos: v.union(v.number(), v.null()),
   providerCostNanos: v.union(v.number(), v.null()),
@@ -73,13 +75,54 @@ function isTimestamp(value: unknown, now: number): value is number {
   return isCounter(value) && value >= MIN_EVENT_TIME && value <= now + 5 * 60_000;
 }
 
+const spanIdPattern = /^(?!0{16}$)[a-f0-9]{16}$/;
+const spanKinds = gatewaySpan.fields.kind.members.map((item) => item.value);
+const spanOutcomes = gatewaySpan.fields.outcome.members.map((item) => item.value);
+
+function parseTrace(value: unknown, now: number): GatewayTrace | null {
+  const raw = object(value);
+  if (!raw || Object.keys(raw).some((key) => !Object.hasOwn(gatewayTrace.fields, key))
+    || (raw.billingStatus !== "final" && raw.billingStatus !== "pending")
+    || !Array.isArray(raw.spans) || raw.spans.length < 1 || raw.spans.length > 12) return null;
+  const spans: GatewayTrace["spans"] = [];
+  const byId = new Map<string, GatewayTrace["spans"][number]>();
+  for (const item of raw.spans) {
+    const span = object(item);
+    if (!span || Object.keys(span).some((key) => !Object.hasOwn(gatewaySpan.fields, key))) return null;
+    const { spanId, parentSpanId, kind, startedAt, endedAt, status, httpStatus, provider, model, outcome } = span;
+    if (typeof spanId !== "string" || !spanIdPattern.test(spanId) || byId.has(spanId)
+      || !isTimestamp(startedAt, now) || !isTimestamp(endedAt, now) || startedAt > endedAt
+      || (status !== "ok" && status !== "error")
+      || typeof kind !== "string" || !spanKinds.some((entry) => entry === kind)) return null;
+    const parent = typeof parentSpanId === "string" ? byId.get(parentSpanId) : undefined;
+    if (spans.length === 0
+      ? kind !== "request" || parentSpanId !== undefined
+      : kind === "request" || !parent || startedAt < parent.startedAt || endedAt > parent.endedAt) return null;
+    if (kind === "provider" ? !isSlug(provider) || (model !== undefined && !isSlug(model))
+      : provider !== undefined || model !== undefined) return null;
+    if (httpStatus !== undefined && (kind !== "provider" || !isCounter(httpStatus) || httpStatus < 100 || httpStatus > 599)) return null;
+    if (outcome !== undefined && (kind !== "provider" || !spanOutcomes.some((entry) => entry === outcome))) return null;
+    const parsed = {
+      spanId, kind: kind as GatewayTrace["spans"][number]["kind"], startedAt, endedAt, status,
+      ...(parent ? { parentSpanId: parent.spanId } : {}),
+      ...(httpStatus === undefined ? {} : { httpStatus }),
+      ...(typeof provider === "string" ? { provider } : {}),
+      ...(typeof model === "string" ? { model } : {}),
+      ...(outcome === undefined ? {} : { outcome: outcome as GatewayTrace["spans"][number]["outcome"] }),
+    } satisfies GatewayTrace["spans"][number];
+    spans.push(parsed);
+    byId.set(spanId, parsed);
+  }
+  return { billingStatus: raw.billingStatus, spans };
+}
+
 function parseReceipt(value: unknown, now: number): GatewayReceipt | null {
   const raw = object(value);
   if (!raw || Object.keys(raw).some((key) => !Object.hasOwn(gatewayReceipt.fields, key))) return null;
   const rawUsage = object(raw.usage);
   if (!rawUsage || Object.keys(rawUsage).some((key) => !Object.hasOwn(usage.fields, key))) return null;
   const { schemaVersion, requestId, revision, model, provider, status, settledAt, startedAt, firstTokenAt, stream,
-    resolvedModel, traceId, currency, customerChargeNanos, providerCostNanos, providerCostBasis } = raw;
+    resolvedModel, traceId, trace: rawTrace, currency, customerChargeNanos, providerCostNanos, providerCostBasis } = raw;
   if (schemaVersion !== 1 || !isGatewayRequestId(requestId) || !isCounter(revision) || revision === 0
     || !isSlug(model) || !isSlug(provider) || !isTimestamp(settledAt, now) || currency !== "USD"
     || (status !== "ok" && status !== "error" && status !== "cancelled")
@@ -93,6 +136,10 @@ function parseReceipt(value: unknown, now: number): GatewayReceipt | null {
     || (stream !== undefined && typeof stream !== "boolean")
     || (resolvedModel !== undefined && !isSlug(resolvedModel))
     || (traceId !== undefined && !isGatewayRequestId(traceId))) return null;
+
+  const trace = rawTrace === undefined ? undefined : parseTrace(rawTrace, now);
+  if (trace === null || (trace && (typeof traceId !== "string" || !/^(?!0{32}$)[a-f0-9]{32}$/.test(traceId)
+    || (trace.billingStatus === "pending" && (status !== "error" || customerChargeNanos !== null))))) return null;
 
   const parsedUsage: GatewayReceipt["usage"] = {};
   for (const field of tokenCounters) {
@@ -110,6 +157,7 @@ function parseReceipt(value: unknown, now: number): GatewayReceipt | null {
     ...(stream === undefined ? {} : { stream }),
     ...(resolvedModel === undefined ? {} : { resolvedModel }),
     ...(traceId === undefined ? {} : { traceId }),
+    ...(trace === undefined ? {} : { trace }),
     currency, customerChargeNanos, providerCostNanos, providerCostBasis, usage: parsedUsage,
   };
 }

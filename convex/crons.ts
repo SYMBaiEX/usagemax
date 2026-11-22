@@ -11,4 +11,6 @@ crons.interval("shared provider import queue", { seconds: 5 }, internal.connecti
 crons.interval("workspace telemetry retention", { hours: 24 }, internal.retention.sweep, {});
 crons.interval("quiet coverage notifications", { hours: 24 }, internal.coverageAlerts.check, {});
 
+crons.interval("evaluate gateway alerts", { minutes: 5 }, internal.gatewayOperations.scheduleAlerts, { cursor: null });
+
 export default crons;

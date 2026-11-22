@@ -55,6 +55,7 @@ vi.mock("convex/react", () => ({
       case "gatewayCredentials:project": return fixture.linkedProject;
       case "gatewayReceipts:list": return { receipts: [fixture.receipt], truncated: true };
       case "gatewayReceipts:get": return fixture.receipt;
+      case "gatewayOperations:workspaceReport": return undefined;
       case "gatewayCredentials:list": return { credentials: [], truncated: false };
       default: throw new Error(`Unexpected query ${name}`);
     }

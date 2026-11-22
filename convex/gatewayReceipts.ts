@@ -62,12 +62,13 @@ export const receive = internalMutation({
       } else if (existing && existing.historyAt !== receipt.settledAt) {
         status = "conflict";
       } else {
+        const billingPending = receipt.trace?.billingStatus === "pending" ? true : undefined;
         if (existing) {
           // The first accepted receipt fixes the request's reporting date and retention horizon.
-          await ctx.db.patch("gatewayReceipts", existing._id, { receipt, payloadHash });
+          await ctx.db.patch("gatewayReceipts", existing._id, { receipt, payloadHash, billingPending });
         } else {
           await ctx.db.insert("gatewayReceipts", {
-            workspaceId, projectId, requestId, historyAt: receipt.settledAt, receipt, payloadHash,
+            workspaceId, projectId, requestId, historyAt: receipt.settledAt, receipt, payloadHash, ...(billingPending ? { billingPending } : {}),
           });
         }
         status = "accepted";
