@@ -1,6 +1,32 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { NextRequest, NextResponse } from "next/server";
+import proxy from "./proxy";
 import { agentHomepage } from "@/lib/agent-index";
 import { requestsMarkdown, requestsMachineReadable } from "./lib/markdown-negotiation";
+
+vi.mock("@workos-inc/authkit-nextjs", () => ({
+  authkit: vi.fn().mockResolvedValue({ session: { user: null }, headers: new Headers() }),
+  handleAuthkitHeaders: (request: NextRequest, headers: Headers, options: { redirect: string }) =>
+    NextResponse.redirect(new URL(options.redirect, request.url), { headers, status: 307 }),
+}));
+
+describe("signed-out product redirects", () => {
+  it.each([
+    ["/account?setup=computer", "/account?setup=computer#link-computer"],
+    ["/account?setup=telemetry", "/account?setup=telemetry#custom-telemetry"],
+    ["/account?next=%2Fworkspace%3Ftab%3Dbilling", "/account?next=%2Fworkspace%3Ftab%3Dbilling"],
+    ["/account?next=%2F%2Fevil.example", "/account"],
+    ["/workspace?tab=billing", "/workspace?tab=billing"],
+    ["/workspace?tab=billing&tab=settings", "/workspace"],
+    ["/workspace/gateway?projectId=project1&requestId=request%3A123", "/workspace/gateway?projectId=project1&requestId=request%3A123"],
+  ])("preserves the allowed continuation from %s", async (path, expected) => {
+    const response = await proxy(new NextRequest(`https://usagemax.com${path}`));
+    expect(response.status).toBe(307);
+    const location = new URL(response.headers.get("location")!);
+    expect(location.origin + location.pathname).toBe("https://usagemax.com/sign-in");
+    expect(location.searchParams.get("returnTo")).toBe(expected);
+  });
+});
 
 const request = (headers: Record<string, string>) => ({ headers: new Headers(headers) });
 

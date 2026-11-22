@@ -1,4 +1,4 @@
-import { safeReturnTo } from "./auth-flow";
+import { safeReturnTo, type AuthSearch } from "./auth-flow";
 
 export const workspaceTabs = [
   "Overview", "Usage", "Activity", "Teams", "Ledger", "Budgets",
@@ -18,10 +18,22 @@ export function workspaceHref(tab: WorkspaceTab = "Overview", section?: "project
 export const connectComputerHref = "/account?setup=computer#link-computer";
 export const connectTelemetryHref = "/account?setup=telemetry#custom-telemetry";
 
-export function accountSetupHref(setup: unknown): string {
-  if (setup === "computer") return connectComputerHref;
-  if (setup === "telemetry") return connectTelemetryHref;
-  return "/account";
+export const billingAccountHref = "/account?billing=manage#account-billing";
+
+export function accountRoute(search: AuthSearch) {
+  const { setup, next, billing } = search;
+  const destination = readWorkspaceReturn(next);
+  let href = "/account";
+  if (destination) href = accountOnboardingHref(destination);
+  else if (billing === "manage") href = billingAccountHref;
+  else if (setup === "computer") href = connectComputerHref;
+  else if (setup === "telemetry") href = connectTelemetryHref;
+  return {
+    href,
+    destination,
+    billing: typeof billing === "string" ? billing : undefined,
+    setup: setup === "computer" || setup === "telemetry" ? setup : undefined,
+  } as const;
 }
 
 export function readWorkspaceReturn(value: unknown): string | undefined {
@@ -42,4 +54,11 @@ export function gatewayHref(project: string | null, receipt: string | null): str
   if (project) query.set("projectId", project);
   if (receipt) query.set("requestId", receipt);
   return `/workspace/gateway${query.size ? `?${query}` : ""}`;
+}
+
+export function gatewayRoute(search: AuthSearch) {
+  const { projectId, requestId } = search;
+  const projectHint = typeof projectId === "string" && /^[a-z0-9]{1,80}$/.test(projectId) ? projectId : null;
+  const receiptHint = typeof requestId === "string" && /^[A-Za-z0-9_-][A-Za-z0-9_.:-]{0,119}$/.test(requestId) ? requestId : null;
+  return { projectHint, receiptHint, href: gatewayHref(projectHint, receiptHint) };
 }
