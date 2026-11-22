@@ -15,6 +15,7 @@ import { buildSessionPlan, buildSnapshotPlan, normalizeLinkCode, scanPolicy, sou
 import { ccusageDailyArgs } from "./ccusage.js";
 import { stableInstallationId } from "./installation.js";
 import { createProgress } from "./progress.js";
+import { productAnalyticsStatus, recordProductAnalytics, setProductAnalyticsEnabled } from "./product-analytics.js";
 import { intervalMinutes, manageService, runScheduledSync } from "./service.js";
 import { collectorCanWrite, collectorStatusView, requestCollectorStatus, requestSnapshot, requestTelemetrySmokeTest } from "./transport.js";
 import { resumeUpload, restartExpiredUpload, withConfigLock } from "./resume.js";
@@ -121,6 +122,10 @@ function help(command) {
       status: "Usage: usagemax status [--remote] [--json] [--quiet|--no-progress]",
       doctor: "Usage: usagemax doctor [--deep] [--json] [--quiet|--no-progress]",
       "token status": "Usage: printf '%s' \"$USAGEMAX_COLLECTOR_TOKEN\" | usagemax token status [--device-id <uuid>] [--json] [--quiet|--no-progress]\nRead-only credential check; the token is read from stdin and never printed.",
+      telemetry: "Usage: usagemax telemetry status|disable|enable [--json]\nSet USAGEMAX_TELEMETRY_DISABLED=1 or DO_NOT_TRACK=1 to opt out via the environment.\nRun `usagemax telemetry test --help` for the collector smoke test.",
+      "telemetry status": "Usage: usagemax telemetry status [--json]\nCheck whether optional CLI product telemetry is enabled.",
+      "telemetry disable": "Usage: usagemax telemetry disable [--json]\nTurn off optional CLI product telemetry and remove its local identifier.",
+      "telemetry enable": "Usage: usagemax telemetry enable [--json]\nTurn on optional CLI product telemetry unless an environment override disables it.",
       "telemetry test": "Usage: usagemax telemetry test [--token-stdin] [--device-id <uuid>] [--json] [--quiet|--no-progress]\nSend one content-free zero-token observability event to verify the write path.",
       service: "Usage: usagemax service install [--every <minutes>] | status | run | uninstall",
       "service install": "Usage: usagemax service install [--every <minutes>]",
@@ -150,6 +155,8 @@ function help(command) {
   process.stdout.write("           [--quiet|--no-progress]  Disable interactive progress output\n");
   process.stdout.write("  usagemax token status [--device-id <uuid>] [--json] [--quiet|--no-progress]\n");
   process.stdout.write("                                  Diagnose a key piped on stdin; never pass it as an argument\n");
+  process.stdout.write("  usagemax telemetry status|disable|enable [--json]\n");
+  process.stdout.write("                                  Manage optional CLI product telemetry\n");
   process.stdout.write("  usagemax telemetry test [--token-stdin] [--device-id <uuid>] [--json] [--quiet|--no-progress]\n");
   process.stdout.write("                                  Send one zero-token observability smoke event\n");
   process.stdout.write("  usagemax service install [--every 15]\n");
@@ -174,6 +181,9 @@ function validateCommandArgs(command, args) {
     doctor: { flags: ["--deep", "--json", "--quiet", "--no-progress", "--check-updates", "--no-update-check"], values: [], positional: 0 },
     unlink: { flags: ["--revoke", "--json"], values: [], positional: 0 },
     "token status": { flags: ["--json", "--quiet", "--no-progress"], values: ["--device-id"], positional: 0 },
+    "telemetry status": { flags: ["--json"], values: [], positional: 0 },
+    "telemetry disable": { flags: ["--json"], values: [], positional: 0 },
+    "telemetry enable": { flags: ["--json"], values: [], positional: 0 },
     "telemetry test": { flags: ["--token-stdin", "--json", "--quiet", "--no-progress"], values: ["--device-id"], positional: 0 },
   };
   if (command === "service") {
@@ -1007,10 +1017,29 @@ async function removeLink(args = []) {
   }
 }
 
+async function manageProductAnalytics(action, args) {
+  const directory = configDirectory();
+  const status = action === "status"
+    ? await productAnalyticsStatus(directory)
+    : await setProductAnalyticsEnabled(directory, action === "enable");
+  if (args.includes("--json")) {
+    process.stdout.write(`${JSON.stringify(status)}\n`);
+    return;
+  }
+  const state = status.enabled ? "enabled" : "disabled";
+  const reason = {
+    DO_NOT_TRACK: " by DO_NOT_TRACK",
+    USAGEMAX_TELEMETRY_DISABLED: " by USAGEMAX_TELEMETRY_DISABLED",
+    CI: " in CI",
+    settings_unavailable: " because the local preferences are unreadable",
+  }[status.disabledBy] ?? "";
+  process.stdout.write(`UsageMax CLI product telemetry is ${state}${reason}.\n`);
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const command = args[0] || "sync";
-  if (["--help", "-h", "help"].includes(command)) return help(args[1]);
+  if (["--help", "-h", "help"].includes(command)) return help(args[1] === "telemetry" && args[2] ? `telemetry ${args[2]}` : args[1]);
   if (["--version", "-v"].includes(command)) return process.stdout.write(args.includes("--json") ? `${JSON.stringify({ version: VERSION, ccusageVersion: CCUSAGE_VERSION })}\n` : `${VERSION}\n`);
   if (command === "report") return report(args.slice(1));
   const invocationHelp = command === "update"
@@ -1018,13 +1047,19 @@ async function main() {
     : args.slice(1).some((arg) => arg === "--help" || arg === "-h");
   if (invocationHelp) {
     const helpCommand = command === "token" && args[1] === "status" ? "token status"
-      : command === "telemetry" ? "telemetry test"
+      : command === "telemetry" && args[1] && !args[1].startsWith("-") ? `telemetry ${args[1]}`
         : command === "service" ? `service ${args[1] || "status"}` : command;
     return help(helpCommand);
   }
   if (command === "token" && args[1] !== "status") throw new Error("Use `usagemax token status`; run usagemax --help for all commands.");
-  if (command === "telemetry" && args[1] !== "test") throw new Error("Use `usagemax telemetry test`; run usagemax --help for all commands.");
-  validateCommandArgs(command === "token" ? "token status" : command === "telemetry" ? "telemetry test" : command, command === "service" ? args.slice(1) : command === "token" || command === "telemetry" ? args.slice(2) : args.slice(1));
+  if (command === "telemetry") {
+    const action = args[1];
+    if (!["status", "disable", "enable", "test"].includes(action)) throw new Error("Use `usagemax telemetry --help` for the available actions.");
+    const actionArgs = args.slice(2);
+    validateCommandArgs(`telemetry ${action}`, actionArgs);
+    return action === "test" ? telemetryTest(actionArgs) : manageProductAnalytics(action, actionArgs);
+  }
+  validateCommandArgs(command === "token" ? "token status" : command, args.slice(command === "token" ? 2 : 1));
   if (command === "update") return update(args.slice(1));
   if (await maybeUpdate(command, args)) return;
   if (command === "service") {
@@ -1048,15 +1083,17 @@ async function main() {
     return;
   }
   if (command === "token" && args[1] === "status") return tokenStatus(args.slice(2));
-  if (command === "telemetry" && args[1] === "test") return telemetryTest(args.slice(2));
   if (["link", "sync", "status", "doctor", "unlink"].includes(command)) {
-    return withConfigLock(configDirectory(), async () => {
+    const directory = configDirectory();
+    const result = await withConfigLock(directory, async () => {
       if (command === "link") return link(args.slice(1));
       if (command === "sync") return sync(args.slice(1));
       if (command === "status") return status(args.slice(1));
       if (command === "doctor") return doctor(args.slice(1));
       return removeLink(args.slice(1));
     });
+    if (!process.exitCode) await recordProductAnalytics(directory, { command, args: args.slice(1), cliVersion: VERSION });
+    return result;
   }
   throw new Error(`Unknown command: ${command}. Run usagemax --help.`);
 }
