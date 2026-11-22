@@ -101,7 +101,10 @@ describe("authoritative collector snapshots", () => {
         expect((await ctx.db.query("networkCounterShards").first())?.totalCostMicros).toBe(10_000);
       });
 
-      await sync("pricing-old-replay", historicalRows, "ccusage@20.0.20", 2);
+      const oldReplay = historicalRows.map((row) => row.costBasis === "reported"
+        ? { ...row, current: counters(1000, 9000), costBasis: "estimated" as const }
+        : row);
+      await sync("pricing-old-replay", oldReplay, "ccusage@20.0.20", 2);
       await t.mutation(internal.pricingBackfill.start, {});
       expect((await t.query(api.public.profile, { handle: "snapshot" }))?.stats?.totalCostMicros).toBe(10_000);
       expect(await t.query(internal.pricingBackfill.status, {})).toMatchObject({ status: "complete", corrected: 2 });

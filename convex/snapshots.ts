@@ -432,6 +432,7 @@ export const commitPartition = internalMutation({
     }> = [];
     for (const row of uniqueRows.values()) {
       const prior = priorSnapshots.find((candidate) => candidate.provider === row.provider && candidate.model === row.model);
+      if (prior?.costBasis === "reported" && row.costBasis !== "reported") continue;
       const base = run.baselineMode === "adopt-current"
         ? row.current
         : prior
@@ -441,7 +442,7 @@ export const commitPartition = internalMutation({
       let basis = row.costBasis;
       let priceCorrection: Doc<"collectorUsageSnapshots">["priceCorrection"];
       const unchangedUsage = Boolean(prior && counterFields.every((field) => field === "costMicros" || current[field] === prior[field]));
-      if (run.baselineMode !== "adopt-current" && basis !== "reported" && prior?.costBasis !== "reported") {
+      if (run.baselineMode !== "adopt-current" && basis !== "reported") {
         const quote = automaticSnapshotPrice({
           ...current, source: args.source, day: args.day, provider: row.provider, model: row.model,
           pricingVersion: args.pricingVersion, costBasis: basis,
@@ -483,6 +484,7 @@ export const commitPartition = internalMutation({
     if (args.complete && run.parserCoverageCertified && (!chunked || cleaning)
       && run.inventoryComplete && run.inventoryErrors === 0 && !run.inventoryTruncated) {
       for (const prior of priorSnapshots) {
+        if (prior.costBasis === "reported") continue;
         if (uniqueRows.has(`${prior.provider}\u001f${prior.model}`)) continue;
         const current = zeroCounters();
         const base = Object.fromEntries(counterFields.map((field) => [field, prior[field]])) as Counters;
