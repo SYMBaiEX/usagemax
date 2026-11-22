@@ -8,6 +8,10 @@ function gatewayError(error: string, status: number, message: string, hint: stri
   return apiError(error, status, { message, hint, documentation: GUIDE });
 }
 
+export function hasGatewayAuthorization(request: Request) {
+  return TOKEN.test(request.headers.get("authorization") ?? "");
+}
+
 export async function forwardGatewayRequest(request: Request, path: string) {
   const authorization = request.headers.get("authorization");
   if (!authorization || !TOKEN.test(authorization)) {

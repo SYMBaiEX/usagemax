@@ -2,6 +2,7 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { productTables } from "./productSchema";
 import { gatewayReceipt, gatewayScope } from "./gatewayContract";
+import { gatewayAlert } from "./gatewayAlertContract";
 
 export const cliAnalyticsPlatform = v.union(v.literal("darwin"), v.literal("linux"), v.literal("win32"), v.literal("other"));
 export const cliAnalyticsArch = v.union(v.literal("x64"), v.literal("arm64"), v.literal("other"));
@@ -31,12 +32,30 @@ export default defineSchema({
     projectId: v.id("projects"),
     requestId: v.string(),
     historyAt: v.number(),
+    billingPending: v.optional(v.boolean()),
     payloadHash: v.string(),
     receipt: gatewayReceipt,
   })
     .index("by_projectId_and_requestId", ["projectId", "requestId"])
     .index("by_projectId_and_historyAt", ["projectId", "historyAt"])
+    .index("by_projectId_and_billingPending_and_historyAt", ["projectId", "billingPending", "historyAt"])
     .index("by_workspaceId_and_historyAt", ["workspaceId", "historyAt"]),
+
+  gatewayAlertEvents: defineTable({
+    ...gatewayAlert.fields,
+    workspaceId: v.id("workspaces"),
+    projectId: v.id("projects"),
+    active: v.boolean(),
+  })
+    .index("by_projectId_and_active", ["projectId", "active"])
+    .index("by_workspaceId_and_updatedAt", ["workspaceId", "updatedAt"]),
+
+  gatewayAlertChecks: defineTable({
+    workspaceId: v.id("workspaces"),
+    projectId: v.id("projects"),
+    evaluatedAt: v.number(),
+    truncated: v.boolean(),
+  }).index("by_projectId", ["projectId"]).index("by_workspaceId", ["workspaceId"]),
 
   cliAnalyticsReceipts: defineTable({
     day: v.string(),

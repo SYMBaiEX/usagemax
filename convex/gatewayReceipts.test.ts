@@ -74,6 +74,71 @@ describe("private gateway receipts", () => {
     return t.fetch(path + suffix, { headers: { authorization: `Bearer ${token}` } });
   }
 
+  test("rejects unsafe spans and reports scoped attempts, costs, and alert lifecycle", async () => {
+    const one = await tenant("ops-owner");
+    const other = await tenant("ops-other");
+    const spanId = "1".repeat(16);
+    const trace = {
+      billingStatus: "pending",
+      spans: [
+        { spanId, kind: "request", startedAt: now - 2000, endedAt: now, status: "error" },
+        { spanId: "2".repeat(16), parentSpanId: spanId, kind: "provider", startedAt: now - 1950,
+          endedAt: now - 100, status: "error", provider: "initial-provider", model: receipt.model,
+          httpStatus: 502, outcome: "http_error" },
+      ],
+    };
+    const pending = {
+      ...receipt, status: "error", customerChargeNanos: null,
+      traceId: "a".repeat(32), trace,
+    };
+    expect((await write(one.ingest.token, [{ ...pending, trace: { ...trace, spans: [
+      trace.spans[0], { ...trace.spans[1], attributes: { content: "private fixture" } },
+    ] } }])).status).toBe(400);
+    expect((await write(one.ingest.token, [{ ...pending, trace: { ...trace, spans: [
+      trace.spans[0], { ...trace.spans[1], parentSpanId: "3".repeat(16) },
+    ] } }])).status).toBe(400);
+
+    const rows = Array.from({ length: 5 }, (_, index) => ({
+      ...pending, requestId: "ops-" + index, traceId: (index + 1).toString(16).repeat(32),
+    }));
+    expect((await write(one.ingest.token, rows)).status).toBe(200);
+    const opsPath = "/v1/gateway/operations?from=" + day + "&through=" + day;
+    const operations = (token: string) => t.fetch(opsPath, { headers: { authorization: `Bearer ${token}` } });
+    expect((await operations(one.ingest.token)).status).toBe(403);
+    await t.mutation(internal.gatewayOperations.evaluateAlerts, { projectId: one.projectId, workspaceId: one.workspaceId });
+    const report = await (await operations(one.report.token)).json();
+    expect(report.overall).toMatchObject({
+      requests: 5, errors: 5, providerAttempts: 5, pendingBilling: 5, costCovered: 0,
+      firstToken: { p50: 1000, p95: 1000, p99: 1000, samples: 5 },
+    });
+    expect(report.providers).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: "initial-provider", requests: 0, providerErrors: 5 }),
+      expect.objectContaining({ key: "fixture", requests: 5, providerErrors: 0 }),
+    ]));
+    expect(report.alerts.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ rule: "provider_errors", provider: "initial-provider", observed: 100 }),
+      expect.objectContaining({ rule: "billing_pending", provider: "fixture", observed: 5 }),
+    ]));
+    expect((await (await operations(other.report.token)).json()).overall.requests).toBe(0);
+    expect((await read(other.report.token, "/ops-0")).status).toBe(404);
+
+    const hourLater = now + 3_700_000;
+    vi.setSystemTime(hourLater);
+    await t.mutation(internal.gatewayOperations.evaluateAlerts, { projectId: one.projectId, workspaceId: one.workspaceId });
+    const aged = await (await operations(one.report.token)).json();
+    expect(aged.alerts.items.find((item: { rule: string }) => item.rule === "billing_pending").resolvedAt).toBeUndefined();
+    const corrected = rows.map((row) => ({
+      ...row, revision: 2, status: "ok", customerChargeNanos: 1000, providerCostNanos: 800,
+      providerCostBasis: "invoice_confirmed", trace: { ...trace, billingStatus: "final" },
+    }));
+    expect((await write(one.ingest.token, corrected)).status).toBe(200);
+    await t.mutation(internal.gatewayOperations.evaluateAlerts, { projectId: one.projectId, workspaceId: one.workspaceId });
+    const resolved = await (await operations(one.report.token)).json();
+    expect(resolved.overall).toMatchObject({ requests: 5, pendingBilling: 0,
+      invoiceConfirmed: 5, costCovered: 5, customerChargeNanos: "5000", coveredMarginNanos: "1000" });
+    expect(resolved.alerts.items.find((item: { rule: string }) => item.rule === "billing_pending").resolvedAt).toBe(hourLater);
+  });
+
   test("returns independent results for replay, conflict, late revisions, and stale delivery", async () => {
     const one = await tenant("one");
     expect(one.ingest.token).toMatch(/^umxg_[a-f0-9]{64}$/);

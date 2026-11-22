@@ -176,6 +176,25 @@ function GatewayProjects({ overview, projectHint, receiptHint, today }: GatewayP
   );
 }
 
+function GatewayOperations({ projectId, from, through }: { projectId: Id<"projects">; from: string; through: string }) {
+  const report = useQuery(api.gatewayOperations.workspaceReport, { projectId, from, through });
+  if (!report) return <p className={styles.hint} role="status">Loading gateway analytics…</p>;
+  return <section className={styles.item} aria-label="Gateway analytics">
+    <h3>Gateway analytics</h3>
+    <p className={styles.hint}>{from} through {through} UTC · latest {report.limit.toLocaleString()} retained receipts at most.</p>
+    <dl className={gateway.facts}>
+      <div><dt>Requests</dt><dd>{integer.format(report.overall.requests)}</dd></div>
+      <div><dt>Provider attempts</dt><dd>{integer.format(report.overall.providerAttempts)}</dd></div>
+      <div><dt>P95 latency</dt><dd>{report.overall.latency ? `${integer.format(report.overall.latency.p95)} ms` : "Unavailable"}</dd></div>
+      <div><dt>Invoice-confirmed costs</dt><dd>{integer.format(report.overall.invoiceConfirmed)}</dd></div>
+    </dl>
+    {report.truncated && <p className={styles.hint}>This report reached its receipt limit.</p>}
+    <p className={styles.hint}>{report.alerts.evaluatedAt === null
+      ? "Alert evaluation pending."
+      : `${report.alerts.items.filter((alert) => alert.resolvedAt === undefined).length} open alerts · evaluated ${utc(report.alerts.evaluatedAt)}.`}</p>
+  </section>;
+}
+
 function GatewayReceipts({ projectId, receiptHint, today }: { projectId: Id<"projects">; receiptHint: string | null; today: string }) {
   const from = new Date(Date.parse(today) - 6 * dayMs).toISOString().slice(0, 10);
   const page = useQuery(api.gatewayReceipts.list, { projectId, from, through: today, limit: 50 });
@@ -210,6 +229,7 @@ function GatewayReceipts({ projectId, receiptHint, today }: { projectId: Id<"pro
   return (
     <section className={styles.panel} aria-labelledby="gateway-receipts">
       <h2 id="gateway-receipts">Request receipts</h2>
+      <GatewayOperations projectId={projectId} from={from} through={today} />
       <form className={styles.form} onSubmit={findReceipt}>
         <label>
           Request ID
@@ -286,6 +306,19 @@ function ReceiptDetail({ receipt, projectId }: { receipt: Receipt; projectId: Id
         <div><dt>Settled</dt><dd>{utc(receipt.settledAt)}</dd></div>
         <div><dt>Streaming</dt><dd>{receipt.stream === undefined ? "Unavailable" : receipt.stream ? "Yes" : "No"}</dd></div>
       </dl>
+      {receipt.trace && <>
+        <h4>Request spans</h4>
+        <p className={styles.hint}>{receipt.trace.billingStatus === "pending" ? "Billing pending" : "Billing final"}</p>
+        <ol>
+          {receipt.trace.spans.map((span) => (
+            <li key={span.spanId}>
+              {span.kind} · {span.endedAt - span.startedAt} ms · {span.status}
+              {span.provider && ` · ${span.provider}`}{span.httpStatus && ` · HTTP ${span.httpStatus}`}
+              {span.outcome && ` · ${span.outcome.replaceAll("_", " ")}`}
+            </li>
+          ))}
+        </ol>
+      </>}
       <h4>Accounting</h4>
       <dl className={gateway.facts}>
         <div><dt>Customer charge (USD)</dt><dd>{usdNanos(receipt.customerChargeNanos)}</dd></div>

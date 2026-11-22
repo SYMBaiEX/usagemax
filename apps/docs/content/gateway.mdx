@@ -46,6 +46,14 @@ Retry transient failures with bounded exponential backoff and respect `Retry-Aft
 
 Use the server-side report key for `GET /api/v1/gateway/receipts?from=2026-11-21&through=2026-11-21`. Date bounds are inclusive UTC and can span up to 31 days. The response indicates truncation for a bounded result. Query a narrower range if you need complete counts. For one request, use `GET /api/v1/gateway/receipts/{requestId}`.
 
-The [OpenAPI document](https://usagemax.com/openapi.json) describes both operations. The repository includes a [TypeScript server client](https://github.com/SYMBaiEX/usagemax/tree/main/packages/gateway-client) with generated contract types.
+## Traces, analytics, and alerts
+
+Include an optional `trace` on a receipt with a 32-character lowercase hexadecimal trace ID. Send one request root followed by child spans in parent-first order. Each span has an opaque 16-character lowercase hexadecimal ID, start and end milliseconds, kind, and status. Provider attempts also carry a provider slug, optional model and HTTP status, and an allowlisted outcome. A request that reached the gateway but still needs billing recovery can use error status, `trace.billingStatus: "pending"`, and a null customer charge. Publish a higher revision when the ledger resolves it.
+
+`GET /api/v1/gateway/operations?from=2026-11-21&through=2026-11-21` returns totals and UTC day, provider and model breakdowns over the newest 2,000 retained receipts in the selected period. It includes p50, p95 and p99 plus sample counts, exact decimal integer monetary sums, cost evidence coverage, and recent trace links. Covered margin includes only receipts with a known customer charge and provider-reported or invoice-confirmed cost. If the report hits the cap, it labels the coverage.
+
+Gateway alerts evaluate every five minutes. A provider triggers an error alert at a 20% attempt error rate, or a latency alert at 5 seconds p95, over at least five measured attempts in the previous hour. Pending billing alerts remain open while pending receipts exist within retention. The response includes open and resolved incidents and the last evaluation time.
+
+The [OpenAPI document](https://usagemax.com/openapi.json) describes the private gateway operations. The repository includes a [TypeScript server client](https://github.com/SYMBaiEX/usagemax/tree/main/packages/gateway-client) with generated contract types.
 
 Gateway receipts stay private to the project. Send only permitted metrics and opaque identifiers. Keep prompts, responses, tools, headers, wallet addresses, secrets, and customer identity out of receipts.

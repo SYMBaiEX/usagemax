@@ -1,6 +1,7 @@
 import type { components } from "./schema";
 
 export type GatewayReceipt = components["schemas"]["GatewayReceipt"];
+export type GatewayOperations = components["schemas"]["GatewayOperations"];
 export type GatewayReport = components["schemas"]["GatewayReport"];
 export type GatewayWriteResult = components["schemas"]["GatewayWriteResult"];
 export type GatewayStatus = components["schemas"]["GatewayStatus"];
@@ -47,6 +48,9 @@ export function createGatewayClient({
       const params = new URLSearchParams({ from, through });
       if (limit !== undefined) params.set("limit", String(limit));
       return request<GatewayReport>(`/api/v1/gateway/receipts?${params}`);
+    },
+    operations({ from, through }: { from: string; through: string }) {
+      return request<GatewayOperations>("/api/v1/gateway/operations?" + new URLSearchParams({ from, through }));
     },
     get(requestId: string) {
       if (!/^[A-Za-z0-9_-][A-Za-z0-9_.:-]{0,119}$/.test(requestId)) throw new TypeError("Invalid gateway request ID.");
