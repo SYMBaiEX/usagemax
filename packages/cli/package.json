@@ -1,6 +1,6 @@
 {
   "name": "usagemax",
-  "version": "0.3.14",
+  "version": "0.3.15",
   "description": "Link local coding-agent usage to your UsageMax profile",
   "keywords": [
     "usagemax",
@@ -41,6 +41,7 @@
     "src/transport.js",
     "src/upload.js",
     "src/progress.js",
+    "src/pricing-routes.js",
     "src/product-analytics.js",
     "src/updates.js",
     "src/resume.js",

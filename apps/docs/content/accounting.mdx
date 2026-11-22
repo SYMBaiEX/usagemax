@@ -17,7 +17,7 @@ The collector groups usage by UTC day, source, provider, and model. Each sync re
 | Estimated | A calculation from token rates for a model and provider. |
 | Unknown | The source did not establish a cost. |
 
-Collector estimates use ccusage's LiteLLM and models.dev pricing. A sync that parses history checks live rates and can fall back to the bundled catalog. Token totals still count when pricing is unknown. If an incomplete scan produces a lower estimate, UsageMax preserves the previously tracked cost and can still reconcile newly observed tokens.
+Collector estimates use ccusage's LiteLLM and models.dev pricing. A sync that parses history checks live rates and can fall back to the bundled catalog. Token totals still count when pricing is unknown. If an incomplete scan produces a lower estimate, UsageMax preserves the previously tracked cost and can still reconcile newly observed tokens. For known ambiguous bare model IDs, UsageMax uses the direct provider catalog entry and preserves the model label in your reports. Explicit provider routes and custom ccusage aliases remain available.
 
 A tracked estimate can differ from your invoice because contracts, cached input, service tiers, and subscriptions change what you pay. Keep any invoice reconciliation tied to a provider export and its billing period.
 

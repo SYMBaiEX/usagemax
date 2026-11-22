@@ -14,6 +14,7 @@ import { prepareArchiveRecovery } from "./archives.js";
 import { buildSessionPlan, buildSnapshotPlan, normalizeLinkCode, scanPolicy, sourceSummary, validHttpsUrl } from "./core.js";
 import { ccusageDailyArgs } from "./ccusage.js";
 import { stableInstallationId } from "./installation.js";
+import { PRICING_ROUTES_VERSION, providerPricingRoutes, restorePricingModelNames } from "./pricing-routes.js";
 import { createProgress } from "./progress.js";
 import { productAnalyticsStatus, recordProductAnalytics, setProductAnalyticsEnabled } from "./product-analytics.js";
 import { intervalMinutes, manageService, runScheduledSync } from "./service.js";
@@ -219,6 +220,7 @@ function ccusageCliPath() {
 
 async function ccusageJson(config, { full = false, offlinePricing = false, env } = {}) {
   const args = [ccusageCliPath(), ...ccusageDailyArgs(config, { full, offlinePricing })];
+  const pricing = providerPricingRoutes(env || await ccusageEnvironment());
   // Reconcile yesterday once after the UTC date changes. All other incremental
   // scans parse only today; a metadata fingerprint avoids invoking ccusage when
   // no supported local source changed at all.
@@ -230,7 +232,7 @@ async function ccusageJson(config, { full = false, offlinePricing = false, env }
       maxBuffer: MAX_REPORT_BYTES,
       timeout: 10 * 60 * 1000,
       killSignal: "SIGKILL",
-      env: { ...(env || await ccusageEnvironment()), NO_COLOR: "1" },
+      env: { ...pricing.env, NO_COLOR: "1" },
     }));
   } catch (error) {
     const reason = error?.killed ? "timed out" : error?.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER" ? "exceeded the report size limit" : "failed";
@@ -244,7 +246,7 @@ async function ccusageJson(config, { full = false, offlinePricing = false, env }
   }
   const parserWarningCount = String(stderr || "").split(/\r?\n/)
     .filter((line) => /\b(?:warn(?:ing)?|error|failed|skipped)\b/i.test(line)).length;
-  return { report, parserWarningCount };
+  return { report: restorePricingModelNames(report, pricing.restore), parserWarningCount };
 }
 
 function reportDays(report) {
@@ -413,7 +415,7 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
   const json = args.includes("--json");
   const offlinePricing = args.includes("--offline-pricing") || process.env.USAGEMAX_OFFLINE_PRICING === "1";
   const pricingMode = offlinePricing ? "bundled" : "live-with-bundled-fallback";
-  const pricingVersion = `ccusage@${CCUSAGE_VERSION}:${pricingMode}`;
+  const pricingVersion = `ccusage@${CCUSAGE_VERSION}:${pricingMode}:${PRICING_ROUTES_VERSION}`;
   if (args.includes("--restart") && !dryRun) {
     restartExpiredUpload(config);
     await writeConfig(config);
