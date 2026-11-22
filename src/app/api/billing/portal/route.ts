@@ -2,7 +2,8 @@ import { withAuth } from "@workos-inc/authkit-nextjs";
 import { fetchQuery } from "convex/nextjs";
 import { NextResponse } from "next/server";
 import { api } from "../../../../../convex/_generated/api";
-import { billingAccountHref, billingFailure, billingWorkspaceHref } from "@/lib/billing-navigation";
+import { billingFailure, billingWorkspaceHref } from "@/lib/billing-navigation";
+import { billingAccountHref } from "@/lib/product-navigation";
 import { appOrigin, stripeClient } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";

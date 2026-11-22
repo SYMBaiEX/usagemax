@@ -1,6 +1,8 @@
 import { applyResponseHeaders, authkit, handleAuthkitHeaders, partitionAuthkitHeaders } from "@workos-inc/authkit-nextjs";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import type { AuthSearch } from "@/lib/auth-flow";
+import { accountRoute, gatewayRoute, readWorkspaceTab, signInHref, workspaceHref } from "@/lib/product-navigation";
 import { agentHomepage } from "@/lib/agent-index";
 import { requestsMachineReadable, requestsMarkdown } from "@/lib/markdown-negotiation";
 
@@ -177,8 +179,20 @@ export default async function proxy(request: NextRequest) {
     return rewriteNotFound(request, headers);
   }
 
-  if (request.nextUrl.pathname === "/account" && !session.user) {
-    return handleAuthkitHeaders(request, headers, { redirect: "/sign-in" });
+  const { pathname, searchParams } = request.nextUrl;
+  if (!session.user && (pathname === "/account" || pathname === "/workspace" || pathname === "/workspace/gateway")) {
+    const search: AuthSearch = Object.fromEntries(
+      ["setup", "next", "billing", "tab", "projectId", "requestId"].map((name) => {
+        const values = searchParams.getAll(name);
+        return [name, values.length === 1 ? values[0] : values];
+      }),
+    );
+    const destination = pathname === "/account"
+      ? accountRoute(search).href
+      : pathname === "/workspace/gateway"
+        ? gatewayRoute(search).href
+        : workspaceHref(readWorkspaceTab(search.tab));
+    return handleAuthkitHeaders(request, headers, { redirect: signInHref(destination) });
   }
 
   const response = handleAuthkitHeaders(request, headers);
