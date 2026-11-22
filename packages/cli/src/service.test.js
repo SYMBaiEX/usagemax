@@ -43,7 +43,7 @@ test("stages a refreshed product-named runtime atomically", async () => {
 });
 
 test("only explicit discovery environment is persisted; no credentials", () => {
-  assert.deepEqual(capturedEnvironment({ PATH: "/bin", CODEX_HOME: "/logs", CLAUDE_CONFIG_DIR: "", OPENAI_API_KEY: "secret", USAGEMAX_TOKEN: "secret", NODE_OPTIONS: "--import=evil", HOME: "/another-user" }), { PATH: "/bin", CODEX_HOME: "/logs", CLAUDE_CONFIG_DIR: "" });
+  assert.deepEqual(capturedEnvironment({ PATH: "/bin", CODEX_HOME: "/logs", CLAUDE_CONFIG_DIR: "", USAGEMAX_OFFLINE_PRICING: "1", OPENAI_API_KEY: "secret", USAGEMAX_TOKEN: "secret", NODE_OPTIONS: "--import=evil", HOME: "/another-user" }), { PATH: "/bin", CODEX_HOME: "/logs", CLAUDE_CONFIG_DIR: "", USAGEMAX_OFFLINE_PRICING: "1" });
 });
 
 test("launchd is a low-priority interval job with a branded runtime and no KeepAlive, shell, or log growth", () => {
@@ -77,6 +77,8 @@ test("Windows task is least-privilege, nonoverlapping, does not wake or launch a
   assert.match(task, /<WakeToRun>false/);
   assert.match(task, /&quot;\/opt\/Usage Max\/src\/cli.js&quot;/);
   assert.doesNotMatch(task, /cmd.exe|powershell|Password/);
+  const quoted = servicePlan({ ...options, cli: 'C:\\usage\\"cli"\\', platform: "win32" }).files[0][1];
+  assert.ok(quoted.includes('&quot;C:\\usage' + "\\".repeat(3) + '&quot;cli\\&quot;\\\\&quot;'));
 });
 
 test("scheduler names isolate collector configuration directories", () => {

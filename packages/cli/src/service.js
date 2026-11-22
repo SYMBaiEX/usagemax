@@ -6,10 +6,31 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
 
 const execute = promisify(execFile);
-const ENV_KEYS = ["PATH", "XDG_CONFIG_HOME", "APPDATA", "LOCALAPPDATA", "WSL_DISTRO_NAME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "OPENCODE_DATA_DIR", "AMP_DATA_DIR", "DROID_SESSIONS_DIR", "CODEBUFF_DATA_DIR", "HERMES_HOME", "PI_AGENT_DIR", "GOOSE_PATH_ROOT", "OPENCLAW_DIR", "KILO_DATA_DIR", "KIMI_DATA_DIR", "QWEN_DATA_DIR", "GEMINI_DATA_DIR", "GROK_HOME", "COPILOT_OTEL_FILE_EXPORTER_PATH", "USAGEMAX_ADDITIONAL_HOME", "USAGEMAX_WSL_USERS_DIR", "CCUSAGE_MODEL_ALIASES"];
+const ENV_KEYS = [
+  "PATH", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "APPDATA", "LOCALAPPDATA", "WSL_DISTRO_NAME",
+  "CLAUDE_CONFIG_DIR", "CODEX_HOME", "OPENCODE_DATA_DIR", "CLINE_DATA_DIR", "ANTIGRAVITY_DATA_DIR",
+  "ZCODE_HOME", "AMP_DATA_DIR", "DROID_SESSIONS_DIR", "CODEBUFF_DATA_DIR", "HERMES_HOME",
+  "PI_AGENT_DIR", "GOOSE_PATH_ROOT", "OPENCLAW_DIR", "KILO_DATA_DIR", "KIMI_DATA_DIR",
+  "QWEN_DATA_DIR", "GEMINI_DATA_DIR", "GROK_HOME", "COPILOT_OTEL_DIR",
+  "COPILOT_OTEL_FILE_EXPORTER_PATH", "USAGEMAX_ADDITIONAL_HOME", "USAGEMAX_WSL_USERS_DIR",
+  "CCUSAGE_MODEL_ALIASES", "USAGEMAX_OFFLINE_PRICING",
+];
 const xml = (value) => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&apos;");
 const unitQuote = (value) => `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replaceAll("%", "%%").replaceAll("$", () => "$$")}"`;
-const windowsQuote = (value) => `"${value.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, "$1$1")}"`;
+
+function windowsQuote(value) {
+  let quoted = '"';
+  let backslashes = 0;
+  for (const character of value) {
+    if (character === "\\") {
+      backslashes += 1;
+      continue;
+    }
+    quoted += "\\".repeat(character === '"' ? 2 * backslashes + 1 : backslashes) + character;
+    backslashes = 0;
+  }
+  return quoted + "\\".repeat(2 * backslashes) + '"';
+}
 
 export function intervalMinutes(value = 15) {
   if (!/^\d+$/.test(String(value)) || Number(value) < 5 || Number(value) > 1440) throw new Error("--every must be an integer from 5 to 1440 minutes.");

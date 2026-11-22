@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { readFile, readdir, stat } from "node:fs/promises";
+import { constants } from "node:fs";
+import { open, readdir, stat } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -475,10 +476,22 @@ function configCandidates(definitions) {
   return definitions.filter((item) => item.source === "ccusage-config").map((item) => item.path);
 }
 
+async function readCcusageConfig(filePath) {
+  const handle = await open(filePath, constants.O_RDONLY | (constants.O_NONBLOCK ?? 0));
+  try {
+    const metadata = await handle.stat();
+    return metadata.isFile() ? { metadata, content: await handle.readFile() } : null;
+  } finally {
+    await handle.close();
+  }
+}
+
 async function namedPiStores(definitions, home, pathApi) {
   for (const configPath of configCandidates(definitions)) {
     try {
-      const parsed = JSON.parse(await readFile(configPath, "utf8"));
+      const config = await readCcusageConfig(configPath);
+      if (!config) continue;
+      const parsed = JSON.parse(config.content.toString("utf8"));
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) continue;
       const stores = Array.isArray(parsed.pi?.stores) ? parsed.pi.stores : [];
       return stores.flatMap((store) => {
@@ -520,7 +533,10 @@ export async function sourceInventory({ env = process.env, cwd = process.cwd(), 
       return;
     }
     try {
-      const metadata = await stat(filePath);
+      const isConfig = definition.source === "ccusage-config";
+      const config = isConfig ? await readCcusageConfig(filePath) : null;
+      if (isConfig && !config) return;
+      const metadata = config?.metadata ?? await stat(filePath);
       if (!metadata.isFile()) return;
       seenFiles.add(identity);
       hash.update(fileIdentity(definition.source, filePath, metadata));
@@ -530,16 +546,8 @@ export async function sourceInventory({ env = process.env, cwd = process.cwd(), 
         stats.bytes += metadata.size;
         largeJsonlBySource.set(definition.source, stats);
       }
-      if (definition.source === "ccusage-config") {
-        try {
-          hash.update(await readFile(filePath));
-        } catch {
-          complete = false;
-          errors += 1;
-        }
-      } else {
-        sources.add(definition.source);
-      }
+      if (config) hash.update(config.content);
+      else sources.add(definition.source);
       files += 1;
     } catch (error) {
       if (error?.code !== "ENOENT") {
