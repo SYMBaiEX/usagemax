@@ -22,3 +22,5 @@ jobs:
       - run: bun run cli:pack
       - run: bun run docs:build
       - run: bun run gateway:generate --check
+      - name: Gate synthetic gateway evaluations
+        run: bun scripts/gateway-eval.ts fixture

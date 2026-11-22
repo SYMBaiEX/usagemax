@@ -1,0 +1,27 @@
+{
+  "name": "gateway-smoke-fixture-v1",
+  "mode": "fixture",
+  "dataset": "gateway-smoke",
+  "datasetVersion": "1",
+  "evaluator": "deterministic-v1",
+  "routes": [
+    {
+      "id": "near-flash",
+      "provider": "near-ai",
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+      "passingCaseIds": ["literal", "json-answer"],
+      "maxLatencyMs": 500,
+      "maxChargedMicrousd": 25,
+      "maxTotalTokens": 64
+    },
+    {
+      "id": "phala-flash",
+      "provider": "phala",
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+      "passingCaseIds": ["literal", "json-answer"],
+      "maxLatencyMs": 500,
+      "maxChargedMicrousd": 25,
+      "maxTotalTokens": 64
+    }
+  ]
+}

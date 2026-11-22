@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "gateway-smoke",
+  "version": "1",
+  "synthetic": true,
+  "routes": [
+    { "id": "near-flash", "provider": "near-ai", "model": "deepseek-ai/DeepSeek-V4.1-Flash-1017" },
+    { "id": "phala-flash", "provider": "phala", "model": "deepseek-ai/DeepSeek-V4.1-Flash-1017" }
+  ],
+  "cases": [
+    {
+      "id": "literal",
+      "prompt": "Reply with exactly PONG in uppercase, with no other text.",
+      "assertion": { "type": "text", "expected": "PONG" }
+    },
+    {
+      "id": "json-answer",
+      "prompt": "What is two plus two? Return only a JSON object with one key named answer and a numeric value.",
+      "assertion": { "type": "json", "expected": { "answer": 4 } }
+    }
+  ]
+}
