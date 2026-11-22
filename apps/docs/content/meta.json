@@ -1,0 +1,18 @@
+{
+  "pages": [
+    "index",
+    "---Collect usage---",
+    "quickstart",
+    "cli",
+    "supported-agents",
+    "troubleshooting",
+    "---Understand your data---",
+    "accounting",
+    "privacy",
+    "teams",
+    "---Build integrations---",
+    "api",
+    "telemetry",
+    "mcp"
+  ]
+}

@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
     "dev": "next dev",
@@ -13,6 +14,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run && bun run --cwd packages/cli test",
     "cli:pack": "bun run --cwd packages/cli pack:check",
+    "docs:dev": "bun run --cwd apps/docs dev",
+    "docs:build": "bun run --cwd apps/docs build",
     "loadtest:ingest": "node scripts/load-test-ingest.mjs",
     "convex:dev": "convex dev",
     "convex:deploy": "convex deploy",

@@ -299,6 +299,21 @@ test("incomplete per-dimension regression retains whole vector through resume an
   assert.equal(corrected.partitions[0].rows[0].current.inputTokens, 99);
 });
 
+test("a lower price preserves prior cost without suppressing newly observed tokens", () => {
+  const first = buildSnapshotPlan(report, {});
+  const cheaper = structuredClone(report);
+  cheaper.daily[0].modelBreakdowns[0].inputTokens += 20;
+  cheaper.daily[0].modelBreakdowns[0].cost = 0;
+  cheaper.daily[0].totalCost = 0;
+  const next = buildSnapshotPlan(cheaper, first.nextSnapshots, { complete: false });
+  const [row] = next.partitions[0].rows;
+  assert.equal(row.current.inputTokens, row.previous.inputTokens + 20);
+  assert.equal(row.current.costMicros, row.previous.costMicros);
+  assert.equal(row.costBasis, "estimated");
+  const [unpriced] = buildSnapshotPlan(cheaper, {}).partitions[0].rows;
+  assert.equal(unpriced.costBasis, "unknown");
+});
+
 test("incremental scan preserves old checkpoints for subsequent authoritative deletion", () => {
   const full = structuredClone(report);
   full.daily.push({ ...structuredClone(report.daily[0]), period: "2026-09-15" });

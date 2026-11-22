@@ -7,6 +7,8 @@ contribute to UsageMax.
 
 ## Start here
 
+- [UsageMax Docs](https://docs.usagemax.com) — public setup and integration
+  guides. Run `bun run docs:dev` to edit the Fumadocs app in `apps/docs`.
 - [Root README](../README.md) — product overview and the shortest path to a
   first sync.
 - [CLI guide](../packages/cli/README.md) — install, link, sync, diagnostics,

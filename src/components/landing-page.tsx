@@ -150,7 +150,7 @@ function LandingContent({ network, rows, period, metric, setPeriod, setMetric, c
         <span className={styles.sourcesLabel}>Integrations</span>
         <ul className={styles.sourceList} aria-label="Supported local coding agents">{sources.map((source) => <li key={source}>{source}</li>)}</ul>
         <nav className={styles.sourceLinks} aria-label="Integration resources">
-          <Link href="/docs">16 local sources <ArrowUpRight size={12} /></Link>
+          <a href="https://docs.usagemax.com/supported-agents">Supported agents <ArrowUpRight size={12} /></a>
           <Link href="/integrations">Integration guide <ArrowUpRight size={12} /></Link>
           <Link href="/cli.md">CLI <ArrowUpRight size={12} /></Link>
           <Link href="/openapi.json">OpenAPI <ArrowUpRight size={12} /></Link>

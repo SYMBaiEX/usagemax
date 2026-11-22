@@ -1,0 +1,28 @@
+---
+title: HTTP API
+description: Read public usage projections and find the collector and delegated workspace contracts.
+---
+
+Use `https://usagemax.com/api` as the API base URL. The [OpenAPI document](https://usagemax.com/openapi.json) defines request parameters and response shapes.
+
+## Public reads
+
+```bash
+curl --fail-with-body https://usagemax.com/api/stats
+curl --fail-with-body 'https://usagemax.com/api/leaderboard?period=7d&metric=tokens'
+```
+
+| Endpoint | Returns |
+| --- | --- |
+| `GET /api/health` | Service status and supported collector protocol. |
+| `GET /api/stats` | Aggregate public network stats. |
+| `GET /api/leaderboard` | Bounded rankings by time period and metric. |
+| `GET /api/profiles/{handle}` | A published profile and its aggregate model usage. |
+| `GET /api/profiles/{handle}/daily` | Daily totals for a published profile. |
+| `GET /api/profiles/{handle}/daily/detail` | A privacy-safe breakdown grouped by model, source, or device. |
+
+Public endpoints expose published projections. Private workspace data requires delegated authorization and workspace membership. Inspect the [protected-resource metadata](https://usagemax.com/.well-known/oauth-protected-resource) and the OpenAPI entry for `GET /api/v1/agent/workspace`.
+
+## Collector access
+
+Collector credentials are device-bound and write-scoped. Send the bearer token and `x-usagemax-device-id` over HTTPS. For writes, see [Telemetry ingestion](/telemetry).

@@ -1,0 +1,25 @@
+---
+title: Troubleshooting
+description: Recover an expired link or interrupted upload and investigate missing history.
+---
+
+## The link code expired
+
+Generate a fresh one-use code in [your account](https://usagemax.com/account) and run it on the computer that owns the history. Run `usagemax status --remote` to check the saved credential. A revoked credential requires a new link.
+
+## My workspace is missing an agent or day
+
+1. Run `usagemax doctor` in the same OS user account or WSL distribution as the agent.
+2. Run `usagemax doctor --deep` to check which sources produced rows and which dates were available.
+3. Preview a full scan with `usagemax sync --full --dry-run --explain`.
+4. Run `usagemax sync --full` to reconcile available history. For supported compressed backups, run `usagemax sync --archives`.
+
+The collector can only recover history that is still readable. See [Supported coding agents](/supported-agents) for supported paths and WSL selection.
+
+## An upload stopped
+
+Run `usagemax sync` again. It resumes the saved upload and reuses its run identifiers. When the CLI says that a saved run expired, use `usagemax sync --restart` to rebuild the scan. For a scheduled job, check `usagemax service status` and run `usagemax service run` to test it.
+
+## Get help
+
+Contact [support](mailto:hello@usagemax.com) or file a [GitHub issue](https://github.com/SYMBaiEX/usagemax/issues). Include the CLI version, operating system, affected source, date range, and error code. Remove tokens, link codes, file paths, and log contents from anything you share.

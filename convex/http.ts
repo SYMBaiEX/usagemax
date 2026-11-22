@@ -9,7 +9,7 @@ import { verifyStripeSnapshotSignature } from "./billing";
 
 type NormalizedEvent = typeof telemetryEventValidator.type;
 type JsonObject = Record<string, unknown>;
-const RECOMMENDED_CLI_VERSION = "0.3.12";
+const RECOMMENDED_CLI_VERSION = "0.3.13";
 const PUBLIC_SNAPSHOT_STATUS_ORIGIN = "https://usagemax.com";
 
 function snapshotStatusUrl(runId: string) {

@@ -21,7 +21,9 @@ test("installed ccusage accepts production combined-section incremental argument
   // Use an empty home so this contract test does not scan the developer's local
   // provider histories (which can make a parser-only check take minutes).
   const home = await mkdtemp(join(tmpdir(), "usagemax-ccusage-contract-"));
-  const args = ccusageDailyArgs({ lastSyncAt: 1 }, { now: Date.parse("2099-01-02T00:00:00Z") });
+  const args = ccusageDailyArgs({ lastSyncAt: 1 }, { now: Date.parse("2099-01-02T00:00:00Z"), offlinePricing: true });
+  assert.ok(ccusageDailyArgs({}).includes("--no-offline"));
+  assert.ok(args.includes("--offline"));
   assert.ok(args.includes("--breakdown"), "model-level detail must be explicitly requested from ccusage");
   try {
     const { stdout } = await promisify(execFile)(process.execPath, [entry, ...args], {

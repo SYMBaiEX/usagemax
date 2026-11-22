@@ -1,0 +1,38 @@
+---
+title: Telemetry ingestion
+description: Send native usage events, OTLP JSON, or device snapshots from a custom collector.
+---
+
+Create a key under **Advanced · custom telemetry collector** in [your account](https://usagemax.com/account). The key is shown once. Keep it server-side and use it with its bound installation UUID.
+
+## Send a native event
+
+```bash
+curl --fail-with-body https://usagemax.com/api/v1/telemetry/llm \
+  -H "Authorization: Bearer ${USAGEMAX_COLLECTOR_TOKEN}" \
+  -H "x-usagemax-device-id: ${USAGEMAX_DEVICE_ID}" \
+  -H 'Content-Type: application/json' \
+  --data '{
+    "events": [{
+      "eventKey": "my-stable-request-id",
+      "source": "my-agent",
+      "provider": "openai",
+      "model": "gpt-5",
+      "inputTokens": 1200,
+      "outputTokens": 250,
+      "occurredAt": "REPLACE_WITH_EVENT_TIME"
+    }]
+  }'
+```
+
+Use the actual event time in ISO 8601 or Unix milliseconds. Reuse the same event key and payload when retrying a request. Changes to the payload under the same key can produce a conflict.
+
+## OpenTelemetry
+
+Send an OTLP JSON envelope containing `resourceSpans` to `POST /api/v1/traces`. Allowlist standard GenAI model and usage attributes and drop prompt and response body attributes at the source. See the [telemetry contract](https://github.com/SYMBaiEX/usagemax/blob/main/docs/telemetry-contract.md) for supported attributes and limits.
+
+## Snapshots and diagnosis
+
+`POST /api/v2/usage/snapshots` accepts collector runs with begin, session, partition, and completion operations. Use the [OpenAPI document](https://usagemax.com/openapi.json) for operation names, payload limits, and status reads. For local history, use the CLI so it can manage resumable uploads and per-installation checkpoints.
+
+Run `usagemax token status` to check a key via stdin, or `usagemax telemetry test` with a linked collector to send a content-free smoke event.

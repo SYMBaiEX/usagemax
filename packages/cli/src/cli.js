@@ -28,7 +28,7 @@ process.title = "UsageMax";
 
 const require = createRequire(import.meta.url);
 const executeFile = promisify(execFile);
-const VERSION = "0.3.12";
+const { version: VERSION } = require("../package.json");
 const PUBLIC_API_ORIGIN = "https://usagemax.com/api";
 const DEFAULT_LINK_ENDPOINT = `${PUBLIC_API_ORIGIN}/v1/devices/link`;
 const DEFAULT_STATUS_ENDPOINT = `${PUBLIC_API_ORIGIN}/v1/devices/status`;
@@ -116,8 +116,8 @@ function deviceLabel() {
 function help(command) {
   if (command) {
     const usage = {
-      link: "Usage: usagemax link <one-use-code> [--no-sync] [--name <name>] [--json]",
-      sync: "Usage: usagemax sync [--full] [--archives] [--restart] [--dry-run] [--explain] [--json] [--quiet|--no-progress]",
+      link: "Usage: usagemax link <one-use-code> [--no-sync] [--name <name>] [--offline-pricing] [--json]",
+      sync: "Usage: usagemax sync [--full] [--archives] [--restart] [--dry-run] [--explain] [--offline-pricing] [--json] [--quiet|--no-progress]",
       status: "Usage: usagemax status [--remote] [--json] [--quiet|--no-progress]",
       doctor: "Usage: usagemax doctor [--deep] [--json] [--quiet|--no-progress]",
       "token status": "Usage: printf '%s' \"$USAGEMAX_COLLECTOR_TOKEN\" | usagemax token status [--device-id <uuid>] [--json] [--quiet|--no-progress]\nRead-only credential check; the token is read from stdin and never printed.",
@@ -143,6 +143,7 @@ function help(command) {
   process.stdout.write("  usagemax sync [--full] [--archives] [--restart] [--dry-run] [--explain] [--json]\n");
   process.stdout.write("                                  Reconcile once; --archives performs one-time recovery\n");
   process.stdout.write("           [--quiet|--no-progress] [--check-updates|--no-update-check]  Control progress and the cached release check\n");
+  process.stdout.write("           [--offline-pricing]     Use the bundled model prices without fetching pricing catalogs\n");
   process.stdout.write("           [--json]                  Emit one JSON object per link/sync phase\n");
   process.stdout.write("  usagemax status                  Show local link status\n");
   process.stdout.write("           --remote [--json]        Verify the stored collector credential without printing it\n");
@@ -167,8 +168,8 @@ function help(command) {
 
 function validateCommandArgs(command, args) {
   const specs = {
-    link: { flags: ["--no-sync", "--json", "--check-updates", "--no-update-check"], values: ["--name"], positional: 1 },
-    sync: { flags: ["--full", "--archives", "--restart", "--dry-run", "--explain", "--json", "--quiet", "--no-progress", "--check-updates", "--no-update-check"], values: [], positional: 0 },
+    link: { flags: ["--no-sync", "--json", "--offline-pricing", "--check-updates", "--no-update-check"], values: ["--name"], positional: 1 },
+    sync: { flags: ["--full", "--archives", "--restart", "--dry-run", "--explain", "--offline-pricing", "--json", "--quiet", "--no-progress", "--check-updates", "--no-update-check"], values: [], positional: 0 },
     status: { flags: ["--remote", "--json", "--quiet", "--no-progress"], values: [], positional: 0 },
     doctor: { flags: ["--deep", "--json", "--quiet", "--no-progress", "--check-updates", "--no-update-check"], values: [], positional: 0 },
     unlink: { flags: ["--revoke", "--json"], values: [], positional: 0 },
@@ -206,8 +207,8 @@ function ccusageCliPath() {
   return join(dirname(require.resolve("ccusage/package.json")), "src", "cli.js");
 }
 
-async function ccusageJson(config, { full = false, env } = {}) {
-  const args = [ccusageCliPath(), ...ccusageDailyArgs(config, { full })];
+async function ccusageJson(config, { full = false, offlinePricing = false, env } = {}) {
+  const args = [ccusageCliPath(), ...ccusageDailyArgs(config, { full, offlinePricing })];
   // Reconcile yesterday once after the UTC date changes. All other incremental
   // scans parse only today; a metadata fingerprint avoids invoking ccusage when
   // no supported local source changed at all.
@@ -361,7 +362,7 @@ async function link(args) {
     return;
   }
   if (!json) process.stdout.write("Running the first one-shot sync…\n");
-  await sync(["--full", ...(json ? ["--json"] : [])], config);
+  await sync(["--full", ...args.filter((arg) => arg === "--json" || arg === "--offline-pricing")], config);
 }
 
 async function sync(args, suppliedConfig) {
@@ -400,6 +401,8 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
   const dryRun = args.includes("--dry-run");
   const explain = args.includes("--explain");
   const json = args.includes("--json");
+  const offlinePricing = args.includes("--offline-pricing") || process.env.USAGEMAX_OFFLINE_PRICING === "1";
+  const pricingMode = offlinePricing ? "bundled" : "live-with-bundled-fallback";
   if (args.includes("--restart") && !dryRun) {
     restartExpiredUpload(config);
     await writeConfig(config);
@@ -434,7 +437,7 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
   const today = new Date().toISOString().slice(0, 10);
   const knownSources = Array.isArray(config.knownSources) ? config.knownSources : [];
   const { bootstrap, full, skip, inventoryStable } = scanPolicy(config, inventory, {
-    today, now: Date.now(), inventoryVersion: SOURCE_INVENTORY_VERSION, requestedFull, requestedArchives,
+    today, now: Date.now(), inventoryVersion: SOURCE_INVENTORY_VERSION, requestedFull, requestedArchives, pricingMode,
   });
   if (skip) {
     const result = withTimings({
@@ -460,6 +463,7 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
       skipReason: "inventory_unchanged",
       cliVersion: VERSION,
       ccusageVersion: CCUSAGE_VERSION,
+      pricingMode,
     });
     if (json) process.stdout.write(`${JSON.stringify(result)}\n`);
     else {
@@ -471,7 +475,7 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
   }
   progress.update(`Parsing ${full ? "retained history" : "changed history"} with ccusage…`);
   const parseStarted = Date.now();
-  const { report, parserWarningCount } = await ccusageJson(config, { env: recovery.env, full });
+  const { report, parserWarningCount } = await ccusageJson(config, { env: recovery.env, full, offlinePricing });
   timingsMs.parseMs = Date.now() - parseStarted;
   // ccusage v20 exposes aggregates, not proof that every discovered file was
   // parsed. Inventory success alone cannot authorize destructive corrections.
@@ -482,7 +486,7 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
     && Object.keys(config.snapshots || {}).length > 0;
   const runId = randomUUID();
   const revision = Date.now();
-  const pricingVersion = `ccusage@${CCUSAGE_VERSION}`;
+  const pricingVersion = `ccusage@${CCUSAGE_VERSION}:${pricingMode}`;
   const planningStarted = Date.now();
   const { partitions, nextSnapshots, regressions, regressionDetails } = buildSnapshotPlan(report, config.snapshots, {
     bootstrap,
@@ -525,6 +529,7 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
     range: { from: days[0] ?? null, to: days.at(-1) ?? null },
     cliVersion: VERSION,
     ccusageVersion: CCUSAGE_VERSION,
+    pricingMode,
   };
   progress.update(`Prepared ${partitions.length} usage chunk${partitions.length === 1 ? "" : "s"} and ${sessions.length} session identifier${sessions.length === 1 ? "" : "s"}.`);
   if (requestedArchives) {
@@ -573,7 +578,7 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
     checkpoint: {
       snapshots: nextSnapshots, snapshotProtocolVersion: 2,
       lastSyncAt: syncedAt, lastReconciledDay: today, lastSyncComplete: authoritative,
-      lastScanSucceeded: true, lastCoverage: result.coverage, lastCoverageStatus: coverageStatus,
+      lastScanSucceeded: true, lastCoverage: result.coverage, lastCoverageStatus: coverageStatus, lastPricingMode: pricingMode,
       lastCoverageReason: coverageReason,
       sourceInventoryVersion: SOURCE_INVENTORY_VERSION,
       knownSources: [...new Set([...knownSources, ...inventory.sources, ...sources])].sort(),
@@ -817,7 +822,7 @@ async function doctor(args = []) {
     };
     if (args.includes("--deep")) {
       progress.update("Parsing retained history with ccusage…");
-      const { report, parserWarningCount } = await ccusageJson(config, { env, full: true });
+      const { report, parserWarningCount } = await ccusageJson(config, { env, full: true, offlinePricing: true });
       result.parsedSources = sourceSummary(report);
       result.sessions = buildSessionPlan(report, config?.deviceId || "unlinked").length;
       const days = reportDays(report);

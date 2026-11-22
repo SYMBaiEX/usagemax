@@ -109,6 +109,12 @@ bunx usagemax unlink --json                # safe automation result; no secret o
 
 ## Sources and coverage
 
+Sync uses ccusage's live LiteLLM catalog and models.dev fallback. Bundled rates
+remain available if a refresh fails. Use `usagemax sync --offline-pricing` or
+`USAGEMAX_OFFLINE_PRICING=1` for bundled rates on demand or in scheduled
+environments. The flag controls pricing lookups only. Sync still contacts
+UsageMax when uploading.
+
 UsageMax pins [ccusage v20.0.51](https://github.com/ccusage/ccusage/releases/tag/v20.0.51)
 and supports its 19 adapters: Amp, Antigravity, Claude Code, Cline, Codebuff,
 Codex, GitHub Copilot CLI, Factory Droid, Gemini CLI, Goose, Grok Build, Hermes,

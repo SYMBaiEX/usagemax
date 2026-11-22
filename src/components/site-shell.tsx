@@ -58,7 +58,7 @@ export function SiteFooter() {
           </div>
           <div>
             <p className="footer-heading">Build</p>
-            <Link href="/docs">Documentation</Link>
+            <a href="https://docs.usagemax.com">Documentation</a>
             <Link href="/integrations">Integrations</Link>
             <Link href="/enterprise">Enterprise</Link>
             <Link href="/security">Security</Link>

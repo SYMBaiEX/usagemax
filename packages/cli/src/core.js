@@ -327,7 +327,9 @@ export function buildSnapshotPlan(report, priorSnapshots, {
     if (!identity) continue;
     const previous = priorRow?.current ?? snapshotCounters();
     let current = currentRow?.current ?? snapshotCounters();
-    const regressed = snapshotCounterFields.some((field) => current[field] < previous[field]);
+    const usageRegressed = snapshotCounterFields.some((field) => field !== "costMicros" && current[field] < previous[field]);
+    const costRegressed = current.costMicros < previous.costMicros;
+    const regressed = usageRegressed || costRegressed;
     if (regressed) {
       regressions.push(key);
       regressionDetails.push({
@@ -337,9 +339,11 @@ export function buildSnapshotPlan(report, priorSnapshots, {
         model: identity.model,
       });
     }
-    // A larger total can conceal a missing dimension. Keep the coherent prior
-    // vector (including in the checkpoint) until coverage is authoritative.
-    if (!complete && regressed) current = { ...previous };
+    // Keep the prior usage vector if the scan lost a dimension. A cheaper
+    // estimate can also come from a price refresh, so protect the existing
+    // cost independently while allowing newly observed usage to reconcile.
+    if (!complete && usageRegressed) current = { ...previous };
+    else if (!complete && costRegressed) current = { ...current, costMicros: previous.costMicros };
     if (!sameCounters(current, snapshotCounters())) nextSnapshots[key] = current;
     else delete nextSnapshots[key];
     const partitionKey = `${identity.source}\u001f${identity.period}`;
@@ -350,7 +354,7 @@ export function buildSnapshotPlan(report, priorSnapshots, {
       model: identity.model,
       previous,
       current,
-      costBasis: "estimated",
+      costBasis: current.costMicros > 0 ? "estimated" : "unknown",
       contentHash: sha256(`${key}\u001f${JSON.stringify(current)}`),
       // A daily aggregate has no exact event time. Use the start of its UTC day
       // so today's partition is valid even when the collector runs before noon.
@@ -402,12 +406,13 @@ function randomPlanId() {
 
 // Inventory stability certifies that repeating a successful parse is unnecessary;
 // it does not certify authority to remove server history. Bootstrap is separate.
-export function scanPolicy(config, inventory, { today, now, inventoryVersion, requestedFull = false, requestedArchives = false }) {
+export function scanPolicy(config, inventory, { today, now, inventoryVersion, pricingMode, requestedFull = false, requestedArchives = false }) {
   const knownSources = Array.isArray(config.knownSources) ? config.knownSources : [];
   const lastFull = Date.parse(config.lastFullSyncAt || "");
   const bootstrap = config.snapshotProtocolVersion !== 2;
   const full = requestedFull || requestedArchives || bootstrap
     || config.sourceInventoryVersion !== inventoryVersion
+    || (pricingMode !== undefined && config.lastPricingMode !== pricingMode)
     || !Number.isFinite(lastFull) || now - lastFull >= 7 * 24 * 60 * 60 * 1000
     || inventory.sources.some((source) => !knownSources.includes(source));
   const inventoryStable = inventory.complete && !inventory.truncated && inventory.errors === 0;

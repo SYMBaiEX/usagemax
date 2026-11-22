@@ -10,7 +10,7 @@
 
   <p>
     <a href="https://usagemax.com">Live app</a> ·
-    <a href="https://usagemax.com/docs">Docs</a> ·
+    <a href="https://docs.usagemax.com">Docs</a> ·
     <a href="https://usagemax.com/integrations">Integrations</a> ·
     <a href="https://usagemax.com/pricing.md">Pricing</a> ·
     <a href="https://usagemax.com/methodology">How we count</a> ·
@@ -126,7 +126,10 @@ Full scans can catalog retained history from 2024 onward. A readable file
 inventory is not proof that an aggregate parser consumed every file and day.
 UsageMax reports those two states separately; counter decreases and missing
 rows remain protected unless the parser explicitly certifies its coverage.
-Unknown models stay `unattributed`; unknown pricing stays unknown.
+Model IDs come from the logs. The CLI refreshes LiteLLM and models.dev pricing
+through ccusage when it parses a sync. Bundled rates are used as a fallback and
+can be selected with `usagemax sync --offline-pricing`. Unpriced usage still
+counts toward token totals.
 
 Cursor, Windsurf, Aider, Continue, Roo Code, hosted agents, direct
 provider API traffic, and enterprise billing systems do not all expose a stable

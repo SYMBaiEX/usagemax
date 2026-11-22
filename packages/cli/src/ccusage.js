@@ -5,7 +5,7 @@ export function ccusageDailyArgs(config, options = {}) {
   return [
     "daily",
     "--json",
-    "--offline",
+    options.offlinePricing ? "--offline" : "--no-offline",
     "--mode",
     "calculate",
     "--timezone",

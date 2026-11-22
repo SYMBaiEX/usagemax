@@ -1,0 +1,29 @@
+---
+title: Supported coding agents
+description: See the local histories UsageMax can discover and how to check coverage.
+---
+
+UsageMax uses the pinned ccusage parser to collect aggregate data. It looks in known agent paths and a bounded set of backup locations.
+
+| | | |
+| --- | --- | --- |
+| Amp | Antigravity | Claude Code |
+| Cline | Codebuff | Codex |
+| Factory Droid | Gemini CLI | GitHub Copilot CLI |
+| Goose | Grok Build | Hermes Agent |
+| Kilo Code | Kimi CLI | OpenClaw |
+| OpenCode | Pi | Qwen Code |
+| ZCode | Named Pi-format stores | |
+
+UsageMax also checks supported Claude Desktop locations, `.cc-mirror`, and renamed Claude or Codex history folders. WSL scans can include a readable Windows user profile. If multiple profiles have history, choose the exact path belonging to you with `USAGEMAX_ADDITIONAL_HOME`.
+
+## Check coverage
+
+```bash
+usagemax doctor
+usagemax doctor --deep
+```
+
+The first command inventories known paths. A deep check compares that inventory with the parser's local report. A detected source with no rows can mean it had no usable activity in the scanned dates. Incomplete or rotated history can limit historical totals.
+
+If your agent stores data in a custom path, see [collector environment variables](https://github.com/SYMBaiEX/usagemax/tree/main/packages/cli#sources-and-coverage) or [Troubleshooting](/troubleshooting).

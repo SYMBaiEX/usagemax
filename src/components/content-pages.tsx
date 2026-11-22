@@ -124,7 +124,7 @@ export function DocsView() {
       <PageIntro
         title="UsageMax developer documentation"
       >
-        <Link className="button button-acid" href="#quickstart">Quickstart <ArrowRight size={16} /></Link>
+        <a className="button button-acid" href="https://docs.usagemax.com">Browse documentation <ArrowUpRight size={16} /></a>
       </PageIntro>
 
       <div className="shell docs-layout">

@@ -1,0 +1,23 @@
+@import "tailwindcss" source("..");
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+
+:root {
+  --color-fd-background: hsl(54 33% 97%);
+  --color-fd-foreground: hsl(60 10% 9%);
+  --color-fd-primary: hsl(72 75% 23%);
+  --color-fd-primary-foreground: hsl(54 33% 97%);
+  --color-fd-muted: hsl(54 24% 94%);
+  --color-fd-accent: hsl(71 39% 89%);
+  --color-fd-border: hsl(60 13% 84%);
+}
+
+.dark {
+  --color-fd-background: hsl(60 9% 9%);
+  --color-fd-foreground: hsl(54 27% 95%);
+  --color-fd-primary: hsl(72 85% 65%);
+  --color-fd-primary-foreground: hsl(60 9% 9%);
+  --color-fd-muted: hsl(60 8% 13%);
+  --color-fd-accent: hsl(70 16% 19%);
+  --color-fd-border: hsl(60 7% 23%);
+}

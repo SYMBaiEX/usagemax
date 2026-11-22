@@ -29,11 +29,12 @@ test("offline packed artifact includes scheduler and emits midnight timestamps b
     const { stdout } = await exec("npm", ["pack", "--offline", "--ignore-scripts", "--json", "--cache", join(temporary, "cache"), "--pack-destination", temporary], { cwd: root, env });
     const packedResult = JSON.parse(stdout);
     const packed = Array.isArray(packedResult) ? packedResult[0] : packedResult?.usagemax ?? packedResult;
-  assert.equal(packed.filename, "usagemax-0.3.12.tgz");
+    const { version } = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+    assert.equal(packed.filename, `usagemax-${version}.tgz`);
     await exec("tar", ["-xzf", join(temporary, packed.filename), "-C", temporary]);
     const artifact = join(temporary, "package");
-  assert.equal(JSON.parse(await readFile(join(artifact, "package.json"), "utf8")).version, "0.3.12");
-  assert.equal((await exec(process.execPath, [join(artifact, "src/cli.js"), "--version"])).stdout.trim(), "0.3.12");
+    assert.equal(JSON.parse(await readFile(join(artifact, "package.json"), "utf8")).version, version);
+    assert.equal((await exec(process.execPath, [join(artifact, "src/cli.js"), "--version"])).stdout.trim(), version);
     await import(pathToFileURL(join(artifact, "src/upload.js")));
     await import(pathToFileURL(join(artifact, "src/service.js")));
     const { buildSnapshotPlan, buildDeltaPlan } = await import(pathToFileURL(join(artifact, "src/core.js")));

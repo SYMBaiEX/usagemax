@@ -1,0 +1,28 @@
+---
+title: MCP and agent tools
+description: Connect an MCP client to UsageMax and discover read-only agent interfaces.
+---
+
+## Connect over Streamable HTTP
+
+Add this MCP server to a compatible client. The surrounding configuration varies by client.
+
+```json
+{
+  "mcpServers": {
+    "usagemax": {
+      "type": "http",
+      "url": "https://usagemax.com/mcp"
+    }
+  }
+}
+```
+
+Use the server to look up published profiles, leaderboard results, public stats, and documentation. It exposes public, read-only projections.
+
+## Documentation and discovery
+
+- [Documentation MCP endpoint](https://usagemax.com/docs-mcp) for clients that want the docs surface.
+- [Machine-readable UsageMax index](https://usagemax.com/llms.txt) for public resources.
+- [WebMCP guide](https://usagemax.com/webmcp) for browsers exposing the model context API.
+- [MCP Registry listing](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.SYMBaiEX%2Fusagemax/versions/latest) for protocol metadata.

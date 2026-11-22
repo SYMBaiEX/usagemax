@@ -23,6 +23,7 @@ bun run typecheck
 bun run test
 bun run cli:pack
 bun run build
+bun run docs:build
 git diff --check
 ```
 

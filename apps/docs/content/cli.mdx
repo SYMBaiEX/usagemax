@@ -1,0 +1,41 @@
+---
+title: CLI reference
+description: Sync local history, run diagnostics, update the CLI, and manage automatic sync.
+---
+
+Running `usagemax` with no command is equivalent to `usagemax sync`. The collector runs once and exits. It checks supported local paths and skips parsing when the file inventory is unchanged and a reconciliation is unnecessary.
+
+| Command | Use it to |
+| --- | --- |
+| `usagemax sync` | Reconcile recent changes and resume an interrupted upload. |
+| `usagemax sync --dry-run --explain` | See the scan plan and coverage status without uploading usage. |
+| `usagemax sync --full` | Rescan retained history, including newly discovered sources. |
+| `usagemax sync --archives` | Recover supported compressed history during a one-time scan. |
+| `usagemax status --remote` | Verify the saved collector credential and device binding. |
+| `usagemax doctor --deep` | Parse retained history locally and compare discovered sources with parsed rows. |
+| `usagemax report` | Run the underlying ccusage reporter locally. |
+| `usagemax unlink --revoke` | Revoke the saved collector and unlink it after revocation succeeds. |
+
+Commands that support `--json` keep result data on stdout. Use `--quiet` or `--no-progress` to suppress progress output. For exact flags, use `usagemax <command> --help`.
+
+## Use bundled pricing
+
+The CLI refreshes public model rates when a sync parses history. Use `usagemax sync --offline-pricing` to use the rates bundled with the CLI, or set `USAGEMAX_OFFLINE_PRICING=1` for scheduled runs. Sync still needs access to UsageMax to upload results.
+
+## Schedule sync
+
+```bash
+usagemax service install --every 15
+usagemax service status
+```
+
+UsageMax uses LaunchAgents on macOS, systemd user timers on Linux or WSL, and Task Scheduler on Windows. Each scheduled run uses the current OS user's history. Run `usagemax service run` to exercise the installed sync locally. Use `usagemax service uninstall` to remove the schedule and retain local checkpoints.
+
+## Update the CLI
+
+```bash
+usagemax update --check
+usagemax update
+```
+
+The first command checks npm. The second installs the latest published release with npm or Bun. You can also run `usagemax update sync` to hand a command to the checked release. Set `USAGEMAX_DISABLE_UPDATE_CHECK=1` to disable automatic release checks.

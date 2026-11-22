@@ -1,0 +1,24 @@
+---
+title: How UsageMax counts
+description: Understand token totals, reconciled history, and the basis of a cost estimate.
+---
+
+## Token totals
+
+UsageMax preserves a source's reported total and uses available input, output, cache, and reasoning fields to explain it. A remainder without a known breakdown stays unclassified. Activity signals and zero-token telemetry smoke tests leave accounting totals unchanged.
+
+The collector groups usage by UTC day, source, provider, and model. Each sync reconciles saved snapshots instead of adding the same history again. An incomplete parse protects prior usage from downward corrections.
+
+## Cost bases
+
+| Basis | Meaning |
+| --- | --- |
+| Reported | Spend supplied by the source or provider billing data. |
+| Estimated | A calculation from token rates for a model and provider. |
+| Unknown | The source did not establish a cost. |
+
+Collector estimates use ccusage's LiteLLM and models.dev pricing. A sync that parses history checks live rates and can fall back to the bundled catalog. Token totals still count when pricing is unknown. If an incomplete scan produces a lower estimate, UsageMax preserves the previously tracked cost and can still reconcile newly observed tokens.
+
+A tracked estimate can differ from your invoice because contracts, cached input, service tiers, and subscriptions change what you pay. Keep any invoice reconciliation tied to a provider export and its billing period.
+
+A subscription to UsageMax covers workspace features and capacity. See [UsageMax plans](https://usagemax.com/pricing) for plan details or explore the [interactive accounting examples](https://usagemax.com/methodology).

@@ -1,0 +1,36 @@
+---
+title: Connect a computer
+description: Link the UsageMax CLI, sync your retained AI usage, and confirm it arrived.
+---
+
+## Install the CLI
+
+Use Node.js 20 or later with npm, or run the CLI on demand with Bun.
+
+```bash
+npm install --global usagemax@latest
+usagemax --version
+```
+
+With Bun, substitute `bunx usagemax@latest` for `usagemax` in the commands below.
+
+## Link the computer
+
+1. Sign in to your [UsageMax account](https://usagemax.com/account). If prompted, choose a handle to create a private workspace.
+2. In **Link a computer**, enter a name and generate a one-use command. The link code expires after ten minutes. Keep it private.
+3. Run the command on the computer or WSL distribution that owns the history. Linking starts the first sync unless you pass `--no-sync`.
+
+```bash
+usagemax link UMX-XXXX-XXXX-XXXX-XXXX
+```
+
+## Verify the first sync
+
+```bash
+usagemax status --remote
+usagemax sync --dry-run --explain
+```
+
+Open the [workspace](https://usagemax.com/workspace) and check the computer name, dates, and model totals. Each computer or OS user account that has its own agent logs needs its own link. Relinking the same installation rotates its credential and keeps its device identity.
+
+If you see fewer sources than expected, follow [Troubleshooting](/troubleshooting). To automate subsequent reconciliations, see [Schedule sync](/cli#schedule-sync).
