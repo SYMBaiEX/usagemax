@@ -378,4 +378,7 @@ test("repeated partial scans can no-op without bootstrapping or claiming deletio
   assert.equal(scanPolicy({ ...config, snapshotProtocolVersion: 1 }, inventory, options).bootstrap, true);
   assert.equal(scanPolicy(config, { ...inventory, sources: ["codex", "claude"] }, options).full, true);
   assert.equal(scanPolicy(config, inventory, { ...options, inventoryVersion: 4 }).full, true);
+  const pricingVersion = "ccusage@20.0.51:live-with-bundled-fallback";
+  assert.equal(scanPolicy(config, inventory, { ...options, pricingVersion }).full, true);
+  assert.equal(scanPolicy({ ...config, lastPricingVersion: pricingVersion }, inventory, { ...options, pricingVersion }).skip, true);
 });

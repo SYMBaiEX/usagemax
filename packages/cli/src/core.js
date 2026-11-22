@@ -406,13 +406,13 @@ function randomPlanId() {
 
 // Inventory stability certifies that repeating a successful parse is unnecessary;
 // it does not certify authority to remove server history. Bootstrap is separate.
-export function scanPolicy(config, inventory, { today, now, inventoryVersion, pricingMode, requestedFull = false, requestedArchives = false }) {
+export function scanPolicy(config, inventory, { today, now, inventoryVersion, pricingVersion, requestedFull = false, requestedArchives = false }) {
   const knownSources = Array.isArray(config.knownSources) ? config.knownSources : [];
   const lastFull = Date.parse(config.lastFullSyncAt || "");
   const bootstrap = config.snapshotProtocolVersion !== 2;
   const full = requestedFull || requestedArchives || bootstrap
     || config.sourceInventoryVersion !== inventoryVersion
-    || (pricingMode !== undefined && config.lastPricingMode !== pricingMode)
+    || (pricingVersion !== undefined && config.lastPricingVersion !== pricingVersion)
     || !Number.isFinite(lastFull) || now - lastFull >= 7 * 24 * 60 * 60 * 1000
     || inventory.sources.some((source) => !knownSources.includes(source));
   const inventoryStable = inventory.complete && !inventory.truncated && inventory.errors === 0;

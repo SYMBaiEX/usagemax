@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 import { readFile, readdir, stat } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import path from "node:path";
 
-export const CCUSAGE_VERSION = "20.0.51";
+const require = createRequire(import.meta.url);
+export const CCUSAGE_VERSION = require("../package.json").dependencies.ccusage;
 // Reconcile retained history when the collector output contract or supported
 // source set changes, not just when an existing source path changes.
 export const SOURCE_INVENTORY_VERSION = 5;

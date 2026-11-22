@@ -403,6 +403,7 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
   const json = args.includes("--json");
   const offlinePricing = args.includes("--offline-pricing") || process.env.USAGEMAX_OFFLINE_PRICING === "1";
   const pricingMode = offlinePricing ? "bundled" : "live-with-bundled-fallback";
+  const pricingVersion = `ccusage@${CCUSAGE_VERSION}:${pricingMode}`;
   if (args.includes("--restart") && !dryRun) {
     restartExpiredUpload(config);
     await writeConfig(config);
@@ -437,7 +438,7 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
   const today = new Date().toISOString().slice(0, 10);
   const knownSources = Array.isArray(config.knownSources) ? config.knownSources : [];
   const { bootstrap, full, skip, inventoryStable } = scanPolicy(config, inventory, {
-    today, now: Date.now(), inventoryVersion: SOURCE_INVENTORY_VERSION, requestedFull, requestedArchives, pricingMode,
+    today, now: Date.now(), inventoryVersion: SOURCE_INVENTORY_VERSION, requestedFull, requestedArchives, pricingVersion,
   });
   if (skip) {
     const result = withTimings({
@@ -486,7 +487,6 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
     && Object.keys(config.snapshots || {}).length > 0;
   const runId = randomUUID();
   const revision = Date.now();
-  const pricingVersion = `ccusage@${CCUSAGE_VERSION}:${pricingMode}`;
   const planningStarted = Date.now();
   const { partitions, nextSnapshots, regressions, regressionDetails } = buildSnapshotPlan(report, config.snapshots, {
     bootstrap,
@@ -578,7 +578,7 @@ async function syncPrepared(args, suppliedConfig, recovery, progress = createPro
     checkpoint: {
       snapshots: nextSnapshots, snapshotProtocolVersion: 2,
       lastSyncAt: syncedAt, lastReconciledDay: today, lastSyncComplete: authoritative,
-      lastScanSucceeded: true, lastCoverage: result.coverage, lastCoverageStatus: coverageStatus, lastPricingMode: pricingMode,
+      lastScanSucceeded: true, lastCoverage: result.coverage, lastCoverageStatus: coverageStatus, lastPricingVersion: pricingVersion,
       lastCoverageReason: coverageReason,
       sourceInventoryVersion: SOURCE_INVENTORY_VERSION,
       knownSources: [...new Set([...knownSources, ...inventory.sources, ...sources])].sort(),

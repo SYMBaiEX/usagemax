@@ -102,8 +102,8 @@ quiet, CI, and scheduled runs remain machine-readable and quiet.
 
 ## Coverage and correctness
 
-UsageMax pins [ccusage v20.0.51](https://github.com/ccusage/ccusage/releases/tag/v20.0.51)
-and uses its 19 adapters: Amp, Antigravity, Claude Code, Cline, Codebuff, Codex,
+UsageMax pins its [ccusage](https://github.com/ccusage/ccusage) dependency and
+uses the following adapters: Amp, Antigravity, Claude Code, Cline, Codebuff, Codex,
 GitHub Copilot CLI, Factory Droid, Gemini CLI, Goose, Grok Build, Hermes, Kilo
 Code, Kimi CLI, OpenClaw, OpenCode, Pi, Qwen Code, and ZCode. Named Pi-format
 stores are discovered as well.
