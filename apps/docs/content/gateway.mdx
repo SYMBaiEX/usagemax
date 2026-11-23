@@ -57,3 +57,21 @@ Gateway alerts evaluate every five minutes. A provider triggers an error alert a
 The [OpenAPI document](https://usagemax.com/openapi.json) describes the private gateway operations. The repository includes a [TypeScript server client](https://github.com/SYMBaiEX/usagemax/tree/main/packages/gateway-client) with generated contract types.
 
 Gateway receipts stay private to the project. Send only permitted metrics and opaque identifiers. Keep prompts, responses, tools, headers, wallet addresses, secrets, and customer identity out of receipts.
+
+## Hosted evaluation runs
+
+Run the versioned synthetic smoke fixture from the [UsageMax repository](https://github.com/SYMBaiEX/usagemax/tree/main/evals) with `bun scripts/gateway-eval.ts fixture`. It uses checked-in observations and incurs no provider charges. Use **Publish hosted gateway eval** in GitHub Actions to run it manually on `main`. The workflow requires a project Gateway **Ingest** key stored as `USAGEMAX_GATEWAY_EVAL_INGEST_KEY` in the `gateway-evals` environment. Supply `baseline_run_id` to compare against a retained fixture run. Each publication goes to the project assigned to the key.
+
+For a direct run, inject the ingest key into the same environment variable and set `USAGEMAX_GATEWAY_EVAL_RUN_ID` to a stable ID for the report. With the ingest key unset, the fixture runs locally.
+
+```sh
+# Inject USAGEMAX_GATEWAY_EVAL_INGEST_KEY through the CI secret store.
+USAGEMAX_GATEWAY_EVAL_RUN_ID=fixture-12345-1 \
+  bun scripts/gateway-eval.ts fixture
+```
+
+Under [Inference gateway](https://usagemax.com/workspace/gateway), choose the project and open **Hosted eval runs**. Review pass counts, input and output tokens, charges and latency. To compare another run, set `USAGEMAX_GATEWAY_EVAL_BASELINE_RUN_ID` to an existing run from the same project with the same mode, dataset and version, evaluator, routes, and cases. Keep the ID and report stable when retrying a publication. Use a distinct ID for a new run.
+
+The local baseline checks quality, latency, tokens, and charge budgets. The hosted baseline comparison flags cases that passed in the baseline and fail in the current run. The CLI exits unsuccessfully if publication fails or either gate fails.
+
+Hosted reports include opaque IDs, pass/fail outcomes, token counts, charge in USD millionths, and latency. Keep prompts, expected answers, and completions in the local evaluator. The Gateway dashboard shows the latest 20 retained runs for the selected project to workspace members with reporting access. Runs follow the workspace's retention setting.

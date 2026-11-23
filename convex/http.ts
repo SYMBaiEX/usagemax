@@ -6,7 +6,7 @@ import { MIN_EVENT_TIME, clampNonNegative, cleanText, jsonResponse, sha256 } fro
 import { isAutomaticDeviceName } from "./device_name";
 import type { telemetryEventValidator } from "./telemetry";
 import { verifyStripeSnapshotSignature } from "./billing";
-import { gatewayCredentialStatus, gatewayReceiptDetail, ingestGatewayReceipts, reportGatewayOperations, reportGatewayReceipts } from "./gatewayHttp";
+import { gatewayCredentialStatus, gatewayReceiptDetail, ingestGatewayEval, ingestGatewayReceipts, reportGatewayOperations, reportGatewayReceipts } from "./gatewayHttp";
 import { ingestCliAnalytics } from "./productAnalytics";
 
 type NormalizedEvent = typeof telemetryEventValidator.type;
@@ -907,6 +907,7 @@ http.route({ path: "/v1/traces", method: "OPTIONS", handler: cors });
 http.route({ path: "/v1/workos/events", method: "POST", handler: workosLifecycle });
 http.route({ path: "/v1/gateway/receipts", method: "POST", handler: ingestGatewayReceipts });
 http.route({ path: "/v1/gateway/receipts", method: "GET", handler: reportGatewayReceipts });
+http.route({ path: "/v1/gateway/evals", method: "POST", handler: ingestGatewayEval });
 http.route({ path: "/v1/gateway/operations", method: "GET", handler: reportGatewayOperations });
 http.route({ pathPrefix: "/v1/gateway/receipts/", method: "GET", handler: gatewayReceiptDetail });
 http.route({ path: "/v1/gateway/status", method: "GET", handler: gatewayCredentialStatus });
