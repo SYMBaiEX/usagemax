@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { parseOfficialRateCatalog } from "./officialPriceCatalog";
+import { verifiedEstimatedCost } from "./verifiedModelPricing";
 
 const openAiSol = "| gpt-5.6-sol | $4.00 | $20.00 | $0.40 | $5.00 | $10.00 | $8.00 | $30.00 | $0.80 | $10.00 | $20.00 |";
 const openAiPro = "| gpt-5.2-pro | $21.00 | $168.00 | - |";
@@ -63,6 +64,41 @@ describe("official OpenAI pricing", () => {
         long: { input: 8, output: 30, cacheRead: 0.8, cacheWrite: { "30m": 10, "12h": 20 } },
       },
     });
+  });
+
+  test("includes specialized Standard rates, promotion dates, and explicitly unpriced long tiers", () => {
+    const specialized = [
+      "Specialized models",
+      "Standard",
+      "| Category | Model | Input | Output | Cached input | 30m write | 12h write |",
+      "| --- | --- | --- | --- | --- | --- | --- |",
+      "| Legal model configurations | gpt-6.2-astra-law (short context) | $8.00 | $40.00 | $0.40 | $10.00 | $20.00 |",
+      "| Legal model configurations | gpt-6.2-astra-law (long context) | $16.00 | $60.00 | $0.80 | $20.00 | $40.00 |",
+      "| Legal model configurations | gpt-6-astra-law (short context) | $10.00 | $50.00 | $1.00 | - | - |",
+      "| Legal model configurations | gpt-6-astra-law (long context) | - | - | - | - | - |",
+      "| Codex | gpt-5.3-codex | $1.75 | $14.00 | $0.175 | - | - |",
+      "",
+      "GPT-6 Astra for Law and GPT-6.2 Astra for Law promotional pricing is available at least through December 31, 2026.",
+      "Fast",
+      "| Category | Model | Input | Output | Cached input |",
+      "| --- | --- | --- | --- | --- |",
+      "| Codex | gpt-5.3-codex | $3.50 | $28.00 | $0.35 |",
+    ].join("\n");
+    const rows = parseOfficialRateCatalog("openai", openAiDocument + "\n" + specialized);
+    expect(rows.find(({ model }) => model === "gpt-5.3-codex")?.standard.input).toBe(1.75);
+    expect(rows.find(({ model }) => model === "gpt-6.2-astra-law")).toMatchObject({
+      through: "2026-12-30", context: { shortMax: 272_000, long: { input: 16, output: 60 } },
+    });
+    const entry = rows.find(({ model }) => model === "gpt-6-astra-law")!;
+    expect(entry.context).toEqual({ shortMax: 272_000, long: null });
+    const card = { ...entry, from: "2026-11-24", pricingSource: "official", pricingVersion: "fixture" };
+    const quote = (tokens: number) => verifiedEstimatedCost({
+      model: entry.model, provider: "openai", day: card.from, costBasis: "estimated",
+      evidence: { standardGlobalText: true, singleRequest: true },
+      inputTokens: tokens, outputTokens: 0, cacheReadTokens: 0, totalTokens: tokens,
+    }, card);
+    expect(quote(10)?.costMicros).toBe(100);
+    expect(quote(272_001)).toBeNull();
   });
 
   test("keeps a known promotion bounded if the note disappears, until the rate changes", () => {

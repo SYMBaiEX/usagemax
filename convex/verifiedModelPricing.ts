@@ -25,7 +25,7 @@ type Rates = Readonly<{
   cacheWrite?: Readonly<Partial<Record<CacheTtl, number>>>;
 }>;
 
-type ContextTier = Readonly<{ shortMax: number; long: Rates }>;
+type ContextTier = Readonly<{ shortMax: number; long: Rates | null }>;
 type RatePeriod = Readonly<{
   from: string;
   through?: string;
@@ -163,7 +163,7 @@ export function findVerifiedRateCard(provider: string, model: string, day: strin
   if (provider === "openai" && day < OPENAI_12H_FROM) {
     return {
       ...period, pricingVersion, standard: openAiBeforeTwelveHourWrites(period.standard),
-      context: period.context && { ...period.context, long: openAiBeforeTwelveHourWrites(period.context.long) },
+      context: period.context && { ...period.context, long: period.context.long && openAiBeforeTwelveHourWrites(period.context.long) },
     };
   }
   return { ...period, pricingVersion };
@@ -188,7 +188,7 @@ function contextRates(card: RatePeriod, dayInput: number, evidence: StandardPric
   if (!isTokenCount(lower) || !isTokenCount(upper) || lower > upper || lower > dayInput) return null;
   if (singleRequest && dayInput > upper) return null;
   if (Math.min(upper, dayInput) <= context.shortMax) return { rates: standard, tier: "short" };
-  if (singleRequest || lower > context.shortMax) return { rates: context.long, tier: "long" };
+  if (context.long && (singleRequest || lower > context.shortMax)) return { rates: context.long, tier: "long" };
   return null;
 }
 

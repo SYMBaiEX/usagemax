@@ -11,7 +11,7 @@ const observedRate = v.object({
 export const observedModelRate = v.object({
   model: v.string(),
   standard: observedRate,
-  context: v.optional(v.object({ shortMax: v.number(), long: observedRate })),
+  context: v.optional(v.object({ shortMax: v.number(), long: v.union(observedRate, v.null()) })),
   through: v.optional(v.string()),
 });
 export const pricingFailure = v.union(v.literal("source_unavailable"), v.literal("invalid_source"));
