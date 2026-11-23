@@ -13,6 +13,8 @@ crons.interval("quiet coverage notifications", { hours: 24 }, internal.coverageA
 
 crons.interval("evaluate gateway alerts", { minutes: 5 }, internal.gatewayOperations.scheduleAlerts, { cursor: null });
 
+crons.cron("refresh official model pricing", "11 4 * * *", internal.refreshOfficialPricing.refresh, {});
+
 crons.interval("resume historical pricing review", { hours: 1 }, internal.pricingBackfill.resume, {});
 
 export default crons;

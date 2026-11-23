@@ -167,6 +167,8 @@ cannot become an unbounded traffic generator.
 
 The server checks eligible collector snapshots against verified effective-dated rate cards during sync. The backfill applies the same rules to existing snapshot rows. It archives the original estimate in the snapshot and updates the matching cost projections in one transaction. Provider-reported charges and rows with ambiguous tiers, cache TTL, or projection attribution retain their source amounts.
 
+The official OpenAI and Anthropic Standard catalogs refresh daily at 04:11 UTC. Changed rates start on the next full UTC day and retain their source and version. The collector applies these rates to eligible direct Codex and Claude snapshots with sufficient token detail. It retains the incoming amount when a model or rate component is missing, or the applicable catalog has had three days without a successful fetch. Check both providers with `officialPricing:status`. To retry a fetch, run `refreshOfficialPricing:refresh`.
+
 Run `pricingBackfill:preview` with a null cursor and follow its returned cursor until `done`. Review the aggregate counts, then run `pricingBackfill:start` and monitor `pricingBackfill:status`. The hourly recovery schedule resumes interrupted jobs and starts a new sweep when the backfill version changes. Use a new version if new historical rates make existing snapshots eligible.
 
 ## Account deletion

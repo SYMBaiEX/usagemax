@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { productTables } from "./productSchema";
+import { officialPricingTables } from "./officialPricingSchema";
 import { gatewayReceipt, gatewayScope } from "./gatewayContract";
 import { gatewayAlert } from "./gatewayAlertContract";
 
@@ -9,6 +10,7 @@ export const cliAnalyticsArch = v.union(v.literal("x64"), v.literal("arm64"), v.
 
 export default defineSchema({
   ...productTables,
+  ...officialPricingTables,
 
   gatewayCredentials: defineTable({
     workspaceId: v.id("workspaces"),
