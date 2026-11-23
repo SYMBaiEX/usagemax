@@ -60,6 +60,7 @@ describe("authoritative collector snapshots", () => {
       const day = "2026-11-20";
       const historicalRows = [
         { ...rowForCoverage("gpt-6.2-sol", 1000, now), current: counters(1000, 0), costBasis: "unknown" as const },
+        { ...rowForCoverage("gpt-6.1-sol", 1000, now), current: counters(1000, 4000) },
         { ...rowForCoverage("grok-4.7", 1000, now), provider: "xai", current: counters(1000, 2640) },
         { ...rowForCoverage("gpt-6.2-astra", 1000, now), current: counters(1000, 6000), costBasis: "reported" as const },
         { ...rowForCoverage("gpt-6.1-terra", 300_000, now), current: counters(300_000, 0), costBasis: "unknown" as const },
@@ -75,30 +76,34 @@ describe("authoritative collector snapshots", () => {
       await t.run(async (ctx) => {
         const rows = await ctx.db.query("collectorUsageSnapshots").withIndex("by_profileId_and_day",
           (q) => q.eq("profileId", profileId).eq("day", day)).take(10);
-        for (const row of rows) await ctx.db.patch(row._id, { pricingVersion: "ccusage@20.0.20" });
+        for (const row of rows) await ctx.db.patch(row._id, { pricingVersion: row.model === "gpt-6.1-sol"
+          ? "ccusage@20.0.51:live-with-bundled-fallback:direct-v1" : "ccusage@20.0.20" });
       });
       const preview = await t.mutation(internal.pricingBackfill.preview, { cursor: null });
-      expect(preview).toMatchObject({ scanned: 4, corrected: 2, protectedReported: 1, insufficientEvidence: 1, missingProjection: 0 });
-      expect((await t.query(api.public.profile, { handle: "snapshot" }))?.stats?.totalCostMicros).toBe(8640);
+      expect(preview).toMatchObject({ scanned: 5, corrected: 3, protectedReported: 1, insufficientEvidence: 1, missingProjection: 0 });
+      expect((await t.query(api.public.profile, { handle: "snapshot" }))?.stats?.totalCostMicros).toBe(12640);
 
       await t.mutation(internal.pricingBackfill.start, {});
       await t.finishAllScheduledFunctions(vi.runAllTimers);
-      expect(await t.query(internal.pricingBackfill.status, {})).toMatchObject({ status: "complete", corrected: 2, protectedReported: 1 });
-      expect((await t.query(api.public.profile, { handle: "snapshot" }))?.stats).toMatchObject({ totalCostMicros: 10_000, totalTokens: 303_000 });
+      expect(await t.query(internal.pricingBackfill.status, {})).toMatchObject({ status: "complete", corrected: 3, protectedReported: 1 });
+      expect((await t.query(api.public.profile, { handle: "snapshot" }))?.stats).toMatchObject({ totalCostMicros: 12_000, totalTokens: 304_000 });
 
       await t.run(async (ctx) => {
         const rows = await ctx.db.query("collectorUsageSnapshots").withIndex("by_profileId_and_day",
           (q) => q.eq("profileId", profileId).eq("day", day)).take(10);
         expect(rows.find((row) => row.model === "gpt-6.2-astra")?.costMicros).toBe(6000);
         expect(rows.find((row) => row.model === "gpt-6.2-sol")?.priceCorrection?.originalCostMicros).toBe(0);
+        expect(rows.find((row) => row.model === "gpt-6.1-sol")).toMatchObject({
+          costMicros: 2000, costBasis: "api-equivalent", priceCorrection: { originalCostMicros: 4000 },
+        });
         expect(rows.find((row) => row.model === "grok-4.7")?.priceCorrection?.originalCostMicros).toBe(2640);
         const profileDay = await ctx.db.query("profileDailyTotals").withIndex("by_profileId_and_day",
           (q) => q.eq("profileId", profileId).eq("day", day)).unique();
-        expect(profileDay?.costMicros).toBe(10_000);
+        expect(profileDay?.costMicros).toBe(12_000);
         const leaderboard = await ctx.db.query("leaderboardEntries").withIndex("by_profileId_and_period_and_metric",
           (q) => q.eq("profileId", profileId).eq("period", "all").eq("metric", "spend")).unique();
-        expect(leaderboard?.score).toBe(10_000);
-        expect((await ctx.db.query("networkCounterShards").first())?.totalCostMicros).toBe(10_000);
+        expect(leaderboard?.score).toBe(12_000);
+        expect((await ctx.db.query("networkCounterShards").first())?.totalCostMicros).toBe(12_000);
       });
 
       const oldReplay = historicalRows.map((row) => row.costBasis === "reported"
@@ -106,12 +111,12 @@ describe("authoritative collector snapshots", () => {
         : row);
       await sync("pricing-old-replay", oldReplay, "ccusage@20.0.20", 2);
       await t.mutation(internal.pricingBackfill.start, {});
-      expect((await t.query(api.public.profile, { handle: "snapshot" }))?.stats?.totalCostMicros).toBe(10_000);
-      expect(await t.query(internal.pricingBackfill.status, {})).toMatchObject({ status: "complete", corrected: 2 });
+      expect((await t.query(api.public.profile, { handle: "snapshot" }))?.stats?.totalCostMicros).toBe(12_000);
+      expect(await t.query(internal.pricingBackfill.status, {})).toMatchObject({ status: "complete", corrected: 3 });
 
       await sync("new-claude-price", [{ ...rowForCoverage("claude-haiku-5-5", 1000, now), provider: "anthropic",
         current: counters(1000, 0), costBasis: "unknown" }], "ccusage@20.0.51:live-with-bundled-fallback:direct-v1", 3, "claude");
-      expect((await t.query(api.public.profile, { handle: "snapshot" }))?.stats?.totalCostMicros).toBe(10_100);
+      expect((await t.query(api.public.profile, { handle: "snapshot" }))?.stats?.totalCostMicros).toBe(12_100);
     } finally {
       vi.useRealTimers();
     }

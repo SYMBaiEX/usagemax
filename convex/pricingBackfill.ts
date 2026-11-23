@@ -5,7 +5,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { automaticSnapshotPrice } from "./snapshotPricing";
 
-const version = "2026-11-22.1";
+const version = "2026-11-22.2";
 const pageSize = 50;
 const cursor = v.union(v.string(), v.null());
 const totals = {
