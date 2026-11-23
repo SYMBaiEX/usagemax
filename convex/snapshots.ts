@@ -10,6 +10,7 @@ import { enforceCollectorRateLimit } from "./rateLimits";
 import { assertCollectorMembership } from "./collectorAccess";
 import { ensureProfileDevice } from "./devices";
 import { automaticSnapshotPrice } from "./snapshotPricing";
+import { officialCatalogForDay, officialRateCard } from "./officialPricingLookup";
 
 const costBasisValidator = v.union(
   v.literal("reported"),
@@ -419,6 +420,11 @@ export const commitPartition = internalMutation({
       : await partitionQuery.take(101);
     if (!chunked && !cleaning && priorSnapshots.length > 100) throw new ConvexError("SNAPSHOT_CHUNKING_REQUIRED");
     if (priorSnapshots.some((row) => row.revision > args.revision)) throw new ConvexError("STALE_SNAPSHOT_REVISION");
+    const officialProvider = args.source === "codex" ? "openai" : args.source === "claude" ? "anthropic" : null;
+    const officialCatalog = officialProvider && run.baselineMode !== "adopt-current"
+      && args.rows.some((row) => row.provider === officialProvider && row.costBasis !== "reported")
+      ? await officialCatalogForDay(ctx, officialProvider, args.day, args.now)
+      : undefined;
     const changes: Array<{
       provider: string;
       model: string;
@@ -446,7 +452,7 @@ export const commitPartition = internalMutation({
         const quote = automaticSnapshotPrice({
           ...current, source: args.source, day: args.day, provider: row.provider, model: row.model,
           pricingVersion: args.pricingVersion, costBasis: basis,
-        });
+        }, row.provider === officialProvider ? officialRateCard(officialCatalog, row.model, args.day) : undefined);
         if (quote && quote.costMicros !== current.costMicros) {
           priceCorrection = {
             originalCostMicros: unchangedUsage && prior?.priceCorrection ? prior.priceCorrection.originalCostMicros : current.costMicros,

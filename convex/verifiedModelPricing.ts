@@ -21,7 +21,7 @@ export type VerifiedTokenCounts = {
 type Rates = Readonly<{
   input: number;
   output: number;
-  cacheRead: number;
+  cacheRead: number | null;
   cacheWrite?: Readonly<Partial<Record<CacheTtl, number>>>;
 }>;
 
@@ -216,10 +216,11 @@ const RATE_SCALE = BigInt(10_000);
 
 // USD per million tokens is numerically equal to micros per token.
 function costMicros(tokens: VerifiedTokenCounts, rates: Rates, writes: Array<[number, number]>): number | null {
+  if (rates.cacheRead === null && tokens.cacheReadTokens > 0) return null;
   const lines: Array<[number, number]> = [
     [tokens.inputTokens, rates.input],
     [tokens.outputTokens + (tokens.reasoningTokens ?? 0), rates.output],
-    [tokens.cacheReadTokens, rates.cacheRead],
+    [tokens.cacheReadTokens, rates.cacheRead ?? 0],
     ...writes,
   ];
   const scaled = lines.reduce((sum, [quantity, rate]) => sum + BigInt(quantity) * BigInt(Math.round(rate * Number(RATE_SCALE))), BigInt(0));
@@ -230,10 +231,13 @@ function costMicros(tokens: VerifiedTokenCounts, rates: Rates, writes: Array<[nu
 /** The caller supplies documented direct Standard usage or explicitly requests an API-equivalent quote. */
 export function verifiedEstimatedCost(
   input: VerifiedCostInput,
+  observedCard?: VerifiedRateCard,
 ): { costMicros: number; pricingVersion: string; pricingSource: string } | null {
   if (input.costBasis !== "estimated" && input.costBasis !== "api-equivalent") return null;
   if (input.evidence?.standardGlobalText !== true) return null;
-  const card = findVerifiedRateCard(input.provider, input.model, input.day);
+  if (observedCard && (!isUtcDay(input.day) || input.day < observedCard.from ||
+      (observedCard.through && input.day > observedCard.through))) return null;
+  const card = observedCard ?? findVerifiedRateCard(input.provider, input.model, input.day);
   const dayInput = completeTokenCounts(input);
   if (!card || dayInput === null) return null;
   const selection = contextRates(card, dayInput, input.evidence);
