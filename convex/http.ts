@@ -822,6 +822,7 @@ const stripeSnapshotWebhook = httpAction(async (ctx, request) => {
   const subscriptionId = optionalText(snapshot.subscriptionId, 100);
   const customerId = optionalText(snapshot.customerId, 100);
   const status = billingStatus(snapshot.status);
+  const teamPriceVerified = snapshot.teamPriceVerified;
   const allowedEventTypes = new Set([
     "checkout.session.completed",
     "customer.subscription.created",
@@ -838,7 +839,8 @@ const stripeSnapshotWebhook = httpAction(async (ctx, request) => {
     typeof snapshotRetrievedAt !== "number" || snapshotRetrievedAt !== issuedAtNumber ||
     !subscriptionId || !/^sub_[A-Za-z0-9_]{1,95}$/.test(subscriptionId) ||
     !customerId || !/^cus_[A-Za-z0-9_]{1,95}$/.test(customerId) ||
-    !status || typeof snapshot.cancelAtPeriodEnd !== "boolean"
+    !status || typeof snapshot.cancelAtPeriodEnd !== "boolean" ||
+    (teamPriceVerified !== undefined && typeof teamPriceVerified !== "boolean")
   ) return jsonResponse({ error: "invalid_snapshot" }, 400);
   const quantity = snapshot.seatQuantity;
   if (quantity !== undefined && (typeof quantity !== "number" || !Number.isSafeInteger(quantity) || quantity < 0 || quantity > 100_000))
@@ -861,6 +863,7 @@ const stripeSnapshotWebhook = httpAction(async (ctx, request) => {
     customerId,
     subscriptionId,
     priceId,
+    ...(typeof teamPriceVerified === "boolean" ? { teamPriceVerified } : {}),
     tier: billingTier(snapshot.tier),
     status,
     ...(typeof quantity === "number" ? { seatQuantity: quantity } : {}),

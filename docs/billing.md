@@ -99,6 +99,20 @@ Configure the portal to allow payment-method updates, invoice history, and
 subscription cancellation or plan changes only after the corresponding
 customer-support policy is approved.
 
+## Verify billing in a sandbox
+
+Use a separate Stripe sandbox, recurring Team Price, and UsageMax deployment.
+Forward Stripe's signed events to the sandbox app through Stripe CLI and use the
+listener's signing secret for that app. Verify that an initial decline leaves
+the workspace free, a successful checkout grants Team limits, and repeat
+checkout requests reuse the open session. Simulate a failed subscription
+invoice and confirm that `past_due` preserves Team access while the customer
+can update their payment method. Schedule cancellation through the portal,
+then confirm that the final cancellation event restores Free limits.
+
+Keep the live portal configured for payment-method updates, invoice history,
+and cancellation at the end of the current term.
+
 ## Enterprise pilots
 
 Enterprise activation remains operator-controlled. A paid pilot can be

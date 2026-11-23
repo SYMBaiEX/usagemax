@@ -158,6 +158,7 @@ type StripeEventArgs = {
   customerId?: string;
   subscriptionId?: string;
   priceId?: string;
+  teamPriceVerified?: boolean;
   tier?: BillingTier;
   status?: BillingStatus;
   seatQuantity?: number;
@@ -176,6 +177,7 @@ export const applyStripeEvent = internalMutation({
     customerId: v.optional(v.string()),
     subscriptionId: v.optional(v.string()),
     priceId: v.optional(v.string()),
+    teamPriceVerified: v.optional(v.boolean()),
     tier: v.optional(billingTier),
     status: v.optional(billingStatus),
     seatQuantity: v.optional(v.number()),
@@ -227,25 +229,53 @@ export const applyStripeEvent = internalMutation({
         )
         .unique() ?? undefined;
 
+    const recordEvent = () => ctx.db.insert("billingEvents", {
+      eventId: args.eventId,
+      type: args.eventType,
+      workspaceId: billing?.workspaceId ?? metadataWorkspace?._id,
+      providerCreatedAt: args.eventCreatedAt,
+      createdAt: Date.now(),
+    });
+
     // The Vercel webhook facade fetches Stripe's current subscription before
     // this projection. Use that fetch time only to guard against delayed jobs;
     // Stripe event.created has second precision and event IDs are not ordered.
     if (billing?.lastStripeSnapshotAt !== undefined) {
       const stale = args.snapshotRetrievedAt < billing.lastStripeSnapshotAt;
       if (stale) {
-        await ctx.db.insert("billingEvents", {
-          eventId: args.eventId,
-          type: args.eventType,
-          workspaceId: billing.workspaceId,
-          providerCreatedAt: args.eventCreatedAt,
-          createdAt: Date.now(),
-        });
+        await recordEvent();
         return { replay: false, ignored: true, stale: true };
       }
     }
 
     const tier = tierValue(args.tier) ?? billing?.tier ?? "team";
     const status = statusValue(args.status);
+    if (billing && args.customerId && args.customerId !== billing.stripeCustomerId)
+      throw new ConvexError("STRIPE_CUSTOMER_CONFLICT");
+
+    const grantsTeam = tier === "team" && (status === "active" || status === "trialing");
+    const linkedSubscriptionId = billing?.stripeSubscriptionId;
+    const sameSubscription = Boolean(linkedSubscriptionId && linkedSubscriptionId === args.subscriptionId);
+    // Snapshot freshness only orders state within a subscription. Fetching an
+    // old canceled subscription again must not replace a different paid one.
+    if (linkedSubscriptionId && args.subscriptionId && !sameSubscription
+      && (!(billing?.status === "inactive" || billing?.status === "canceled") || !grantsTeam)) {
+      await recordEvent();
+      return { replay: false, ignored: true };
+    }
+
+    const sameRecordedPrice = sameSubscription && Boolean(billing?.stripePriceId)
+      && args.priceId === billing?.stripePriceId;
+    // Older facades omit the assertion during staggered deploys. New facades
+    // explicitly reject unknown prices while retaining already-linked prices
+    // across a configured Price rotation. Apply cancellation and failure
+    // events for the linked subscription even when its price has changed.
+    const priceRejected = tier === "team" && args.teamPriceVerified === false && !sameRecordedPrice;
+    if (priceRejected && (!sameSubscription || grantsTeam)) {
+      await recordEvent();
+      return { replay: false, ignored: true };
+    }
+
     if (!billing && metadataWorkspace && args.customerId && validCustomer(args.customerId)) {
       const now = Date.now();
       const id = await ctx.db.insert("workspaceBilling", {
@@ -269,12 +299,10 @@ export const applyStripeEvent = internalMutation({
       });
       billing = (await ctx.db.get(id)) ?? undefined;
     } else if (billing) {
-      if (args.customerId && args.customerId !== billing.stripeCustomerId)
-        throw new ConvexError("STRIPE_CUSTOMER_CONFLICT");
       const patch: Record<string, unknown> = { updatedAt: Date.now() };
       if (validSubscription(args.subscriptionId))
         patch.stripeSubscriptionId = args.subscriptionId ?? billing.stripeSubscriptionId;
-      if (args.priceId) patch.stripePriceId = args.priceId;
+      if (args.priceId && !priceRejected) patch.stripePriceId = args.priceId;
       if (tier) patch.tier = tier;
       if (status) patch.status = status;
       if (args.seatQuantity !== undefined) patch.seatQuantity = args.seatQuantity;
@@ -301,13 +329,7 @@ export const applyStripeEvent = internalMutation({
       }
     }
 
-    await ctx.db.insert("billingEvents", {
-      eventId: args.eventId,
-      type: args.eventType,
-      workspaceId: billing?.workspaceId ?? metadataWorkspace?._id,
-      providerCreatedAt: args.eventCreatedAt,
-      createdAt: Date.now(),
-    });
+    await recordEvent();
     return { replay: false, ignored: !billing };
   },
 });

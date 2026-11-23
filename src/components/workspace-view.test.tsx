@@ -8,6 +8,7 @@ import { Workspace, Ledger, Teams, Budgets } from "./workspace-view";
 
 const fixture = vi.hoisted(() => ({
   enterprise: false,
+  failedRenewal: false,
   candidateStatus: "Exhausted" as "Exhausted" | "CanLoadMore" | "LoadingFirstPage",
   candidateResults: [] as { userId: string; name: string; email: string }[],
   projectStatus: "Exhausted" as "Exhausted" | "CanLoadMore" | "LoadingFirstPage",
@@ -95,9 +96,11 @@ vi.mock("convex/react", () => ({
       case "workspaces:overview":
         return {
           ...fixture.overview,
+          ...(fixture.failedRenewal ? { billing: { status: "past_due", stripeCustomerId: "cus_fixture" } } : {}),
           policy: {
             ...fixture.overview.policy,
             enterprise: fixture.enterprise,
+            tier: fixture.failedRenewal ? "team" : fixture.overview.policy.tier,
           },
         };
       case "workspaces:list":
@@ -280,6 +283,22 @@ describe("workspace product surfaces", () => {
     expect(billing).toContain("Your plan will update after payment is confirmed.");
     expect(billing).not.toContain("Start Team plan");
   });
+  test("shows Team access and a recovery action after a failed renewal", () => {
+    const enterprise = fixture.enterprise;
+    fixture.enterprise = false;
+    fixture.failedRenewal = true;
+    try {
+      const page = renderToStaticMarkup(<Workspace tab="Billing" />);
+      expect(page).toContain("<strong>Team</strong>");
+      expect(page).toContain("<strong>Past due</strong>");
+      expect(page).toContain("Payment failed. Use Manage billing");
+      expect(page).not.toContain("Start Team plan");
+    } finally {
+      fixture.failedRenewal = false;
+      fixture.enterprise = enterprise;
+    }
+  });
+
   test("team management opens the active team and explains empty membership states", () => {
     const overview = fixture.overview as unknown as Parameters<
       typeof Teams

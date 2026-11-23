@@ -347,9 +347,7 @@ export function Workspace({ tab = "Overview", billingStatus }: WorkspaceSelectio
   const cap = overview.capabilities;
   const tierLabel = overview.policy.enterprise
     ? "Enterprise"
-    : overview.billing?.status === "active" || overview.billing?.status === "trialing"
-      ? "Team operations"
-      : "Free workspace";
+    : overview.policy.tier === "team" ? "Team operations" : "Free workspace";
   const initials = overview.workspace.name
     .split(/\s+/)
     .filter(Boolean)
@@ -545,10 +543,7 @@ function WorkspaceOverview({ overview }: { overview: Overview }) {
     : "Personal workspace";
   const plan = overview.policy.enterprise
     ? "Enterprise"
-    : overview.billing?.status === "active" ||
-        overview.billing?.status === "trialing"
-      ? "Team operations"
-      : "Free workspace";
+    : overview.policy.tier === "team" ? "Team operations" : "Free workspace";
   return (
     <>
       {canReadUsage && (
@@ -718,8 +713,8 @@ function WorkspaceOverview({ overview }: { overview: Overview }) {
 function Billing({ overview, status }: { overview: Overview; status?: string }) {
   const canManage = overview.capabilities["billing:manage"];
   const billing = overview.billing;
-  const active = billing?.status === "active" || billing?.status === "trialing";
-  const checkoutPending = status === "success" && !active;
+  const team = overview.policy.tier === "team";
+  const checkoutPending = status === "success" && !team;
   const messages = new Map([
     ["success", checkoutPending ? "Stripe returned you to UsageMax. Your plan will update after payment is confirmed." : "Your Team plan is active."],
     ["cancelled", "Checkout was closed. You can start it again from this page."],
@@ -733,21 +728,24 @@ function Billing({ overview, status }: { overview: Overview; status?: string }) 
     ["checkout_failed", "Checkout could not be started. Try again or contact billing support."],
   ]);
   const notice = status ? messages.get(status) : undefined;
-  const canStart = !active && !checkoutPending && (!billing || billing.status === "inactive" || billing.status === "canceled");
+  const canStart = !team && !checkoutPending && (!billing || billing.status === "inactive" || billing.status === "canceled");
   const period = billing?.currentPeriodEnd
     ? new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(billing.currentPeriodEnd)
     : null;
   return (
     <Panel title="Plan & billing" eyebrow="ACCOUNT">
       {notice && <p className={styles.notice} role="status">{notice}</p>}
+      {billing?.status === "past_due" && (
+        <p className={styles.notice} role="status">Payment failed. Use Manage billing to review or update your payment method.</p>
+      )}
       <div className={styles.stats}>
         <div>
           <span>Workspace plan</span>
-          <strong>{overview.policy.enterprise ? "Enterprise" : active ? "Team" : "Free"}</strong>
+          <strong>{overview.policy.enterprise ? "Enterprise" : team ? "Team" : "Free"}</strong>
         </div>
         <div>
           <span>Billing status</span>
-          <strong>{billing?.status ?? "Not started"}</strong>
+          <strong>{billing?.status === "past_due" ? "Past due" : billing?.status ?? "Not started"}</strong>
         </div>
         <div>
           <span>{billing?.cancelAtPeriodEnd ? "Access ends" : "Renewal"}</span>

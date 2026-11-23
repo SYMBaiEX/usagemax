@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import type Stripe from "stripe";
-import { deliverStripeBillingSnapshot, isSupportedStripeBillingEvent, stripeBillingSnapshot, stripeSubscriptionIdForEvent } from "@/lib/stripe-webhook";
+import { deliverStripeBillingSnapshot, isSupportedStripeBillingEvent, stripeBillingSnapshot, stripeSubscriptionIdForEvent, verifyStripeTeamPrice } from "@/lib/stripe-webhook";
 import { stripeClient } from "@/lib/stripe";
 
 const convexSiteUrl = process.env.NEXT_PUBLIC_CONVEX_SITE_URL;
@@ -52,7 +52,13 @@ export async function POST(request: Request) {
     return Response.json({ error: "billing_state_unavailable" }, { status: 503 });
   }
 
-  const body = JSON.stringify(snapshot);
+  let priceVerification: ReturnType<typeof verifyStripeTeamPrice>;
+  try {
+    priceVerification = verifyStripeTeamPrice(snapshot, process.env.STRIPE_TEAM_PRICE_ID);
+  } catch {
+    return Response.json({ error: "billing_not_configured" }, { status: 503 });
+  }
+  const body = JSON.stringify({ ...snapshot, teamPriceVerified: priceVerification.teamPriceVerified });
   const issuedAt = String(snapshot.snapshotRetrievedAt);
   const handoffSignature = createHmac("sha256", handoffSecret)
     .update(`${issuedAt}.${body}`)
@@ -66,6 +72,7 @@ export async function POST(request: Request) {
       stripeSignature: signature,
       issuedAt,
       handoffSignature,
+      allowLegacy: priceVerification.allowLegacy,
     });
   } catch {
     return Response.json({ error: "billing_sync_unavailable" }, { status: 503 });

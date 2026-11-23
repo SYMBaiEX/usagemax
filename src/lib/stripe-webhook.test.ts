@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type Stripe from "stripe";
-import { deliverStripeBillingSnapshot, isSupportedStripeBillingEvent, stripeBillingSnapshot, stripeSubscriptionIdForEvent } from "./stripe-webhook";
+import { deliverStripeBillingSnapshot, isSupportedStripeBillingEvent, stripeBillingSnapshot, stripeSubscriptionIdForEvent, verifyStripeTeamPrice } from "./stripe-webhook";
 
 function event(type: string, object: Record<string, unknown>): Stripe.Event {
   return {
@@ -64,6 +64,22 @@ describe("Stripe billing webhook normalization", () => {
     });
   });
 
+  it("projects a Stripe portal cancellation recorded as cancel_at", () => {
+    const snapshot = stripeBillingSnapshot(event("customer.subscription.updated", { id: "sub_flexible" }), {
+      id: "sub_flexible",
+      customer: "cus_123",
+      status: "past_due",
+      cancel_at: 1_800_000_030,
+      cancel_at_period_end: false,
+      items: { data: [{ current_period_end: 1_800_000_060 }] },
+    } as unknown as Stripe.Subscription, 1_800_000_002_000);
+    expect(snapshot).toMatchObject({
+      status: "past_due",
+      currentPeriodEnd: 1_800_000_030_000,
+      cancelAtPeriodEnd: true,
+    });
+  });
+
   it("handles expired incomplete subscriptions without widening the Convex status set", () => {
     const snapshot = stripeBillingSnapshot(event("customer.subscription.deleted", { id: "sub_expired" }), {
       id: "sub_expired",
@@ -75,6 +91,16 @@ describe("Stripe billing webhook normalization", () => {
     } as unknown as Stripe.Subscription, 1_800_000_002_000);
     expect(snapshot.status).toBe("canceled");
     expect(snapshot.currentPeriodEnd).toBeUndefined();
+  });
+
+  it("verifies grants against the configured Team Price and fails closed on missing configuration", () => {
+    const paid = { tier: "team", status: "active", priceId: "price_team" } as const;
+    expect(verifyStripeTeamPrice(paid, "price_team")).toEqual({ teamPriceVerified: true, allowLegacy: true });
+    expect(verifyStripeTeamPrice(paid, "price_other")).toEqual({ teamPriceVerified: false, allowLegacy: false });
+    expect(() => verifyStripeTeamPrice(paid, "")).toThrow("stripe_price_not_configured");
+    expect(() => verifyStripeTeamPrice(paid, "prod_team")).toThrow("stripe_price_not_configured");
+    expect(verifyStripeTeamPrice({ ...paid, status: "canceled" }, undefined))
+      .toEqual({ teamPriceVerified: false, allowLegacy: true });
   });
 
   it("uses the legacy signed webhook only while the new Convex route is absent", async () => {
@@ -105,11 +131,14 @@ describe("Stripe billing webhook normalization", () => {
     expect(requests[1]?.init?.body).toBe("{\"id\":\"evt_safe\"}");
   });
 
-  it("does not fall back to stale-event processing for non-404 snapshot errors", async () => {
+  it.each([
+    { status: 503, allowLegacy: true },
+    { status: 404, allowLegacy: false },
+  ])("does not fall back when the snapshot responds with $status and allowLegacy is $allowLegacy", async ({ status, allowLegacy }) => {
     const requests: string[] = [];
     const fetcher = async (input: RequestInfo | URL) => {
       requests.push(String(input));
-      return new Response(null, { status: 503 });
+      return new Response(null, { status });
     };
     const response = await deliverStripeBillingSnapshot({
       convexSiteUrl: "https://example.convex.site",
@@ -118,9 +147,10 @@ describe("Stripe billing webhook normalization", () => {
       stripeSignature: "t=1,v1=signed",
       issuedAt: "1800000000000",
       handoffSignature: "a".repeat(64),
+      allowLegacy,
       fetcher: fetcher as typeof fetch,
     });
-    expect(response.status).toBe(503);
+    expect(response.status).toBe(status);
     expect(requests).toHaveLength(1);
   });
 });
