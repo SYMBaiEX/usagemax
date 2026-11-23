@@ -22,8 +22,10 @@ export function automaticSnapshotPrice(row: PriceInput, observedCard?: VerifiedR
   const direct = (row.source === "codex" && row.provider === "openai")
     || (row.source === "claude" && row.provider === "anthropic")
     || (row.provider === "xai" && row.model === "grok-4.7" && row.priceCorrection !== undefined);
+  const eligibleDirectEstimate = direct && row.provider !== "xai" && row.costBasis === "estimated"
+    && row.pricingVersion?.endsWith(":direct-v1");
   const missingEstimate = row.costMicros === 0 && row.totalTokens > 0;
-  if (!isKnownGrokOverestimate(row) && !(direct && (observedCard || missingEstimate || row.priceCorrection !== undefined))) return null;
+  if (!isKnownGrokOverestimate(row) && !(direct && (observedCard || eligibleDirectEstimate || missingEstimate || row.priceCorrection !== undefined))) return null;
 
   const quote = verifiedEstimatedCost({
     ...row,
