@@ -3,6 +3,7 @@ import { ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 import { gatewayLimits, isGatewayRequestId, parseGatewayBatch, validateGatewayRange } from "./gatewayContract";
+import { parseEvalRun } from "./gatewayEvalContract";
 import type { GatewayReceipt, GatewayScope } from "./gatewayContract";
 import { jsonResponse, sha256 } from "./lib";
 
@@ -24,6 +25,9 @@ function errorFor(error?: unknown) {
   if (data === "INVALID_GATEWAY_RANGE" || data === "INVALID_GATEWAY_LIMIT") {
     return jsonResponse({ error: "invalid_gateway_range" }, 400);
   }
+  if (data === "GATEWAY_EVAL_BASELINE_NOT_FOUND") return jsonResponse({ error: "gateway_eval_baseline_not_found" }, 404);
+  if (data === "GATEWAY_EVAL_BASELINE_MISMATCH") return jsonResponse({ error: "gateway_eval_baseline_mismatch" }, 409);
+  if (data === "GATEWAY_EVAL_RUN_CONFLICT") return jsonResponse({ error: "gateway_eval_run_conflict" }, 409);
   if (data === "INVALID_GATEWAY_BATCH") return jsonResponse({ error: "invalid_gateway_batch" }, 400);
   if (data && typeof data === "object" && !Array.isArray(data) && "code" in data
     && data.code === "GATEWAY_RATE_LIMITED" && typeof data.retryAfter === "number") {
@@ -74,6 +78,29 @@ export const ingestGatewayReceipts = httpAction(async (ctx, request) => {
     const hashes = await Promise.all(receipts.map(async (receipt) => ({ receipt, payloadHash: await sha256(JSON.stringify(receipt)) })));
     const result = await ctx.runMutation(internal.gatewayReceipts.receive, { keyHash, receipts: hashes });
     return jsonResponse(result);
+  } catch (error) {
+    return errorFor(error);
+  }
+});
+
+export const ingestGatewayEval = httpAction(async (ctx, request) => {
+  const keyHash = await keyHashFor(request);
+  if (!keyHash) return errorFor();
+  if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") {
+    return jsonResponse({ error: "content_type_must_be_application_json" }, 415);
+  }
+  const body = await readBody(request).catch(() => undefined);
+  if (body === null) return jsonResponse({ error: "payload_too_large" }, 413);
+  let run;
+  try {
+    run = body ? parseEvalRun(JSON.parse(body) as unknown) : null;
+  } catch {
+    run = null;
+  }
+  if (!run) return jsonResponse({ error: "invalid_gateway_eval_run" }, 400);
+  try {
+    const payloadHash = await sha256(JSON.stringify(run));
+    return jsonResponse(await ctx.runMutation(internal.gatewayEvals.receive, { keyHash, payloadHash, ...run }));
   } catch (error) {
     return errorFor(error);
   }

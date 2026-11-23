@@ -22,6 +22,8 @@ import type * as finance from "../finance.js";
 import type * as gatewayAlertContract from "../gatewayAlertContract.js";
 import type * as gatewayContract from "../gatewayContract.js";
 import type * as gatewayCredentials from "../gatewayCredentials.js";
+import type * as gatewayEvalContract from "../gatewayEvalContract.js";
+import type * as gatewayEvals from "../gatewayEvals.js";
 import type * as gatewayHttp from "../gatewayHttp.js";
 import type * as gatewayMetrics from "../gatewayMetrics.js";
 import type * as gatewayOperations from "../gatewayOperations.js";
@@ -78,6 +80,8 @@ declare const fullApi: ApiFromModules<{
   gatewayAlertContract: typeof gatewayAlertContract;
   gatewayContract: typeof gatewayContract;
   gatewayCredentials: typeof gatewayCredentials;
+  gatewayEvalContract: typeof gatewayEvalContract;
+  gatewayEvals: typeof gatewayEvals;
   gatewayHttp: typeof gatewayHttp;
   gatewayMetrics: typeof gatewayMetrics;
   gatewayOperations: typeof gatewayOperations;

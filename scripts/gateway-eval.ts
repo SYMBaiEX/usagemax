@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { z } from "zod";
 import syntheticDataset from "../evals/gateway-smoke-v1.json";
 import { baselineSchema, compareBaseline, datasetSchema, evaluate, gatewayEvaluator, observationSchema, observeSonnely } from "./evals/gateway";
+import { hostedEvalConfig, publishHostedEval } from "./evals/publish";
 
 async function json(path: string | URL): Promise<unknown> {
   return JSON.parse(await readFile(path, "utf8"));
@@ -12,6 +13,7 @@ async function main([command, baselineFile, ...extra]: string[]) {
       (command === "fixture" && baselineFile !== undefined) ||
       (command === "sonnely" && !baselineFile?.trim()))
     throw new Error("Usage: bun scripts/gateway-eval.ts fixture | sonnely <live-baseline.json | --measure>");
+  const publication = hostedEvalConfig(process.env);
   const dataset = datasetSchema.parse(syntheticDataset);
   const inputs: z.infer<typeof observationSchema>[] = [];
   const measuring = command === "sonnely" && baselineFile === "--measure";
@@ -36,9 +38,16 @@ async function main([command, baselineFile, ...extra]: string[]) {
   }
   const report = evaluate(dataset, inputs, command);
   const regressions = baseline ? compareBaseline(report, baseline) : [];
-  console.log(JSON.stringify({ ...report, gate: baseline ? { baseline: baseline.name, passed: !regressions.length, regressions } : null }, null, 2));
+  const gate = baseline ? { baseline: baseline.name, passed: !regressions.length, regressions } : null;
   if (regressions.length || (measuring && report.routes.some((route) => route.passed < route.total)))
     process.exitCode = 1;
+  let hosted: Awaited<ReturnType<typeof publishHostedEval>> | undefined;
+  try {
+    if (publication) hosted = await publishHostedEval(publication, report);
+  } finally {
+    console.log(JSON.stringify({ ...report, gate, hosted }, null, 2));
+  }
+  if (hosted?.gate?.passed === false) process.exitCode = 1;
 }
 
 main(process.argv.slice(2)).catch((error: unknown) => {

@@ -1,0 +1,40 @@
+name: Publish hosted gateway eval
+
+on:
+  workflow_dispatch:
+    inputs:
+      baseline_run_id:
+        description: "Optional retained fixture run ID from the same project"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish-fixture:
+    if: github.repository == 'SYMBaiEX/usagemax' && github.ref == 'refs/heads/main'
+    environment:
+      name: gateway-evals
+      url: https://usagemax.com/workspace/gateway
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - name: Run the fixture and publish its measurements
+        env:
+          USAGEMAX_GATEWAY_EVAL_INGEST_KEY: ${{ secrets.USAGEMAX_GATEWAY_EVAL_INGEST_KEY }}
+          USAGEMAX_GATEWAY_EVAL_RUN_ID: ci-${{ github.run_id }}-${{ github.run_attempt }}
+          USAGEMAX_GATEWAY_EVAL_BASELINE_RUN_ID: ${{ inputs.baseline_run_id }}
+        run: |
+          if [ -z "$USAGEMAX_GATEWAY_EVAL_INGEST_KEY" ]; then
+            echo "::error::Set USAGEMAX_GATEWAY_EVAL_INGEST_KEY in the gateway-evals environment."
+            exit 1
+          fi
+          bun scripts/gateway-eval.ts fixture

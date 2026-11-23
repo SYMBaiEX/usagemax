@@ -34,6 +34,26 @@ const counters = [
 
 export const gatewayBearer = { type: "http", scheme: "bearer", bearerFormat: "umxg_ followed by 64 lowercase hex characters" };
 
+const evalId = { type: "string", pattern: "^[a-z0-9][a-z0-9._-]{0,63}$", minLength: 1, maxLength: 64 };
+const evalCount = { ...count, maximum: 1_000_000_000_000 };
+const evalCaseResult = {
+  type: "object", additionalProperties: false,
+  required: ["caseId", "passed", "inputTokens", "outputTokens", "chargedMicrousd", "latencyMs"],
+  properties: {
+    caseId: evalId, passed: { type: "boolean" }, inputTokens: evalCount, outputTokens: evalCount,
+    chargedMicrousd: { ...evalCount, description: "Settled customer charge in USD millionths, as submitted by the runner." },
+    latencyMs: evalCount,
+  },
+};
+const evalRoute = {
+  type: "object", additionalProperties: false, required: ["id", "provider", "model", "passed", "total", "results"],
+  properties: {
+    id: evalId, provider: evalId, model: { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,99}$" },
+    passed: { ...count, maximum: 20 }, total: { ...count, minimum: 1, maximum: 20 },
+    results: { type: "array", minItems: 1, maxItems: 20, items: evalCaseResult },
+  },
+};
+
 export const gatewayPaths = {
   "/api/v1/gateway/receipts": {
     post: {
@@ -79,6 +99,27 @@ export const gatewayPaths = {
       },
     },
   },
+  "/api/v1/gateway/evals": {
+    post: {
+      tags: ["Private gateway"],
+      operationId: "publishGatewayEvalRun",
+      description: "Save a content-free eval result in the ingest key's project. Retrying identical evidence with the same run ID is idempotent. An optional baseline checks quality for matching routes and cases.",
+      security: authorization,
+      requestBody: {
+        required: true,
+        content: { "application/json": { schema: { $ref: "#/components/schemas/GatewayEvalRun" } } },
+      },
+      responses: {
+        ...errors,
+        "200": result("Stored run and its hosted quality gate, when a baseline was requested.", { $ref: "#/components/schemas/GatewayEvalReceipt" }),
+        "400": { description: "Invalid eval run." },
+        "404": { description: "The baseline run is absent or expired in this project." },
+        "409": { description: "The run ID conflicts with stored evidence, or the baseline has a different mode, dataset, evaluator, routes, or cases." },
+        "413": { description: "Body exceeds 64 KiB." },
+        "415": { description: "Use application/json." },
+      },
+    },
+  },
   "/api/v1/gateway/operations": {
     get: {
       tags: ["Private gateway"],
@@ -104,6 +145,36 @@ export const gatewayPaths = {
 };
 
 export const gatewaySchemas = {
+  GatewayEvalRun: {
+    type: "object", additionalProperties: false, required: ["runId", "report"],
+    properties: {
+      runId: evalId, baselineRunId: evalId,
+      report: {
+        type: "object", additionalProperties: false, required: ["mode", "dataset", "datasetVersion", "evaluator", "routes"],
+        properties: {
+          mode: { type: "string", enum: ["fixture", "sonnely"] },
+          dataset: evalId, datasetVersion: evalId, evaluator: evalId,
+          routes: { type: "array", minItems: 2, maxItems: 2, items: evalRoute },
+        },
+      },
+    },
+  },
+  GatewayEvalReceipt: {
+    type: "object", additionalProperties: false, required: ["runId", "status", "gate"],
+    properties: {
+      runId: evalId, status: { type: "string", enum: ["accepted", "replay"] },
+      gate: {
+        type: ["object", "null"], additionalProperties: false, required: ["passed", "regressions"],
+        properties: {
+          passed: { type: "boolean" },
+          regressions: { type: "array", maxItems: 40, items: {
+            type: "object", additionalProperties: false, required: ["routeId", "caseId"],
+            properties: { routeId: evalId, caseId: evalId },
+          } },
+        },
+      },
+    },
+  },
   GatewayReceipt: {
     type: "object",
     additionalProperties: false,

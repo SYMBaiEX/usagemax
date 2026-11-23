@@ -1337,6 +1337,9 @@ export const processAccountDeletion = internalMutation({
       const gatewayReceipts = await ctx.db.query("gatewayReceipts")
         .withIndex("by_workspaceId_and_historyAt", (q) => q.eq("workspaceId", request.workspaceId)).take(100);
       if (gatewayReceipts.length) return finishRows(gatewayReceipts);
+      const gatewayEvals = await ctx.db.query("gatewayEvalRuns")
+        .withIndex("by_workspaceId_and_createdAt", (q) => q.eq("workspaceId", request.workspaceId)).take(100);
+      if (gatewayEvals.length) return finishRows(gatewayEvals);
       const gatewayAlerts = await ctx.db.query("gatewayAlertEvents")
         .withIndex("by_workspaceId_and_updatedAt", (q) => q.eq("workspaceId", request.workspaceId)).take(100);
       if (gatewayAlerts.length) return finishRows(gatewayAlerts);

@@ -35,6 +35,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/gateway/evals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Save a content-free eval result in the ingest key's project. Retrying identical evidence with the same run ID is idempotent. An optional baseline checks quality for matching routes and cases. */
+        post: operations["publishGatewayEvalRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/gateway/operations": {
         parameters: {
             query?: never;
@@ -73,6 +90,45 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        GatewayEvalRun: {
+            runId: string;
+            baselineRunId?: string;
+            report: {
+                /** @enum {string} */
+                mode: "fixture" | "sonnely";
+                dataset: string;
+                datasetVersion: string;
+                evaluator: string;
+                routes: {
+                    id: string;
+                    provider: string;
+                    model: string;
+                    passed: number;
+                    total: number;
+                    results: {
+                        caseId: string;
+                        passed: boolean;
+                        inputTokens: number;
+                        outputTokens: number;
+                        /** @description Settled customer charge in USD millionths, as submitted by the runner. */
+                        chargedMicrousd: number;
+                        latencyMs: number;
+                    }[];
+                }[];
+            };
+        };
+        GatewayEvalReceipt: {
+            runId: string;
+            /** @enum {string} */
+            status: "accepted" | "replay";
+            gate: {
+                passed: boolean;
+                regressions: {
+                    routeId: string;
+                    caseId: string;
+                }[];
+            } | null;
+        };
         GatewayReceipt: {
             /** @constant */
             schemaVersion: 1;
@@ -426,6 +482,93 @@ export interface operations {
             };
             /** @description The request was not found in this project. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Project key rate limit reached. Retry with backoff. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The UsageMax gateway service is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    publishGatewayEvalRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GatewayEvalRun"];
+            };
+        };
+        responses: {
+            /** @description Stored run and its hosted quality gate, when a baseline was requested. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GatewayEvalReceipt"];
+                };
+            };
+            /** @description Invalid eval run. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid, revoked, or inactive gateway key. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The gateway key lacks the required scope. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The baseline run is absent or expired in this project. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The run ID conflicts with stored evidence, or the baseline has a different mode, dataset, evaluator, routes, or cases. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Body exceeds 64 KiB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Use application/json. */
+            415: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -165,12 +165,15 @@ function GatewayProjects({ overview, projectHint, receiptHint, today }: GatewayP
         )}
       </section>
       {project && overview.capabilities["finance:read"] && (
-        <GatewayReceipts
-          key={`${project._id}:${receiptHint ?? ""}`}
-          projectId={project._id}
-          receiptHint={!projectHint || projectHint === project._id ? receiptHint : null}
-          today={today}
-        />
+        <>
+          <GatewayEvalRuns key={project._id} projectId={project._id} />
+          <GatewayReceipts
+            key={`${project._id}:${receiptHint ?? ""}`}
+            projectId={project._id}
+            receiptHint={!projectHint || projectHint === project._id ? receiptHint : null}
+            today={today}
+          />
+        </>
       )}
       {project && receiptHint && !overview.capabilities["finance:read"] && (
         <section className={styles.panel}>
@@ -187,6 +190,67 @@ function GatewayProjects({ overview, projectHint, receiptHint, today }: GatewayP
         />
       )}
     </div>
+  );
+}
+
+function GatewayEvalRuns({ projectId }: { projectId: Id<"projects"> }) {
+  const page = useQuery(api.gatewayEvals.list, { projectId });
+  return (
+    <section className={styles.panel} aria-label="Hosted eval runs">
+      <h2>Hosted eval runs</h2>
+      {page === undefined ? (
+        <p role="status" className={styles.hint}>Loading eval runs…</p>
+      ) : page.runs.length === 0 ? (
+        <>
+          <p className={styles.hint}>Publish a fixture run with a project ingest key to see quality, token usage, and latency here.</p>
+          <a className="button button-outline" href="https://docs.usagemax.com/gateway#hosted-evaluation-runs">Set up eval publication</a>
+        </>
+      ) : (
+        <div className={styles.body}>
+          {page.runs.map((run) => <GatewayEvalRun key={run.runId} run={run} />)}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function GatewayEvalRun({ run }: { run: FunctionReturnType<typeof api.gatewayEvals.list>["runs"][number] }) {
+  const { report, gate } = run;
+  const results = report.routes.flatMap((route) => route.results);
+  const passed = report.routes.reduce((sum, route) => sum + route.passed, 0);
+  const input = results.reduce((sum, item) => sum + BigInt(item.inputTokens), BigInt(0));
+  const output = results.reduce((sum, item) => sum + BigInt(item.outputTokens), BigInt(0));
+  const chargeNanos = results.reduce((sum, item) => sum + BigInt(item.chargedMicrousd) * BigInt(1000), BigInt(0));
+  const latencies = results.map((item) => item.latencyMs).sort((a, b) => a - b);
+  const p95 = latencies[Math.ceil(latencies.length * 0.95) - 1];
+  const fixture = report.mode === "fixture";
+  const comparison = gate === null ? "Baseline comparison skipped" : gate.passed ? "Baseline passed" : "Quality regression";
+
+  return (
+    <details className={styles.item}>
+      <summary>{run.runId} · {fixture ? "Fixture" : "Live Sonnely"} · {passed}/{results.length} cases passed · {comparison}</summary>
+      <p className={styles.hint}>{report.dataset} {report.datasetVersion} · {report.evaluator} · <time dateTime={new Date(run.createdAt).toISOString()}>{utc(run.createdAt)}</time></p>
+      <dl className={gateway.facts}>
+        <div><dt>Input / output tokens</dt><dd>{integer.format(input)} / {integer.format(output)}</dd></div>
+        <div><dt>{fixture ? "Simulated charge" : "Recorded customer charge"}</dt><dd>{usdNanos(chargeNanos.toString())}</dd></div>
+        <div><dt>P95 latency</dt><dd>{p95 === undefined ? "—" : `${integer.format(p95)} ms`}</dd></div>
+        {run.baselineRunId && <div><dt>Baseline run</dt><dd>{run.baselineRunId}</dd></div>}
+      </dl>
+      <div className={styles.scroll} role="region" aria-label="Evaluation routes" tabIndex={0}>
+        <table className={styles.table}>
+          <thead><tr><th scope="col">Route</th><th scope="col">Provider</th><th scope="col">Model</th><th scope="col">Cases passed</th></tr></thead>
+          <tbody>{report.routes.map((route) => (
+            <tr key={route.id}>
+              <th scope="row">{route.id}</th><td>{route.provider}</td><td>{route.model}</td><td>{route.passed}/{route.total}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+      {gate && gate.regressions.length > 0 && <>
+        <h3>Regressed cases</h3>
+        <ul>{gate.regressions.map(({ routeId, caseId }) => <li key={`${routeId}/${caseId}`}>{routeId} / {caseId}</li>)}</ul>
+      </>}
+    </details>
   );
 }
 

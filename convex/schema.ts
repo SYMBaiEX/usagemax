@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { productTables } from "./productSchema";
 import { officialPricingTables } from "./officialPricingSchema";
 import { gatewayReceipt, gatewayScope } from "./gatewayContract";
+import { evalRun } from "./gatewayEvalContract";
 import { gatewayAlert } from "./gatewayAlertContract";
 
 export const cliAnalyticsPlatform = v.union(v.literal("darwin"), v.literal("linux"), v.literal("win32"), v.literal("other"));
@@ -42,6 +43,16 @@ export default defineSchema({
     .index("by_projectId_and_historyAt", ["projectId", "historyAt"])
     .index("by_projectId_and_billingPending_and_historyAt", ["projectId", "billingPending", "historyAt"])
     .index("by_workspaceId_and_historyAt", ["workspaceId", "historyAt"]),
+
+  gatewayEvalRuns: defineTable({
+    ...evalRun.fields,
+    workspaceId: v.id("workspaces"),
+    projectId: v.id("projects"),
+    payloadHash: v.string(),
+  })
+    .index("by_projectId_and_runId", ["projectId", "runId"])
+    .index("by_projectId_and_createdAt", ["projectId", "createdAt"])
+    .index("by_workspaceId_and_createdAt", ["workspaceId", "createdAt"]),
 
   gatewayAlertEvents: defineTable({
     ...gatewayAlert.fields,
