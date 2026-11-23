@@ -100,7 +100,13 @@ export function stripeBillingSnapshot(
     : statusValue === "incomplete_expired"
       ? "canceled"
       : "inactive";
-  const periodEnd = firstItem?.current_period_end ?? subscriptionRecord.current_period_end;
+  // Flexible Billing can schedule cancellation using cancel_at (including
+  // portal cancellations) while leaving cancel_at_period_end false.
+  const cancelAt = status !== "canceled" && typeof subscriptionRecord.cancel_at === "number"
+    && Number.isSafeInteger(subscriptionRecord.cancel_at) && subscriptionRecord.cancel_at > 0
+    ? subscriptionRecord.cancel_at
+    : undefined;
+  const periodEnd = cancelAt ?? firstItem?.current_period_end ?? subscriptionRecord.current_period_end;
   const eventObject = record(record(event.data)?.object);
   const workspaceId = typeof metadata?.workspaceId === "string" && metadata.workspaceId.length <= 128
     ? metadata.workspaceId
@@ -122,11 +128,24 @@ export function stripeBillingSnapshot(
     status,
     ...(typeof firstItem?.quantity === "number" ? { seatQuantity: firstItem.quantity } : {}),
     ...(typeof periodEnd === "number" ? { currentPeriodEnd: periodEnd * 1000 } : {}),
-    cancelAtPeriodEnd: subscriptionRecord.cancel_at_period_end === true,
+    cancelAtPeriodEnd: status !== "canceled" && (subscriptionRecord.cancel_at_period_end === true || cancelAt !== undefined),
     ...(event.type.startsWith("invoice.") && typeof eventObject?.id === "string"
       ? { invoiceId: eventObject.id }
       : {}),
   };
+}
+
+/** Check whether a snapshot may grant Team access or use the legacy handoff. */
+export function verifyStripeTeamPrice(
+  snapshot: Pick<StripeBillingSnapshot, "tier" | "status" | "priceId">,
+  configuredTeamPriceId: string | undefined,
+) {
+  const canGrantTeam = snapshot.tier !== "enterprise"
+    && (snapshot.status === "active" || snapshot.status === "trialing");
+  const configured = Boolean(configuredTeamPriceId && /^price_[A-Za-z0-9_]+$/.test(configuredTeamPriceId));
+  if (!configured && canGrantTeam) throw new Error("stripe_price_not_configured");
+  const teamPriceVerified = configured && snapshot.priceId === configuredTeamPriceId;
+  return { teamPriceVerified, allowLegacy: !canGrantTeam || teamPriceVerified };
 }
 
 /**
@@ -141,6 +160,7 @@ export async function deliverStripeBillingSnapshot({
   stripeSignature,
   issuedAt,
   handoffSignature,
+  allowLegacy = true,
   fetcher = fetch,
 }: {
   convexSiteUrl: string;
@@ -149,6 +169,7 @@ export async function deliverStripeBillingSnapshot({
   stripeSignature: string;
   issuedAt: string;
   handoffSignature: string;
+  allowLegacy?: boolean;
   fetcher?: typeof fetch;
 }) {
   const snapshotResponse = await fetcher(`${convexSiteUrl}/v1/billing/stripe-sync`, {
@@ -162,7 +183,7 @@ export async function deliverStripeBillingSnapshot({
     cache: "no-store",
     signal: AbortSignal.timeout(15_000),
   });
-  if (snapshotResponse.status !== 404) return snapshotResponse;
+  if (snapshotResponse.status !== 404 || !allowLegacy) return snapshotResponse;
 
   return fetcher(`${convexSiteUrl}/v1/billing/stripe-webhook`, {
     method: "POST",
