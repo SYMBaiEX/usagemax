@@ -28,7 +28,7 @@
     "@workos-inc/node": "^10.13.0",
     "convex": "^1.46.0",
     "facehash": "0.1.0",
-    "jose": "^6.2.12",
+    "jose": "^6.2.18",
     "next": "16.3.5",
     "react": "19.3.1",
     "react-dom": "19.3.1",
