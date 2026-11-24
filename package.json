@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@convex-dev/rate-limiter": "^0.4.0",
-    "@workos-inc/authkit-nextjs": "^4.3.2",
+    "@workos-inc/authkit-nextjs": "^4.6.3",
     "@workos-inc/node": "^10.13.0",
     "convex": "^1.46.0",
     "facehash": "0.1.0",
